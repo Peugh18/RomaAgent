@@ -11,7 +11,6 @@ use App\Services\ClienteGemini;
 use App\Services\ConfiguracionAgente;
 use App\Services\ContextoConversacion;
 use App\Services\ResultadoGeminiAgente;
-use Illuminate\Support\Facades\Log;
 
 class AgenteVendedor
 {
@@ -127,7 +126,18 @@ class AgenteVendedor
         }
 
         if ($tipo === 'audio') {
-            return '[La clienta envió un audio]. '.$mensaje->content;
+            $transcript = is_string($metadata['transcript'] ?? null) ? trim($metadata['transcript']) : '';
+
+            if ($transcript !== '') {
+                return '[La clienta envió un audio diciendo]: '.$transcript;
+            }
+
+            $contenido = trim($mensaje->content);
+            if ($contenido === '' || $contenido === '🎤 Audio' || str_starts_with($contenido, '🎤')) {
+                return '[La clienta envió un audio pero no se pudo transcribir. Pide amablemente que repita por escrito. NO envíes saludo de bienvenida; continúa según el historial del pedido.]';
+            }
+
+            return '[La clienta envió un audio]. '.$contenido;
         }
 
         if ($tipo === 'location') {

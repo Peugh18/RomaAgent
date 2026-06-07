@@ -2,19 +2,22 @@
 
 namespace App\Services;
 
-use App\Services\ResultadoGeminiAgente;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class ClienteGemini
 {
     private string $apiKey;
+
     private string $modelo;
+
     private float $temperatura;
+
     private ?array $ultimoError = null;
 
     /** @var array<string, int>|null */
     private ?array $ultimoUso = null;
+
     private const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
     public function __construct(string $apiKey, string $modelo = 'gemini-2.5-flash', float $temperatura = 0.7)
@@ -65,17 +68,17 @@ class ClienteGemini
                 ->connectTimeout(10)
                 ->retry(2, 200, throw: false)
                 ->post($url, [
-                'systemInstruction' => [
-                    'parts' => [['text' => $promptSistema]],
-                ],
-                'contents' => $contents,
-                'generationConfig' => [
-                    'temperature' => $this->temperatura,
-                    'maxOutputTokens' => 2048,
-                    'topP' => 0.95,
-                    'topK' => 40,
-                ],
-            ]);
+                    'systemInstruction' => [
+                        'parts' => [['text' => $promptSistema]],
+                    ],
+                    'contents' => $contents,
+                    'generationConfig' => [
+                        'temperature' => $this->temperatura,
+                        'maxOutputTokens' => 2048,
+                        'topP' => 0.95,
+                        'topK' => 40,
+                    ],
+                ]);
 
             if (! $response->successful()) {
                 $errorBody = $response->body();
@@ -185,6 +188,8 @@ class ClienteGemini
                 if ($functionCall !== null) {
                     $nombre = (string) ($functionCall['name'] ?? '');
                     $args = is_array($functionCall['args'] ?? null) ? $functionCall['args'] : [];
+
+                    $functionCall = $this->normalizarFunctionCall($functionCall);
 
                     Log::info('Gemini function call', [
                         'tool' => $nombre,
@@ -316,6 +321,32 @@ class ClienteGemini
         }
 
         return $esquema;
+    }
+
+    /**
+     * Gemini exige que args vacíos sean {} y no [].
+     *
+     * @param  array<string, mixed>  $functionCall
+     * @return array{name: string, args: array<string, mixed>|\stdClass}
+     */
+    private function normalizarFunctionCall(array $functionCall): array
+    {
+        return [
+            'name' => (string) ($functionCall['name'] ?? ''),
+            'args' => $this->normalizarFunctionCallArgs($functionCall['args'] ?? []),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|\stdClass
+     */
+    private function normalizarFunctionCallArgs(mixed $args): array|\stdClass
+    {
+        if (! is_array($args) || $args === []) {
+            return new \stdClass;
+        }
+
+        return $args;
     }
 
     /**

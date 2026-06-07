@@ -2,13 +2,12 @@
 
 namespace App\Services;
 
-use App\Models\Category;
 use App\Models\CompanySetting;
 use App\Models\Message;
 use App\Models\Product;
 use App\Support\FormateadorCatalogoProductos;
-use App\Support\NormalizadorStockTallas;
 use App\Support\MensajesEmpresaDefaults;
+use App\Support\NormalizadorStockTallas;
 use App\Support\PlantillasDatosEmpresa;
 use Illuminate\Support\Facades\Cache;
 
@@ -87,8 +86,30 @@ class ContextoConversacion
 
         return $mensajes->map(fn (Message $msg): array => [
             'role' => $msg->direction === 'outgoing' ? 'assistant' : 'user',
-            'content' => $msg->content,
+            'content' => $this->formatearContenidoHistorial($msg),
         ])->toArray();
+    }
+
+    private function formatearContenidoHistorial(Message $msg): string
+    {
+        $meta = is_array($msg->metadata) ? $msg->metadata : [];
+        $tipo = $meta['type'] ?? 'text';
+
+        if ($tipo === 'audio') {
+            $transcript = $meta['transcript'] ?? null;
+            if (is_string($transcript) && trim($transcript) !== '') {
+                return '(audio) '.trim($transcript);
+            }
+        }
+
+        if ($tipo === 'image') {
+            $caption = $meta['vision']['caption'] ?? null;
+            if (is_string($caption) && trim($caption) !== '') {
+                return '(imagen) '.trim($caption);
+            }
+        }
+
+        return $msg->content;
     }
 
     /**
@@ -188,8 +209,15 @@ Cómo pueden comunicarse con la empresa:
 {$contactoTexto}
 
 ## SALUDO INICIAL
-Cuando inicie una conversación, responde exactamente así (puedes adaptar emojis si el estilo lo permite):
+Cuando inicie una conversación NUEVA (sin historial previo), responde exactamente así (puedes adaptar emojis si el estilo lo permite):
 {$saludoInicial}
+
+**IMPORTANTE:** Si ya hay mensajes en el historial, NO repitas este saludo de bienvenida. Continúa el flujo donde se quedó.
+
+## AUDIOS DE LA CLIENTA
+- Los audios se transcriben a texto automáticamente.
+- Responde al **contenido** del audio como si fuera un mensaje escrito.
+- Nunca respondas solo al hecho de que envió audio; responde lo que dijo.
 
 ---
 
@@ -311,7 +339,7 @@ IDENTIDAD;
     private function construirMetodosTexto(array $metodos, string $moneda): string
     {
         if (empty($metodos)) {
-            return "No hay métodos de pago configurados";
+            return 'No hay métodos de pago configurados';
         }
 
         $lineas = [];
@@ -454,7 +482,7 @@ IDENTIDAD;
      */
     private function obtenerReglasDefault(): string
     {
-        return <<<REGLAS
+        return <<<'REGLAS'
 - Sé profesional, amable y empático
 - Responde de forma clara y concisa
 - Usa un lenguaje natural y cercano
@@ -468,7 +496,7 @@ REGLAS;
      */
     private function obtenerFlujoDefault(): string
     {
-        return <<<FLUJO
+        return <<<'FLUJO'
 1. Saluda al cliente de forma personalizada
 2. Entiende qué busca el cliente
 3. Recomienda productos del catálogo
@@ -483,7 +511,7 @@ FLUJO;
      */
     private function obtenerProtocoloDefault(): string
     {
-        return <<<PROTOCOLO
+        return <<<'PROTOCOLO'
 Si no puedes responder una pregunta o surge una situación fuera del flujo normal:
 1. Responde: "Voy a realizar la consulta a un agente especializado y en breve le brindamos una respuesta."
 2. Etiqueta el chat como "Requiere atención del asesor"

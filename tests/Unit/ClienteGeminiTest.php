@@ -38,6 +38,21 @@ TXT;
         $this->assertStringContainsString('¿te gusta el vestido?', $resultado);
     }
 
+    public function test_normaliza_function_call_con_args_vacios(): void
+    {
+        $cliente = new ClienteGemini('test-key');
+        $method = new ReflectionMethod(ClienteGemini::class, 'normalizarFunctionCall');
+        $method->setAccessible(true);
+
+        $normalizado = $method->invoke($cliente, [
+            'name' => 'consultar_pedido_activo',
+            'args' => [],
+        ]);
+
+        $this->assertSame('consultar_pedido_activo', $normalizado['name']);
+        $this->assertInstanceOf(\stdClass::class, $normalizado['args']);
+    }
+
     private function limpiarRespuesta(string $texto): string
     {
         $cliente = new ClienteGemini('test-key');

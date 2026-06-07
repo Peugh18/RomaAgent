@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Jobs\GenerarRespuestaAgenteJob;
+use App\Jobs\ProcessMediaThenRespondJob;
 use App\Models\Customer;
 use App\Models\Message;
 use App\Services\ServicioResolucionMediaEntrante;
@@ -71,8 +72,13 @@ class ProcessIncomingMessage
             'type' => $messageType,
         ]);
 
-        // Generar respuesta automática con IA si está configurado
-        $this->generarRespuestaIA($message);
+        // Generar respuesta automática: para imagen/audio, primero procesar media; para texto y otros, responder directo
+        $tipo = is_array($message->metadata) ? ($message->metadata['type'] ?? 'text') : 'text';
+        if (in_array($tipo, ['image', 'audio'], true)) {
+            ProcessMediaThenRespondJob::dispatch($message->id);
+        } else {
+            $this->generarRespuestaIA($message);
+        }
 
         return $message;
     }
