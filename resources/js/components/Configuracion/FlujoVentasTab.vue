@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MessageSquare, Zap, Users, AlertCircle, Info } from 'lucide-vue-next';
 import type { CompanySettingsForm } from '@/types/settings';
 import { PLANTILLAS_DATOS_DEFECTO } from '@/lib/plantillasDatos';
+import PlantillaMensajeEditor from '@/components/Configuracion/PlantillaMensajeEditor.vue';
 
 const plantillaMotorizadoDefault = Object.values(PLANTILLAS_DATOS_DEFECTO.motorizado).join('\n');
 const plantillaShalomDefault = Object.values(PLANTILLAS_DATOS_DEFECTO.shalom).join('\n');
@@ -268,24 +269,36 @@ const plantillaShalomTexto = computed({
                     />
                 </div>
                 <div class="space-y-2">
-                    <Label for="msg-tarjeta">Cliente elige tarjeta</Label>
+                    <Label for="msg-tarjeta">Cliente elige tarjeta (mensaje de la IA)</Label>
                     <Textarea
                         id="msg-tarjeta"
                         v-model="form.mensaje_espera_link_tarjeta"
                         placeholder="Te comunico con el equipo para el link de pago..."
                         :rows="2"
                     />
+                    <p class="text-xs text-muted-foreground">
+                        La IA envía esto al escalar. El link real lo mandas tú desde el chat con el botón «Enviar link».
+                    </p>
                 </div>
-                <div class="space-y-2">
-                    <Label for="msg-confirmado">Pedido confirmado (al pulsar Confirmar pago)</Label>
-                    <Textarea
-                        id="msg-confirmado"
-                        v-model="form.mensaje_pedido_confirmado"
-                        placeholder="Listo hermosa, tu pedido de {producto} quedó confirmado. Total S/ {total}..."
-                        :rows="2"
-                    />
-                    <p class="text-xs text-muted-foreground">Variables: {'{producto}'}, {'{color}'}, {'{total}'}</p>
-                </div>
+                <PlantillaMensajeEditor
+                    id="msg-confirmado"
+                    v-model="form.mensaje_pedido_confirmado"
+                    label="Pedido confirmado (al verificar pago)"
+                    placeholder="Listo {nombre}, tu pedido de {producto} en {color} quedó confirmado. Total S/ {total}..."
+                    :show-default-button="true"
+                />
+                <PlantillaMensajeEditor
+                    id="msg-enviado"
+                    v-model="form.mensaje_pedido_enviado"
+                    label="Pedido enviado"
+                    placeholder="Tu pedido de {producto} ya salió hacia {distrito}..."
+                />
+                <PlantillaMensajeEditor
+                    id="msg-entregado"
+                    v-model="form.mensaje_pedido_entregado"
+                    label="Pedido entregado / cierre"
+                    placeholder="Gracias por tu preferencia, {nombre}..."
+                />
             </CardContent>
         </Card>
 

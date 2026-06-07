@@ -11,6 +11,10 @@ const props = defineProps<{
 const chatMode = ref<'bot' | 'human'>('bot');
 const toggling = ref(false);
 
+const emit = defineEmits<{
+    'mode-change': [mode: 'bot' | 'human'];
+}>();
+
 const loadMode = async () => {
     if (!props.phone) {
         return;
@@ -20,8 +24,10 @@ const loadMode = async () => {
         const encoded = encodeURIComponent(props.phone);
         const customer = await apiJson<{ ia_paused: boolean }>(`/api/customers/${encoded}`);
         chatMode.value = customer?.ia_paused ? 'human' : 'bot';
+        emit('mode-change', chatMode.value);
     } catch {
         chatMode.value = 'bot';
+        emit('mode-change', chatMode.value);
     }
 };
 
@@ -32,6 +38,7 @@ const setMode = async (mode: 'bot' | 'human') => {
 
     toggling.value = true;
     chatMode.value = mode;
+    emit('mode-change', mode);
 
     try {
         const encoded = encodeURIComponent(props.phone);

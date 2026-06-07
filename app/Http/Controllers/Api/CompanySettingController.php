@@ -1,43 +1,61 @@
 <?php
 
-
-
 namespace App\Http\Controllers\Api;
-
-
 
 use App\Actions\RestablecerConfiguracionEmpresa;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCompanySettingRequest;
 use App\Models\CompanySetting;
-use App\Services\ConfiguracionAgente;
 use App\Services\ConfiguracionEmpresa;
+use App\Services\Prompt\PromptBuilderService;
 use App\Support\NormalizadorStockTallas;
 use App\Support\PlantillasDatosEmpresa;
+use App\Support\SanitizadorMetodosPago;
+use App\Support\ValidadorPlantillaMensaje;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Crypt;
 
-
-
+/**
+ * Controller para gestión de configuraciones de empresa
+ *
+ * REFACTORIZADO: Ahora distribuye datos en tablas especializadas:
+ * - EmpresaInfoConfig: Datos básicos de empresa
+ * - AgenteConfig: Configuración de IA
+ * - MensajeConfig: Plantillas de mensajes
+ * - VentaConfig: Configuración de ventas
+ * - HorarioConfig: Horarios y políticas
+ *
+ * ANTES: Todo se guardaba en CompanySetting (58 campos en 1 tabla)
+ */
 class CompanySettingController extends Controller
-
 {
-
     public function index(): JsonResponse
     {
-        CompanySetting::query()->firstOrCreate([]);
+        $companySetting = CompanySetting::query()->firstOrCreate([]);
 
-        return response()->json($this->buildSettingsResponse(new ConfiguracionEmpresa()));
+        // Asegurar que existan las configuraciones relacionadas
+        $companySetting->obtenerOCrearEmpresaInfo();
+        $companySetting->obtenerOCrearAgente();
+        $companySetting->obtenerOCrearMensajes();
+        $companySetting->obtenerOCrearVentas();
+        $companySetting->obtenerOCrearHorarios();
+
+        return response()->json($this->buildSettingsResponse(new ConfiguracionEmpresa));
     }
 
-
-
+    /**
+     * Actualiza configuraciones distribuyendo datos en tablas especializadas
+     */
     public function update(StoreCompanySettingRequest $request): JsonResponse
     {
         $validated = $request->validated();
 
-        $settings = CompanySetting::firstOrCreate([]);
+        // Obtener o crear CompanySetting base
+        $companySetting = CompanySetting::firstOrCreate([]);
+        $configId = $companySetting->id;
 
+        // Normalizar datos especiales
         if (isset($validated['standard_size'])) {
             $validated['standard_size'] = strtoupper(trim($validated['standard_size'])) ?: NormalizadorStockTallas::DEFAULT_SIZE_KEY;
         }
@@ -46,52 +64,213 @@ class CompanySettingController extends Controller
             $validated['plantillas_datos'] = PlantillasDatosEmpresa::normalizar($validated['plantillas_datos']);
         }
 
-        $datosIA = [
-            'agente_ia_activado' => $validated['agente_ia_activado'] ?? null,
-            'agente_ia_modelo' => $validated['agente_ia_modelo'] ?? null,
-            'agente_ia_temperatura' => $validated['agente_ia_temperatura'] ?? null,
+        if (array_key_exists('metodos_pago', $validated)) {
+            $validated['metodos_pago'] = SanitizadorMetodosPago::sanitizar($validated['metodos_pago']);
+        }
+
+        // 1. ACTUALIZAR EMPRESA INFO (empresa_info_configs)
+        $this->actualizarEmpresaInfo($companySetting, $validated);
+
+        // 2. ACTUALIZAR AGENTE IA (agente_configs)
+        $this->actualizarAgenteConfig($companySetting, $validated);
+
+        // 3. ACTUALIZAR MENSAJES (mensaje_configs)
+        $this->actualizarMensajeConfig($companySetting, $validated);
+
+        // 4. ACTUALIZAR VENTAS (venta_configs)
+        $this->actualizarVentaConfig($companySetting, $validated);
+
+        // 5. ACTUALIZAR HORARIOS (horario_configs)
+        $this->actualizarHorarioConfig($companySetting, $validated);
+
+        // Invalidar caché legacy (para compatibilidad con código viejo)
+        Cache::forget('contexto_prompt_completo_'.$configId);
+
+        // Invalidar caché nuevo (PromptBuilderService)
+        (new PromptBuilderService(new ConfiguracionEmpresa))->invalidarTodo($configId);
+
+        return response()->json($this->buildSettingsResponse(new ConfiguracionEmpresa));
+    }
+
+    /**
+     * Actualiza configuración de empresa (empresa_info_configs)
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function actualizarEmpresaInfo(CompanySetting $companySetting, array $datos): void
+    {
+        $empresaFields = [
+            'company_name', 'ruc', 'razon_social', 'celular', 'email',
+            'website', 'logo_path', 'actividad_economica', 'social_networks',
+            'address',
         ];
 
-        if (! empty($validated['agente_ia_api_key'])) {
-            $datosIA['agente_ia_api_key'] = $validated['agente_ia_api_key'];
+        $empresaData = array_intersect_key($datos, array_flip($empresaFields));
+
+        if (! empty($empresaData)) {
+            $empresaInfo = $companySetting->obtenerOCrearEmpresaInfo();
+            $empresaInfo->update($empresaData);
+        }
+    }
+
+    /**
+     * Actualiza configuración del agente IA (agente_configs)
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function actualizarAgenteConfig(CompanySetting $companySetting, array $datos): void
+    {
+        $agenteFields = [
+            'agente_ia_activado' => 'activado',
+            'agente_ia_modelo' => 'modelo',
+            'agente_ia_temperatura' => 'temperatura',
+            'tono_bot' => 'tono_bot',
+            'estilo_comunicacion' => 'estilo_comunicacion',
+            'personalidad_bot' => 'personalidad_bot',
+            'respuesta_si_es_bot' => 'respuesta_si_es_bot',
+        ];
+
+        $agenteData = [];
+        foreach ($agenteFields as $inputKey => $dbKey) {
+            if (array_key_exists($inputKey, $datos)) {
+                $agenteData[$dbKey] = $datos[$inputKey];
+            }
         }
 
-        $datosIA = array_filter($datosIA, fn ($value) => $value !== null);
-
-        if (! empty($datosIA)) {
-            (new ConfiguracionAgente())->actualizarConfiguracion($datosIA);
+        // Manejar API key por separado
+        if (! empty($datos['agente_ia_api_key'])) {
+            $agenteData['api_key_encrypted'] = Crypt::encryptString($datos['agente_ia_api_key']);
         }
 
-        $camposEmpresa = array_diff_key($validated, array_flip([
-            'agente_ia_activado', 'agente_ia_modelo', 'agente_ia_api_key', 'agente_ia_temperatura',
-        ]));
+        if (! empty($agenteData)) {
+            $agenteConfig = $companySetting->obtenerOCrearAgente();
+            $agenteConfig->update($agenteData);
+        }
+    }
 
-        $settings->update($camposEmpresa);
+    /**
+     * Actualiza configuración de mensajes (mensaje_configs)
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function actualizarMensajeConfig(CompanySetting $companySetting, array $datos): void
+    {
+        $mensajeFields = [
+            'saludo_inicial' => 'saludo_inicial',
+            'reglas_comunicacion' => 'reglas_comunicacion',
+            'flujo_ventas' => 'flujo_ventas',
+            'mensaje_recordatorio_3min' => 'recordatorio_3min',
+            'mensaje_recordatorio_15min' => 'recordatorio_15min',
+            'mensaje_recordatorio_datos' => 'recordatorio_datos',
+            'mensaje_pedido_confirmado' => 'pedido_confirmado',
+            'mensaje_pedido_enviado' => 'pedido_enviado',
+            'mensaje_pedido_entregado' => 'pedido_entregado',
+            'mensaje_comprobante_recibido' => 'comprobante_recibido',
+            'mensaje_comprobante_fuera_horario' => 'comprobante_fuera_horario',
+            'mensaje_espera_link_tarjeta' => 'espera_link_tarjeta',
+        ];
 
-        Cache::forget('contexto_prompt_completo_'.$settings->id);
+        $mensajeData = [];
+        foreach ($mensajeFields as $inputKey => $dbKey) {
+            if (array_key_exists($inputKey, $datos)) {
+                $valor = is_string($datos[$inputKey])
+                    ? ValidadorPlantillaMensaje::normalizar($datos[$inputKey])
+                    : $datos[$inputKey];
+                $mensajeData[$dbKey] = $valor;
+            }
+        }
 
-        return response()->json($this->buildSettingsResponse(new ConfiguracionEmpresa()));
+        if (! empty($mensajeData)) {
+            $mensajeConfig = $companySetting->obtenerOCrearMensajes();
+            $mensajeConfig->update($mensajeData);
+        }
+    }
+
+    /**
+     * Actualiza configuración de ventas (venta_configs)
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function actualizarVentaConfig(CompanySetting $companySetting, array $datos): void
+    {
+        $ventaFields = [
+            'moneda' => 'moneda',
+            'metodos_pago' => 'metodos_pago',
+            'comision_tarjeta' => 'comision_tarjeta',
+            'link_pago_tarjeta' => 'link_pago_tarjeta',
+            'formato_registro_venta' => 'formato_registro_venta',
+            'protocolo_traspaso' => 'protocolo_traspaso',
+        ];
+
+        $ventaData = [];
+        foreach ($ventaFields as $inputKey => $dbKey) {
+            if (array_key_exists($inputKey, $datos)) {
+                $ventaData[$dbKey] = $datos[$inputKey];
+            }
+        }
+
+        if (! empty($ventaData)) {
+            $ventaConfig = $companySetting->obtenerOCrearVentas();
+            $ventaConfig->update($ventaData);
+        }
+    }
+
+    /**
+     * Actualiza configuración de horarios (horario_configs)
+     *
+     * @param  array<string, mixed>  $datos
+     */
+    private function actualizarHorarioConfig(CompanySetting $companySetting, array $datos): void
+    {
+        $horarioFields = [
+            'horario_atencion' => 'horario_atencion',
+            'horario_entregas' => 'horario_entregas',
+            'horario_shalom' => 'horario_shalom',
+            'politica_devoluciones' => 'politica_devoluciones',
+            'restricciones_especiales' => 'restricciones_especiales',
+            'plantillas_datos' => 'plantillas_datos',
+            'standard_size' => 'standard_size',
+        ];
+
+        $horarioData = [];
+        foreach ($horarioFields as $inputKey => $dbKey) {
+            if (array_key_exists($inputKey, $datos)) {
+                $horarioData[$dbKey] = $datos[$inputKey];
+            }
+        }
+
+        if (! empty($horarioData)) {
+            $horarioConfig = $companySetting->obtenerOCrearHorarios();
+            $horarioConfig->update($horarioData);
+        }
     }
 
     public function destroy(RestablecerConfiguracionEmpresa $restablecer): JsonResponse
     {
         $restablecer->handle();
 
-        return response()->json($this->buildSettingsResponse(new ConfiguracionEmpresa()));
+        return response()->json($this->buildSettingsResponse(new ConfiguracionEmpresa));
 
+    }
+
+    public function promptCompleto(): JsonResponse
+    {
+        CompanySetting::query()->firstOrCreate([]);
+
+        $configuracion = new ConfiguracionEmpresa;
+
+        return response()->json([
+            'prompt_completo' => $configuracion->obtenerTodos()['prompt_completo'],
+        ]);
     }
 
     /**
      * @return array<string, mixed>
      */
-
     private function buildSettingsResponse(ConfiguracionEmpresa $configuracionEmpresa): array
-
     {
 
         $datos = $configuracionEmpresa->obtenerTodos();
-
-
 
         return [
 
@@ -117,12 +296,7 @@ class CompanySettingController extends Controller
 
             'prompt_preview' => $datos['prompt_preview'],
 
-            'prompt_completo' => $datos['prompt_completo'],
-
         ];
 
     }
-
 }
-
-

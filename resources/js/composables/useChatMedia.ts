@@ -5,6 +5,11 @@ const MEDIA_ONLY_LABELS = ['📷 Imagen', '🎤 Audio', '🎬 Video', '🙂 Stic
 export function mediaKind(message: ChatMessage): string {
     const meta = message.metadata;
     const explicit = meta?.type ?? meta?.whatsapp_message_type;
+
+    if (explicit === 'sticker') {
+        return 'sticker';
+    }
+
     if (explicit && explicit !== 'text') {
         return String(explicit);
     }
@@ -49,7 +54,7 @@ export function mediaKind(message: ChatMessage): string {
     }
 
     if (meta?.image_url || meta?.media_url) {
-        return 'image';
+        return message.content.trim() === '🙂 Sticker' ? 'sticker' : 'image';
     }
 
     return 'text';
@@ -100,4 +105,8 @@ export function mediaUnavailable(message: ChatMessage): boolean {
 
 export function isMediaOnlyLabel(content: string): boolean {
     return MEDIA_ONLY_LABELS.includes(content.trim() as (typeof MEDIA_ONLY_LABELS)[number]);
+}
+
+export function isStickerMessage(message: ChatMessage): boolean {
+    return mediaKind(message) === 'sticker';
 }

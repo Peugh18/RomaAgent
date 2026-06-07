@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AgenteConfig;
 use App\Models\CompanySetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -47,7 +48,7 @@ class ConfiguracionAgenteApiTest extends TestCase
 
         $response->assertOk();
 
-        $this->assertTrue(CompanySetting::query()->value('agente_ia_activado'));
+        $this->assertTrue(AgenteConfig::query()->value('activado'));
     }
 
     public function test_api_exposes_standard_size(): void

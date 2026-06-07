@@ -1,10 +1,17 @@
 ﻿<script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import CrmPanel from '@/components/crm/CrmPanel.vue';
+import CrmAlert from '@/components/crm/CrmAlert.vue';
+import CrmListCard from '@/components/crm/CrmListCard.vue';
+import CrmPagination from '@/components/crm/CrmPagination.vue';
+import CrmSearchBar from '@/components/crm/CrmSearchBar.vue';
 import PageHeader from '@/components/crm/PageHeader.vue';
+import CategoryEmptyState from '@/components/categories/CategoryEmptyState.vue';
+import CategoryTableSkeleton from '@/components/categories/CategoryTableSkeleton.vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
     Dialog,
     DialogContent,
@@ -16,15 +23,7 @@ import {
 import { apiJson, ApiError } from '@/composables/useApi';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
-import { 
-    Plus, 
-    Trash2, 
-    FolderOpen, 
-    AlertCircle, 
-    Search, 
-    ChevronLeft, 
-    ChevronRight 
-} from 'lucide-vue-next';
+import { Plus, Trash2, FolderOpen } from 'lucide-vue-next';
 import { ref, computed, watch, onMounted } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -78,7 +77,18 @@ const totalPages = computed(() => {
     return Math.max(1, Math.ceil(filteredCategories.value.length / itemsPerPage));
 });
 
-// Paginate filtered categories
+const fromItem = computed(() => {
+    if (filteredCategories.value.length === 0) {
+        return 0;
+    }
+
+    return (currentPage.value - 1) * itemsPerPage + 1;
+});
+
+const toItem = computed(() =>
+    Math.min(currentPage.value * itemsPerPage, filteredCategories.value.length),
+);
+
 const paginatedCategories = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
     return filteredCategories.value.slice(start, start + itemsPerPage);
@@ -139,125 +149,73 @@ onMounted(() => {
                 </template>
             </PageHeader>
 
-            <div
-                v-if="error"
-                class="mb-6 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive animate-fade-in"
-                role="alert"
-            >
-                <AlertCircle class="h-4 w-4" />
-                <p>{{ error }}</p>
+            <CrmAlert v-if="error">{{ error }}</CrmAlert>
+
+            <div class="crm-toolbar">
+                <CrmSearchBar v-model="searchQuery" placeholder="Buscar categoría…" :disabled="loading" />
             </div>
 
-            <!-- Search and Filter Bar -->
-            <div class="mb-4 flex items-center justify-between gap-4 flex-wrap">
-                <div class="relative w-full max-w-xs">
-                    <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input v-model="searchQuery" placeholder="Buscar categoría..." class="pl-9" />
-                </div>
-            </div>
+            <CrmListCard>
+                <CategoryTableSkeleton v-if="loading" />
 
-            <CrmPanel no-padding class="overflow-hidden border shadow-sm">
-                <div v-if="loading" class="flex flex-col items-center justify-center py-20 text-muted-foreground">
-                    <div class="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                    <p class="mt-4 text-sm font-medium">Cargando categorías...</p>
-                </div>
-                
-                <div v-else-if="filteredCategories.length === 0" class="flex flex-col items-center justify-center py-20 text-center">
-                    <div class="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
-                        <FolderOpen class="h-8 w-8 text-primary" />
-                    </div>
-                    <h3 class="text-lg font-medium text-foreground">No se encontraron categorías</h3>
-                    <p class="mt-1 text-sm text-muted-foreground max-w-sm">
-                        Prueba ajustando tu búsqueda o crea una nueva categoría.
-                    </p>
-                    <Button variant="outline" class="mt-6 gap-2" @click="showCreateModal = true">
-                        <Plus class="h-4 w-4" />
-                        Crear categoría
-                    </Button>
-                </div>
-                
-                <div v-else>
+                <CategoryEmptyState
+                    v-else-if="filteredCategories.length === 0"
+                    :search-query="searchQuery"
+                    @create="showCreateModal = true"
+                />
+
+                <template v-else>
                     <div class="overflow-x-auto">
-                        <table class="crm-table">
-                            <thead>
-                                <tr>
-                                    <th>Nombre</th>
-                                    <th>Slug</th>
-                                    <th class="text-right !text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-border">
-                                <tr v-for="category in paginatedCategories" :key="category.id" class="group">
-                                    <td class="font-medium text-foreground">
-                                        <div class="flex items-center gap-2">
-                                            <FolderOpen class="h-4 w-4 text-primary/70" />
-                                            <span>{{ category.name }}</span>
+                        <Table>
+                            <TableHeader>
+                                <TableRow class="hover:bg-transparent">
+                                    <TableHead class="w-[400px]">Nombre</TableHead>
+                                    <TableHead>Slug</TableHead>
+                                    <TableHead class="w-[100px] text-right">Acciones</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow v-for="category in paginatedCategories" :key="category.id" class="crm-table-row-action">
+                                    <TableCell>
+                                        <div class="flex items-center gap-3">
+                                            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted">
+                                                <FolderOpen class="h-4 w-4 text-primary" />
+                                            </div>
+                                            <span class="font-medium">{{ category.name }}</span>
                                         </div>
-                                    </td>
-                                    <td class="text-muted-foreground">
-                                        <code class="rounded bg-muted px-2 py-1 text-xs">{{ category.slug }}</code>
-                                    </td>
-                                    <td class="text-right">
-                                        <div class="flex justify-end gap-1.5">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                class="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                @click="deleteCategory(category.id)"
-                                                title="Eliminar categoría"
-                                            >
-                                                <Trash2 class="h-4 w-4" />
-                                                <span class="sr-only">Eliminar</span>
-                                            </Button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge variant="outline" class="font-mono text-xs">
+                                            {{ category.slug }}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell class="text-right">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            class="h-8 w-8 text-destructive hover:text-destructive"
+                                            @click="deleteCategory(category.id)"
+                                        >
+                                            <Trash2 class="h-4 w-4" />
+                                            <span class="sr-only">Eliminar</span>
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
                     </div>
 
-                    <!-- Pagination Footer -->
-                    <div class="flex items-center justify-between border-t border-border px-5 py-4 bg-muted/10 flex-wrap gap-4">
-                        <div class="text-xs text-muted-foreground">
-                            Mostrando <span class="font-semibold">{{ Math.min(filteredCategories.length, (currentPage - 1) * itemsPerPage + 1) }}</span> a <span class="font-semibold">{{ Math.min(filteredCategories.length, currentPage * itemsPerPage) }}</span> de <span class="font-semibold">{{ filteredCategories.length }}</span> categorías
-                        </div>
-                        <div class="flex items-center gap-1">
-                            <Button 
-                                variant="outline" 
-                                size="icon"
-                                class="h-8 w-8"
-                                :disabled="currentPage === 1" 
-                                @click="currentPage--"
-                            >
-                                <ChevronLeft class="h-4 w-4" />
-                                <span class="sr-only">Anterior</span>
-                            </Button>
-                            
-                            <Button 
-                                v-for="page in totalPages" 
-                                :key="page" 
-                                size="sm" 
-                                class="h-8 w-8 p-0"
-                                :variant="currentPage === page ? 'default' : 'outline'"
-                                @click="currentPage = page"
-                            >
-                                {{ page }}
-                            </Button>
-                            
-                            <Button 
-                                variant="outline" 
-                                size="icon"
-                                class="h-8 w-8"
-                                :disabled="currentPage === totalPages" 
-                                @click="currentPage++"
-                            >
-                                <ChevronRight class="h-4 w-4" />
-                                <span class="sr-only">Siguiente</span>
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </CrmPanel>
+                    <CrmPagination
+                        :page="currentPage"
+                        :last-page="totalPages"
+                        :total="filteredCategories.length"
+                        :from="fromItem"
+                        :to="toItem"
+                        :disabled="loading"
+                        @update:page="currentPage = $event"
+                    />
+                </template>
+            </CrmListCard>
         </div>
 
         <!-- Modal para crear categoría -->

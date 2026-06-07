@@ -11,6 +11,7 @@ enum SaleStatus: string
     case PagoRecibido = 'pago_recibido';
     case Confirmado = 'confirmado';
     case Enviado = 'enviado';
+    case Entregado = 'entregado';
     case Cancelado = 'cancelado';
 
     /**
@@ -20,7 +21,7 @@ enum SaleStatus: string
     {
         return array_values(array_filter(
             self::cases(),
-            fn (self $status): bool => $status !== self::Cancelado && $status !== self::Enviado && $status !== self::Confirmado
+            fn (self $status): bool => ! in_array($status, [self::Cancelado, self::Enviado, self::Entregado, self::Confirmado], true)
         ));
     }
 
@@ -34,13 +35,14 @@ enum SaleStatus: string
             self::PagoRecibido => 'Pago recibido',
             self::Confirmado => 'Confirmado',
             self::Enviado => 'Enviado',
+            self::Entregado => 'Entregado',
             self::Cancelado => 'Cancelado',
         };
     }
 
     public function puedeConfirmarPago(): bool
     {
-        return in_array($this, [self::PagoPendiente, self::PagoRecibido], true);
+        return in_array($this, [self::DatosListos, self::PagoPendiente, self::PagoRecibido], true);
     }
 
     public function esPipelineAbierto(): bool

@@ -55,11 +55,12 @@ class CompanySettingAlignmentTest extends TestCase
         $response = $this->actingAs($user)->getJson('/api/company-settings');
 
         $response->assertOk();
+        $response->assertJsonMissing(['prompt_completo']);
 
         $preview = $response->json('prompt_preview');
 
         $this->assertStringContainsString('Moda y Vestuario', $preview);
-        $this->assertStringContainsString('USD', $preview);
+        $this->assertStringContainsString('dólares ($)', $preview);
         $this->assertStringContainsString('@romastore', $preview);
         $this->assertStringContainsString('HOLA LINDA WAPA', $preview);
         $this->assertStringContainsString('959166911', $preview);
@@ -132,7 +133,7 @@ class CompanySettingAlignmentTest extends TestCase
         $preview = $response->json('prompt_preview');
 
         $this->assertStringContainsString('Moda y Vestuario', $preview);
-        $this->assertStringContainsString('USD', $preview);
+        $this->assertStringContainsString('dólares ($)', $preview);
         $this->assertStringContainsString('@nueva_cuenta', $preview);
         $this->assertSame('Moda y Vestuario', $response->json('actividad'));
         $this->assertSame('USD', $response->json('moneda'));
@@ -156,7 +157,7 @@ class CompanySettingAlignmentTest extends TestCase
 
         $response->assertOk();
 
-        $prompt = $response->json('prompt_completo');
+        $prompt = $this->promptCompleto($user);
 
         $this->assertStringContainsString('Miraflores', $prompt);
         $this->assertStringContainsString('15.5', $prompt);
@@ -187,7 +188,7 @@ class CompanySettingAlignmentTest extends TestCase
 
         $response->assertOk();
 
-        $prompt = $response->json('prompt_completo');
+        $prompt = $this->promptCompleto($user);
 
         $this->assertStringContainsString('Shalom (Lima y provincia)', $prompt);
         $this->assertStringContainsString('Provincia (Shalom)', $prompt);
@@ -207,7 +208,7 @@ class CompanySettingAlignmentTest extends TestCase
         $response->assertOk();
 
         $preview = $response->json('prompt_preview');
-        $completo = $response->json('prompt_completo');
+        $completo = $this->promptCompleto($user);
 
         $this->assertStringStartsWith($preview, $completo);
         $this->assertGreaterThan(strlen($preview), strlen($completo));
@@ -253,7 +254,7 @@ class CompanySettingAlignmentTest extends TestCase
         Cache::forget('contexto_prompt_completo_'.$settings->id);
 
         $response = $this->actingAs($user)->getJson('/api/company-settings');
-        $prompt = $response->json('prompt_completo');
+        $prompt = $this->promptCompleto($user);
 
         $this->assertStringContainsString('IDENTIDAD Y PERSONALIDAD', $prompt);
         $this->assertStringContainsString('INFORMACIÓN DE CONTACTO', $prompt);
@@ -282,7 +283,7 @@ class CompanySettingAlignmentTest extends TestCase
         $response = $this->actingAs($user)->getJson('/api/company-settings');
 
         $response->assertOk();
-        $prompt = $response->json('prompt_completo');
+        $prompt = $this->promptCompleto($user);
 
         $this->assertStringContainsString('Hablas en femenino', $prompt);
         $this->assertStringContainsString('Soy asesora humana del equipo', $prompt);
@@ -322,7 +323,7 @@ class CompanySettingAlignmentTest extends TestCase
         $this->assertNotEmpty($shalom);
         $this->assertStringContainsString('DNI', implode(' ', $shalom));
 
-        $prompt = $response->json('prompt_completo');
+        $prompt = $this->promptCompleto($user);
         $this->assertStringContainsString('Para Shalom', $prompt);
         $this->assertStringContainsString('AGENTE VENDEDOR', $prompt);
     }

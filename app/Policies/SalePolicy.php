@@ -2,7 +2,6 @@
 
 namespace App\Policies;
 
-use App\Enums\SaleStatus;
 use App\Models\Sale;
 use App\Models\User;
 
@@ -40,6 +39,11 @@ class SalePolicy
      * La validación de estado se hace en el controller.
      */
     public function markShipped(User $user, Sale $sale): bool
+    {
+        return true;
+    }
+
+    public function markDelivered(User $user, Sale $sale): bool
     {
         return true;
     }

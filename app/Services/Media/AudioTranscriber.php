@@ -2,16 +2,31 @@
 
 namespace App\Services\Media;
 
+use App\Exceptions\GeminiQuotaExceededException;
 use App\Services\ConfiguracionAgente;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class AudioTranscriber
+/**
+ * Servicio de transcripción de audio usando Gemini API con fallback a Whisper.
+ *
+ * Hereda de BaseGeminiService para reutilizar:
+ * - Obtención de API key y modelo
+ * - Normalización de MIME types
+ * - Manejo de errores HTTP
+ * - Retry automático con backoff
+ *
+ * @extends BaseGeminiService
+ */
+class AudioTranscriber extends BaseGeminiService
 {
     public function __construct(
-        private ConfiguracionAgente $configuracion,
+        ConfiguracionAgente $configuracion,
         private CargadorBytesMedia $cargador,
-    ) {}
+    ) {
+        parent::__construct($configuracion);
+        $this->timeout = 60; // Audio requiere más tiempo
+    }
 
     /**
      * Transcribe audio de WhatsApp. Usa Gemini (misma API del agente) y OpenAI Whisper como respaldo.
@@ -33,21 +48,20 @@ class AudioTranscriber
         return ($whisper !== null && $whisper !== '') ? $whisper : null;
     }
 
+    /**
+     * Transcribe usando Gemini API.
+     *
+     * @throws GeminiQuotaExceededException
+     */
     private function transcribirConGemini(string $bytes, string $mime, string $language): ?string
     {
-        $apiKey = $this->configuracion->obtenerApiKey();
-        if (empty($apiKey)) {
-            Log::warning('AudioTranscriber: sin API key Gemini configurada');
-
+        $apiKey = $this->obtenerApiKey();
+        if ($apiKey === null) {
             return null;
         }
 
-        $modelo = $this->configuracion->obtenerModelo();
-        $endpoint = sprintf(
-            'https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s',
-            $modelo,
-            $apiKey,
-        );
+        $modelo = $this->obtenerModelo();
+        $endpoint = $this->construirEndpoint($modelo);
 
         $prompt = <<<PROMPT
 Transcribe exactamente lo que dice la persona en este audio de WhatsApp.
@@ -76,30 +90,25 @@ PROMPT;
             ],
         ];
 
-        try {
-            $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                ->timeout(60)
-                ->post($endpoint, $payload);
+        return $this->ejecutarConRetry(function () use ($endpoint, $payload, $apiKey) {
+            return $this->callGeminiApi($endpoint, $payload, $apiKey);
+        });
+    }
 
-            if (! $response->successful()) {
-                Log::error('AudioTranscriber: Gemini error', [
-                    'status' => $response->status(),
-                    'body' => substr((string) $response->body(), 0, 300),
-                ]);
+    /**
+     * Realiza la llamada HTTP a la API de Gemini.
+     *
+     * @throws GeminiQuotaExceededException
+     */
+    private function callGeminiApi(string $endpoint, array $payload, string $apiKey): ?string
+    {
+        $response = Http::withHeaders($this->headersGemini($apiKey))
+            ->timeout($this->timeout)
+            ->post($endpoint, $payload);
 
-                return null;
-            }
+        $data = $this->procesarRespuestaApi($response);
 
-            $data = $response->json();
-            $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            $text = is_string($text) ? trim($text) : '';
-
-            return $text !== '' ? $text : null;
-        } catch (\Throwable $e) {
-            Log::error('AudioTranscriber: Gemini exception', ['error' => $e->getMessage()]);
-
-            return null;
-        }
+        return $this->extraerTextoRespuesta($data);
     }
 
     private function transcribirConWhisper(string $bytes, string $mime, string $language): ?string
@@ -155,7 +164,7 @@ PROMPT;
         }
     }
 
-    private function normalizarMimeAudio(string $mime): string
+    protected function normalizarMimeAudio(string $mime): string
     {
         $mime = strtolower(trim(strtok($mime, ';')));
 
@@ -165,7 +174,7 @@ PROMPT;
             str_contains($mime, 'mp4') || str_contains($mime, 'm4a') => 'audio/mp4',
             str_contains($mime, 'wav') => 'audio/wav',
             str_contains($mime, 'webm') => 'audio/webm',
-            default => 'audio/ogg',
+            default => parent::normalizarMimeAudio($mime),
         };
     }
 }

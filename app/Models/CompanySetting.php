@@ -2,71 +2,109 @@
 
 namespace App\Models;
 
+use Database\Factories\CompanySettingFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
+/**
+ * Company Setting - Coordinador de configuraciones
+ *
+ * ANTES: 58 campos en una tabla (God Object)
+ * AHORA: Relación 1:1 con tablas especializadas
+ *
+ * Tablas relacionadas:
+ * - empresa_info_configs: Datos básicos de empresa
+ * - agente_configs: Configuración IA
+ * - mensaje_configs: Plantillas de mensajes
+ * - venta_configs: Configuración de ventas
+ * - horario_configs: Horarios y políticas
+ */
 class CompanySetting extends Model
 {
-    /** @use HasFactory<\Database\Factories\CompanySettingFactory> */
+    /** @use HasFactory<CompanySettingFactory> */
     use HasFactory;
 
     protected $fillable = [
-        'company_name',
-        'ruc',
-        'razon_social',
-        'celular',
-        'email',
-        'website',
-        'logo_path',
-        'actividad_economica',
-        'tono_bot',
-        'estilo_comunicacion',
-        'personalidad_bot',
-        'respuesta_si_es_bot',
-        'moneda',
-        'metodos_pago',
-        'horario_atencion',
-        'politica_devoluciones',
-        'restricciones_especiales',
-        'informacion_adicional',
-        'social_networks',
-        'address',
-        'standard_size',
-        'agente_ia_activado',
-        'agente_ia_modelo',
-        'agente_ia_api_key_encrypted',
-        'agente_ia_temperatura',
-        'saludo_inicial',
-        'reglas_comunicacion',
-        'flujo_ventas',
-        'plantillas_datos',
-        'horario_entregas',
-        'horario_shalom',
-        'protocolo_traspaso',
-        'mensaje_recordatorio_3min',
-        'mensaje_recordatorio_15min',
-        'mensaje_recordatorio_datos',
-        'comision_tarjeta',
-        'formato_registro_venta',
-        'mensaje_comprobante_recibido',
-        'mensaje_comprobante_fuera_horario',
-        'mensaje_pedido_confirmado',
-        'mensaje_espera_link_tarjeta',
+        // Campos legacy - serán migrados gradualmente
+        'company_name', // Temporal - migrar a empresaInfo
     ];
 
-    protected function casts(): array
+    /**
+     * Relación: Información de la empresa
+     */
+    public function empresaInfo(): HasOne
     {
-        return [
-            'social_networks' => 'array',
-            'metodos_pago' => 'array',
-            'plantillas_datos' => 'array',
-            'agente_ia_activado' => 'boolean',
-            'agente_ia_temperatura' => 'decimal:2',
-            'comision_tarjeta' => 'decimal:2',
-        ];
+        return $this->hasOne(EmpresaInfoConfig::class);
     }
 
-    protected $hidden = [
-        'agente_ia_api_key_encrypted',
-    ];
+    /**
+     * Relación: Configuración del Agente IA
+     */
+    public function agente(): HasOne
+    {
+        return $this->hasOne(AgenteConfig::class);
+    }
+
+    /**
+     * Relación: Mensajes y plantillas
+     */
+    public function mensajes(): HasOne
+    {
+        return $this->hasOne(MensajeConfig::class);
+    }
+
+    /**
+     * Relación: Configuración de ventas
+     */
+    public function ventas(): HasOne
+    {
+        return $this->hasOne(VentaConfig::class);
+    }
+
+    /**
+     * Relación: Horarios y políticas
+     */
+    public function horarios(): HasOne
+    {
+        return $this->hasOne(HorarioConfig::class);
+    }
+
+    /**
+     * Obtener o crear configuración relacionada
+     */
+    public function obtenerOCrearAgente(): AgenteConfig
+    {
+        return $this->agente()->firstOrCreate([
+            'company_setting_id' => $this->id,
+        ]);
+    }
+
+    public function obtenerOCrearMensajes(): MensajeConfig
+    {
+        return $this->mensajes()->firstOrCreate([
+            'company_setting_id' => $this->id,
+        ]);
+    }
+
+    public function obtenerOCrearVentas(): VentaConfig
+    {
+        return $this->ventas()->firstOrCreate([
+            'company_setting_id' => $this->id,
+        ]);
+    }
+
+    public function obtenerOCrearEmpresaInfo(): EmpresaInfoConfig
+    {
+        return $this->empresaInfo()->firstOrCreate([
+            'company_setting_id' => $this->id,
+        ]);
+    }
+
+    public function obtenerOCrearHorarios(): HorarioConfig
+    {
+        return $this->horarios()->firstOrCreate([
+            'company_setting_id' => $this->id,
+        ]);
+    }
 }

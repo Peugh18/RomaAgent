@@ -6,8 +6,6 @@ use App\Models\Category;
 use App\Models\CompanySetting;
 use App\Models\Product;
 use App\Models\User;
-use App\Services\ConfiguracionEmpresa;
-use App\Services\ContextoConversacion;
 use App\Support\FormateadorCatalogoProductos;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -48,8 +46,8 @@ class ProductCatalogPromptTest extends TestCase
         $this->assertStringContainsString('**Mariela**', $texto);
         $this->assertStringContainsString('Precio normal: $ 180.00', $texto);
         $this->assertStringContainsString('Precio TikTok: $ 150.00', $texto);
-        $this->assertStringContainsString('Rojo: talla estándar (UNICA): 3 en stock', $texto);
-        $this->assertStringContainsString('Negro: talla estándar (UNICA): 2 en stock', $texto);
+        $this->assertStringContainsString('Rojo: talla estándar: 3 en stock', $texto);
+        $this->assertStringContainsString('Negro: talla estándar: 2 en stock', $texto);
         $this->assertStringContainsString('Stock total: 5 unidad(es)', $texto);
         $this->assertStringContainsString('Tags: elegante, fiesta', $texto);
     }
@@ -71,7 +69,7 @@ class ProductCatalogPromptTest extends TestCase
 
         $texto = (new FormateadorCatalogoProductos('S/', 'UNICA'))->formatearProducto($product);
 
-        $this->assertStringContainsString('talla estándar (UNICA): 1 en stock', $texto);
+        $this->assertStringContainsString('talla estándar: 1 en stock', $texto);
         $this->assertStringContainsString('talla M: 2 en stock', $texto);
     }
 
@@ -96,13 +94,13 @@ class ProductCatalogPromptTest extends TestCase
         Cache::forget('contexto_prompt_completo_'.$settings->id);
 
         $response = $this->actingAs($user)->getJson('/api/company-settings');
-        $prompt = $response->json('prompt_completo');
+        $prompt = $this->promptCompleto($user);
 
         $this->assertStringContainsString('# CATÁLOGO DE PRODUCTOS DISPONIBLES', $prompt);
         $this->assertStringContainsString('**Aurora**', $prompt);
         $this->assertStringContainsString('Precio normal: $ 140.00', $prompt);
         $this->assertStringContainsString('Precio TikTok: $ 120.00', $prompt);
-        $this->assertStringContainsString('Verde: talla estándar (UNICA): 1 en stock', $prompt);
+        $this->assertStringContainsString('Verde: talla estándar: 1 en stock', $prompt);
     }
 
     public function test_promo_only_applies_to_normal_price_when_active(): void

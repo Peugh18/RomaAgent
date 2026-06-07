@@ -33,9 +33,12 @@ class AgenteVendedor
             $mensajeEntrante->customer_name
         );
 
-        $promptCompleto = $this->contexto->construirPromptParaAgente();
+        $promptCompleto = $this->contexto->construirPromptParaAgenteConPedido($customer);
 
-        $historial = $this->contexto->obtenerHistorial($mensajeEntrante->phone_number);
+        $historial = $this->contexto->obtenerHistorial(
+            $mensajeEntrante->phone_number,
+            excluirMessageId: $mensajeEntrante->id,
+        );
         $contenidoEntrante = trim($mensajeEntrante->content);
         $solicitaFoto = $this->solicitaVerProducto($contenidoEntrante);
 
@@ -122,7 +125,25 @@ class AgenteVendedor
         $tipo = $metadata['type'] ?? 'text';
 
         if ($tipo === 'image') {
-            return '[La clienta envió una imagen/comprobante]. '.$mensaje->content;
+            $visionMeta = is_array($metadata['vision'] ?? null) ? $metadata['vision'] : [];
+            $vision = is_string($visionMeta['caption'] ?? null)
+                ? trim($visionMeta['caption'])
+                : '';
+            $contenido = trim($mensaje->content);
+            $visionFailed = (bool) ($metadata['vision_failed'] ?? false);
+
+            // Si el análisis explícitamente falló (por error de API o no se pudo analizar)
+            if ($visionFailed) {
+                $errorMsg = is_string($metadata['vision_error'] ?? null) ? $metadata['vision_error'] : '';
+
+                return '[La clienta envió una imagen/comprobante pero no se pudo analizar automáticamente.'.
+                       ($errorMsg !== '' ? ' Error: '.$errorMsg.'.' : '').
+                       ' Pídele amablemente que describa brevemente qué envió (comprobante, producto, talla, color, etc.).]';
+            }
+
+            $detalle = $vision !== '' ? $vision : ($contenido !== '' ? $contenido : 'sin descripción automática');
+
+            return '[La clienta envió una imagen/comprobante]. '.$detalle;
         }
 
         if ($tipo === 'audio') {
@@ -133,8 +154,15 @@ class AgenteVendedor
             }
 
             $contenido = trim($mensaje->content);
-            if ($contenido === '' || $contenido === '🎤 Audio' || str_starts_with($contenido, '🎤')) {
-                return '[La clienta envió un audio pero no se pudo transcribir. Pide amablemente que repita por escrito. NO envíes saludo de bienvenida; continúa según el historial del pedido.]';
+            $transcriptFailed = (bool) ($metadata['transcript_failed'] ?? false);
+
+            // Si la transcripción falló explícitamente (por error de API o no se pudo transcribir)
+            if ($transcriptFailed || $contenido === '' || $contenido === '🎤 Audio' || str_starts_with($contenido, '🎤')) {
+                $errorMsg = is_string($metadata['transcript_error'] ?? null) ? $metadata['transcript_error'] : '';
+
+                return '[La clienta envió un audio pero no se pudo transcribir.'.
+                       ($errorMsg !== '' ? ' Error: '.$errorMsg.'.' : '').
+                       ' Pide amablemente que repita por escrito. NO envíes saludo de bienvenida; continúa según el historial del pedido.]';
             }
 
             return '[La clienta envió un audio]. '.$contenido;

@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests;
 
+use App\Support\ValidadorPlantillaMensaje;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class StoreCompanySettingRequest extends FormRequest
 {
@@ -53,8 +55,36 @@ class StoreCompanySettingRequest extends FormRequest
             'mensaje_comprobante_recibido' => 'nullable|string',
             'mensaje_comprobante_fuera_horario' => 'nullable|string',
             'mensaje_pedido_confirmado' => 'nullable|string',
+            'mensaje_pedido_enviado' => 'nullable|string',
+            'mensaje_pedido_entregado' => 'nullable|string',
             'mensaje_espera_link_tarjeta' => 'nullable|string',
+            'link_pago_tarjeta' => 'nullable|string|max:2048',
             'comision_tarjeta' => 'nullable|numeric|min:0|max:100',
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            $camposPlantilla = [
+                'mensaje_pedido_confirmado' => 'Pedido confirmado',
+                'mensaje_pedido_enviado' => 'Pedido enviado',
+                'mensaje_pedido_entregado' => 'Pedido entregado',
+            ];
+
+            foreach ($camposPlantilla as $campo => $etiqueta) {
+                $valor = $this->input($campo);
+                if (! is_string($valor) || trim($valor) === '') {
+                    continue;
+                }
+
+                if (ValidadorPlantillaMensaje::tieneFormatoIncorrecto($valor)) {
+                    $validator->errors()->add(
+                        $campo,
+                        "{$etiqueta}: usa variables como {nombre}, {producto}, {total}. No uses {\"valor\"} con comillas."
+                    );
+                }
+            }
+        });
     }
 }

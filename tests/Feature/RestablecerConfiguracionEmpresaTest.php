@@ -50,8 +50,12 @@ class RestablecerConfiguracionEmpresaTest extends TestCase
         $this->assertDatabaseCount('logs_ia', 0);
         $this->assertDatabaseHas('company_settings', [
             'company_name' => null,
+        ]);
+        $this->assertDatabaseHas('mensaje_configs', [
             'saludo_inicial' => null,
-            'agente_ia_activado' => false,
+        ]);
+        $this->assertDatabaseHas('agente_configs', [
+            'activado' => false,
         ]);
     }
 }

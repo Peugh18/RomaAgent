@@ -1,20 +1,19 @@
 ﻿<script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import CrmPanel from '@/components/crm/CrmPanel.vue';
+import CrmAlert from '@/components/crm/CrmAlert.vue';
+import CrmListCard from '@/components/crm/CrmListCard.vue';
+import CrmPagination from '@/components/crm/CrmPagination.vue';
+import CrmSearchBar from '@/components/crm/CrmSearchBar.vue';
 import PageHeader from '@/components/crm/PageHeader.vue';
+import ProductEmptyState from '@/components/products/ProductEmptyState.vue';
+import ProductTableSkeleton from '@/components/products/ProductTableSkeleton.vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
-import { 
-    Plus, 
-    Search, 
-    Edit, 
-    Trash2, 
-    ChevronLeft, 
-    ChevronRight, 
-    Package 
-} from 'lucide-vue-next';
+import { Plus, Edit, Trash2, Package, ImageOff } from 'lucide-vue-next';
 import { useCurrency } from '@/composables/useCurrency';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
@@ -52,6 +51,7 @@ interface PaginatedProducts {
 
 const productsData = ref<PaginatedProducts | null>(null);
 const loading = ref(true);
+const loadError = ref<string | null>(null);
 const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = ref(20);
@@ -59,6 +59,7 @@ let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const fetchProducts = async () => {
     loading.value = true;
+    loadError.value = null;
     try {
         const params = new URLSearchParams();
         params.append('page', String(currentPage.value));
@@ -74,7 +75,8 @@ const fetchProducts = async () => {
         if (!response.ok) throw new Error('Error loading products');
         productsData.value = await response.json();
     } catch (error) {
-        console.error('Error fetching products:', error);
+        loadError.value = error instanceof Error ? error.message : 'No se pudieron cargar los productos.';
+        productsData.value = null;
     } finally {
         loading.value = false;
     }
@@ -116,10 +118,14 @@ const getCsrfToken = (): string => document.querySelector('meta[name="csrf-token
 
 const formatPromoLabel = (product: Product): string => {
     if (!product.discount_active || !product.discount || Number(product.discount) <= 0 || !product.price) {
-        return '—';
+        return '';
     }
-
     return formatDiscount(Number(product.price), Number(product.discount));
+};
+
+const getFirstVariantImage = (product: Product): string | null => {
+    const variantWithImage = product.variants.find(v => v.image_url || v.image_path);
+    return variantWithImage?.image_url || variantWithImage?.image_path || null;
 };
 
 const deleteProduct = async (id: number) => {
@@ -168,128 +174,124 @@ onMounted(() => {
                 </template>
             </PageHeader>
 
-            <!-- Search and Filter Bar -->
-            <div class="mb-4 flex items-center justify-between gap-4 flex-wrap">
-                <div class="relative w-full max-w-xs">
-                    <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input v-model="searchQuery" placeholder="Buscar producto..." class="pl-9" />
-                </div>
+            <CrmAlert v-if="loadError">{{ loadError }}</CrmAlert>
+
+            <div class="crm-toolbar">
+                <CrmSearchBar v-model="searchQuery" placeholder="Buscar producto…" :disabled="loading" />
             </div>
 
-            <CrmPanel no-padding>
-                <div v-if="loading" class="py-20 text-center text-sm text-muted-foreground">Cargando productos…</div>
+            <CrmListCard>
+                <ProductTableSkeleton v-if="loading" />
                 
-                <div v-else-if="paginatedProducts.length === 0" class="py-20 text-center text-sm text-muted-foreground">
-                    No se encontraron productos registrados.
-                </div>
+                <ProductEmptyState
+                    v-else-if="paginatedProducts.length === 0"
+                    :search-query="searchQuery"
+                />
                 
-                <div v-else>
+                <template v-else>
                     <div class="overflow-x-auto">
-                        <table class="crm-table">
-                            <thead>
-                                <tr>
-                                    <th>Nombre</th>
-                                    <th>Categoría</th>
-                                    <th>Variantes</th>
-                                    <th>Precio</th>
-                                    <th>Promo activa</th>
-                                    <th class="text-right !text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-border">
-                                <tr v-for="product in paginatedProducts" :key="product.id">
-                                    <td class="font-medium text-foreground">
-                                        <div class="flex items-center gap-2">
-                                            <Package class="h-4 w-4 text-primary" />
-                                            <span>{{ product.name }}</span>
+                        <Table>
+                            <TableHeader>
+                                <TableRow class="hover:bg-transparent">
+                                    <TableHead class="w-[350px]">Producto</TableHead>
+                                    <TableHead>Categoría</TableHead>
+                                    <TableHead class="w-[100px] text-center">Variantes</TableHead>
+                                    <TableHead class="w-[140px] text-right">Precio</TableHead>
+                                    <TableHead class="w-[120px] text-center">Promo</TableHead>
+                                    <TableHead class="w-[100px] text-right">Acciones</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow v-for="product in paginatedProducts" :key="product.id" class="crm-table-row-action">
+                                    <TableCell>
+                                        <div class="flex items-center gap-3">
+                                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+                                                <img
+                                                    v-if="getFirstVariantImage(product)"
+                                                    :src="getFirstVariantImage(product)!"
+                                                    :alt="product.name"
+                                                    class="h-full w-full rounded-md object-cover"
+                                                />
+                                                <ImageOff v-else class="h-4 w-4 text-muted-foreground" />
+                                            </div>
+                                            <div class="min-w-0">
+                                                <p class="truncate font-medium">{{ product.name }}</p>
+                                                <p v-if="product.tags_ia?.length" class="truncate text-xs text-muted-foreground">
+                                                    {{ product.tags_ia.slice(0, 2).join(', ') }}
+                                                </p>
+                                            </div>
                                         </div>
-                                    </td>
-                                    <td class="text-muted-foreground">{{ product.category?.name || 'Sin categoría' }}</td>
-                                    <td class="text-muted-foreground">{{ product.variants.length }}</td>
-                                    <td
-                                        :class="
-                                            !product.price || Number(product.price) <= 0
-                                                ? 'font-bold text-destructive'
-                                                : 'font-bold text-emerald-600 dark:text-emerald-400'
-                                        "
-                                    >
-                                        {{ formatPrice(product.price, 'Sin precio') }}
-                                    </td>
-                                    <td class="text-muted-foreground">
-                                        {{ formatPromoLabel(product) }}
-                                    </td>
-                                    <td class="text-right">
-                                        <div class="flex justify-end gap-1.5">
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                as-child 
-                                                class="h-8 px-2 text-primary hover:text-primary hover:bg-primary/10"
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge v-if="product.category" variant="secondary" class="font-normal">
+                                            {{ product.category.name }}
+                                        </Badge>
+                                        <span v-else class="text-sm text-muted-foreground">—</span>
+                                    </TableCell>
+                                    <TableCell class="text-center">
+                                        <Badge variant="outline" class="font-mono">{{ product.variants.length }}</Badge>
+                                    </TableCell>
+                                    <TableCell class="text-right">
+                                        <span
+                                            :class="[
+                                                'font-semibold',
+                                                !product.price || Number(product.price) <= 0
+                                                    ? 'text-destructive'
+                                                    : 'text-foreground'
+                                            ]"
+                                        >
+                                            {{ formatPrice(product.price, 'Sin precio') }}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell class="text-center">
+                                        <Badge
+                                            v-if="formatPromoLabel(product)"
+                                            class="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400"
+                                        >
+                                            {{ formatPromoLabel(product) }}
+                                        </Badge>
+                                        <span v-else class="text-sm text-muted-foreground">—</span>
+                                    </TableCell>
+                                    <TableCell class="text-right">
+                                        <div class="flex justify-end gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                class="h-8 w-8"
+                                                as-child
                                             >
                                                 <Link :href="`/productos/${product.id}/edit`">
-                                                    <Edit class="h-3.5 w-3.5" />
+                                                    <Edit class="h-4 w-4" />
                                                     <span class="sr-only">Editar</span>
                                                 </Link>
                                             </Button>
-                                            
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                class="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10" 
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                class="h-8 w-8 text-destructive hover:text-destructive"
                                                 @click="deleteProduct(product.id)"
                                             >
-                                                <Trash2 class="h-3.5 w-3.5" />
+                                                <Trash2 class="h-4 w-4" />
                                                 <span class="sr-only">Eliminar</span>
                                             </Button>
                                         </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
                     </div>
 
-                    <!-- Pagination Footer -->
-                    <div class="flex items-center justify-between border-t border-border px-5 py-4 bg-muted/10 flex-wrap gap-4">
-                        <div class="text-xs text-muted-foreground">
-                            Mostrando <span class="font-semibold">{{ fromItem }}</span> a <span class="font-semibold">{{ toItem }}</span> de <span class="font-semibold">{{ totalItems }}</span> productos
-                        </div>
-                        <div class="flex items-center gap-1">
-                            <Button 
-                                variant="outline" 
-                                size="icon"
-                                class="h-8 w-8"
-                                :disabled="currentPage === 1" 
-                                @click="currentPage--"
-                            >
-                                <ChevronLeft class="h-4 w-4" />
-                                <span class="sr-only">Anterior</span>
-                            </Button>
-                            
-                            <Button 
-                                v-for="page in totalPages" 
-                                :key="page" 
-                                size="sm" 
-                                class="h-8 w-8 p-0"
-                                :variant="currentPage === page ? 'default' : 'outline'"
-                                @click="currentPage = page"
-                            >
-                                {{ page }}
-                            </Button>
-                            
-                            <Button 
-                                variant="outline" 
-                                size="icon"
-                                class="h-8 w-8"
-                                :disabled="currentPage === totalPages" 
-                                @click="currentPage++"
-                            >
-                                <ChevronRight class="h-4 w-4" />
-                                <span class="sr-only">Siguiente</span>
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </CrmPanel>
+                    <CrmPagination
+                        :page="currentPage"
+                        :last-page="totalPages"
+                        :total="totalItems"
+                        :from="fromItem"
+                        :to="toItem"
+                        :disabled="loading"
+                        @update:page="currentPage = $event"
+                    />
+                </template>
+            </CrmListCard>
         </div>
     </AppLayout>
 </template>

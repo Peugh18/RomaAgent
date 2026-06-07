@@ -17,16 +17,18 @@ class RecordatoriosPedidoCommand extends Command
 
     public function handle(EnviarMensajeWhatsappSaliente $enviarMensaje): int
     {
-        $settings = CompanySetting::query()->first();
+        $settings = CompanySetting::query()->with('mensajes')->first();
         if ($settings === null) {
             return self::SUCCESS;
         }
 
-        $msg3 = $settings->mensaje_recordatorio_3min;
-        $msg15 = $settings->mensaje_recordatorio_15min;
-        $msgDatos = $settings->mensaje_recordatorio_datos;
+        $mensajes = $settings->mensajes;
+        $msg3 = $mensajes?->recordatorio_3min;
+        $msg15 = $mensajes?->recordatorio_15min;
+        $msgDatos = $mensajes?->recordatorio_datos;
 
         Customer::query()
+            ->with('activeSale')
             ->whereNotNull('active_sale_id')
             ->whereNotNull('last_inbound_at')
             ->where('ia_paused', false)

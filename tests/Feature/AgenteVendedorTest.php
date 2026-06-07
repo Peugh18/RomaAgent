@@ -9,8 +9,10 @@ use App\Models\CompanySetting;
 use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -54,13 +56,16 @@ class AgenteVendedorTest extends TestCase
 
     public function test_registrar_comprobante_pausa_ia(): void
     {
+        Carbon::setTestNow(Carbon::parse('2026-06-05 14:00:00', 'America/Lima'));
+
         CompanySetting::factory()->create([
             'mensaje_comprobante_recibido' => 'Recibido hermosa',
+            'horario_atencion' => '9am - 10pm',
         ]);
 
         $customer = Customer::factory()->create();
         $customer->asignarPedidoActivo(
-            \App\Models\Sale::factory()->forProduct(
+            Sale::factory()->forProduct(
                 Product::query()->create(['name' => 'Aurora', 'price' => 150, 'status' => Product::ESTADO_DISPONIBLE])
             )->create(['customer_id' => $customer->id, 'phone_number' => $customer->phone_number])
         );
@@ -94,14 +99,16 @@ class AgenteVendedorTest extends TestCase
         ]);
 
         $customer = Customer::factory()->iaPausada()->create();
-        $sale = \App\Models\Sale::factory()->forProduct($product, $variant)->create([
+        $sale = Sale::factory()->forProduct($product, $variant)->create([
             'customer_id' => $customer->id,
             'phone_number' => $customer->phone_number,
             'status' => SaleStatus::PagoRecibido,
             'total_amount' => 195,
         ]);
 
-        $this->actingAs($user)->postJson("/api/sales/{$sale->id}/confirm-payment")->assertOk();
+        $this->actingAs($user)->postJson("/api/sales/{$sale->id}/confirm-payment", [
+            'message' => 'Confirmado {producto} por S/ {total}',
+        ])->assertOk();
 
         $this->assertDatabaseHas('messages', [
             'phone_number' => $customer->phone_number,

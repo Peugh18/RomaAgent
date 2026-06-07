@@ -10,6 +10,7 @@ class DeliveryZone extends Model
         'district',
         'cost_motorizado',
         'cost_shalom',
+        'horario_entrega',
     ];
 
     protected $casts = [

@@ -44,10 +44,7 @@ class FormateadorCatalogoProductos
 
         $lineas = [
             '# CATÁLOGO DE PRODUCTOS DISPONIBLES',
-            sprintf(
-                'Talla estándar configurada: %s. El stock por color usa exactamente las tallas guardadas en el sistema.',
-                $this->tallaEstandar
-            ),
+            'Toda la tienda usa talla estándar. Al hablar con la clienta di "talla estándar", nunca "única" ni "UNICA".',
             'Precio normal para venta directa; precio TikTok cuando el cliente viene de TikTok. El descuento promo solo aplica al precio normal.',
             '',
         ];
@@ -172,9 +169,7 @@ class FormateadorCatalogoProductos
 
     private function formatearLineaTallaBd(string $talla, int $cantidad): string
     {
-        $etiqueta = $talla === $this->tallaEstandar
-            ? sprintf('talla estándar (%s)', $talla)
-            : sprintf('talla %s', $talla);
+        $etiqueta = NormalizadorStockTallas::etiquetaPublica($talla);
 
         if ($cantidad > 0) {
             return sprintf('%s: %d en stock', $etiqueta, $cantidad);

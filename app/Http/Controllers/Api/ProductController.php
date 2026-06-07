@@ -3,16 +3,18 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\CompanySetting;
+use App\Http\Resources\ProductResource;
 use App\Models\Product;
+use App\Support\InvalidatesPromptCache;
 use App\Support\NormalizadorStockTallas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
 {
+    use InvalidatesPromptCache;
+
     public function index(Request $request): JsonResponse
     {
         $query = Product::with(['category', 'variants'])
@@ -23,7 +25,9 @@ class ProductController extends Controller
                 $query->where('status', $request->status);
             });
 
-        return response()->json($query->paginate($request->input('per_page', 20)));
+        $products = $query->paginate($request->input('per_page', 20));
+
+        return ProductResource::collection($products)->response();
     }
 
     public function store(Request $request): JsonResponse
@@ -77,12 +81,14 @@ class ProductController extends Controller
 
         $this->invalidarCachePrompt();
 
-        return response()->json($product->load('variants'), 201);
+        return (new ProductResource($product->load('variants')))->response()->setStatusCode(201);
     }
 
     public function show(string $id): JsonResponse
     {
-        return response()->json(Product::with(['category', 'variants'])->findOrFail($id));
+        $product = Product::with(['category', 'variants'])->findOrFail($id);
+
+        return (new ProductResource($product))->response();
     }
 
     public function update(Request $request, string $id): JsonResponse
@@ -175,7 +181,7 @@ class ProductController extends Controller
 
         $this->invalidarCachePrompt();
 
-        return response()->json($product->load('variants'));
+        return (new ProductResource($product->load('variants')))->response();
     }
 
     public function destroy(string $id): JsonResponse
@@ -203,14 +209,5 @@ class ProductController extends Controller
         }
 
         $product->desmarcarOculto();
-    }
-
-    private function invalidarCachePrompt(): void
-    {
-        $settingsId = CompanySetting::query()->value('id');
-
-        if ($settingsId !== null) {
-            Cache::forget('contexto_prompt_completo_'.$settingsId);
-        }
     }
 }

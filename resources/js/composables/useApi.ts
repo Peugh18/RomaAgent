@@ -30,7 +30,7 @@ export async function apiJson<T>(url: string, init: RequestInit = {}): Promise<T
     headers.set('X-Requested-With', 'XMLHttpRequest');
 
     if (method !== 'GET' && method !== 'HEAD') {
-        if (!headers.has('Content-Type') && init.body) {
+        if (!headers.has('Content-Type') && init.body && !(init.body instanceof FormData)) {
             headers.set('Content-Type', 'application/json');
         }
         headers.set('X-CSRF-TOKEN', getCsrfToken());

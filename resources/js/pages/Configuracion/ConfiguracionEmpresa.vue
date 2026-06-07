@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import CrmAlert from '@/components/crm/CrmAlert.vue';
+import PageHeader from '@/components/crm/PageHeader.vue';
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, provide, computed } from 'vue';
 import { useConfiguracionEmpresa } from '@/composables/useConfiguracionEmpresa';
@@ -44,6 +46,7 @@ import {
     Zap,
     Truck,
     AlertTriangle,
+    Link2,
 } from 'lucide-vue-next';
 import type { BreadcrumbItem } from '@/types';
 
@@ -53,10 +56,12 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const { 
     form, 
+    loading,
     saving, 
     resetting,
     error, 
     success, 
+    promptCompleto,
     guardarConfiguracion, 
     resetearConfiguracion,
     agregarMetodoPago, 
@@ -272,28 +277,24 @@ const monedas = [
     <Head title="Configuración de Empresa" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="crm-page space-y-6">
-            <!-- Header -->
-            <div class="flex items-start justify-between">
-                <div>
-                    <h2 class="text-3xl font-bold tracking-tight text-foreground">Configuración de Empresa</h2>
-                    <p class="mt-2 text-sm text-muted-foreground">
-                        Configura todos los datos de tu empresa. Esta información se usará para que la IA responda como tu marca.
-                    </p>
-                </div>
-                <Button @click="guardarConfiguracion" :disabled="saving" class="gap-2">
-                    <CheckCircle class="h-4 w-4" />
-                    {{ saving ? 'Guardando...' : 'Guardar Cambios' }}
-                </Button>
-            </div>
+        <div v-if="loading" class="crm-page flex min-h-[40vh] items-center justify-center">
+            <p class="text-sm text-muted-foreground">Cargando configuración…</p>
+        </div>
+        <div v-else class="crm-page space-y-6">
+            <PageHeader
+                title="Configuración de empresa"
+                description="Datos de tu marca, pagos, IA y mensajes. La IA responde según esta configuración."
+            >
+                <template #actions>
+                    <Button @click="guardarConfiguracion" :disabled="saving" class="gap-2">
+                        <CheckCircle class="h-4 w-4" />
+                        {{ saving ? 'Guardando…' : 'Guardar cambios' }}
+                    </Button>
+                </template>
+            </PageHeader>
 
-            <!-- Mensajes de estado -->
-            <div v-if="error" class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
-                {{ error }}
-            </div>
-            <div v-if="success" class="rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">
-                {{ success }}
-            </div>
+            <CrmAlert v-if="error">{{ error }}</CrmAlert>
+            <CrmAlert v-if="success" variant="success">{{ success }}</CrmAlert>
 
             <!-- Layout Split: Formulario (Izquierda) + Preview (Derecha) -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -836,6 +837,35 @@ const monedas = [
                     <Card>
                         <CardHeader>
                             <CardTitle class="flex items-center gap-2">
+                                <Link2 class="h-5 w-5" />
+                                Link de pago tarjeta
+                            </CardTitle>
+                            <CardDescription>
+                                URL que envías desde el chat con un clic. El mensaje al cliente es solo el link.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent class="space-y-3">
+                            <div class="space-y-2">
+                                <Label for="link-pago-tarjeta">URL de pago</Label>
+                                <Input
+                                    id="link-pago-tarjeta"
+                                    v-model="form.link_pago_tarjeta"
+                                    type="url"
+                                    placeholder="https://tu-pasarela.com/pagar?monto={total}&pedido={sale_id}"
+                                />
+                            </div>
+                            <p class="text-xs text-muted-foreground">
+                                Variables opcionales:
+                                <code class="rounded bg-muted px-1">{total}</code>,
+                                <code class="rounded bg-muted px-1">{sale_id}</code>,
+                                <code class="rounded bg-muted px-1">{telefono}</code>
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle class="flex items-center gap-2">
                                 <FileText class="h-5 w-5" />
                                 Información Adicional
                             </CardTitle>
@@ -948,7 +978,7 @@ const monedas = [
                 <!-- PREVIEW (Derecha - 1 columna) -->
                 <div class="lg:col-span-1">
                     <PreviewPrompt
-                        :prompt-completo="form.prompt_completo || ''"
+                        :prompt-completo="promptCompleto || form.prompt_preview || ''"
                         :prompt-preview="form.prompt_preview || ''"
                         :estadisticas="form.estadisticas || {}"
                         :probando="probandoIA"

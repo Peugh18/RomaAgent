@@ -1,18 +1,30 @@
 <script setup lang="ts">
 import ChatComposer from '@/components/chat/ChatComposer.vue';
 import ChatConversationList from '@/components/chat/ChatConversationList.vue';
+import ChatHumanAlertBanner from '@/components/chat/ChatHumanAlertBanner.vue';
 import ChatMessageBubble from '@/components/chat/ChatMessageBubble.vue';
 import ChatSalePanel from '@/components/chat/ChatSalePanel.vue';
 import ChatThreadHeader from '@/components/chat/ChatThreadHeader.vue';
+import SaleTransitionModal from '@/components/sales/SaleTransitionModal.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useChat } from '@/composables/useChat';
+import { useHumanAttentionAlert } from '@/composables/useHumanAttentionAlert';
 import { useActiveSale } from '@/composables/useSale';
 import { type BreadcrumbItem } from '@/types';
+import type { Sale, SaleTransition } from '@/types/sale';
 import { Head } from '@inertiajs/vue3';
-import { computed, watch } from 'vue';
-import { Loader2 } from 'lucide-vue-next';
+import { computed, ref } from 'vue';
+import { Bot, Loader2 } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Chat WhatsApp', href: '/chat' }];
+
+const chatMode = ref<'bot' | 'human'>('bot');
+const transitionOpen = ref(false);
+const activeTransition = ref<SaleTransition | null>(null);
+
+const phoneFromUrl = typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('phone')
+    : null;
 
 const {
     selectedPhone,
@@ -23,46 +35,63 @@ const {
     sending,
     resendingId,
     sendError,
+    loadError,
     messagesContainer,
     selectConversation,
     sendMessage,
     resendMessage,
-} = useChat();
+} = useChat({ initialPhone: phoneFromUrl });
 
 const phoneRef = computed(() => selectedPhone.value);
 
 const {
     sale: activeSale,
     loading: saleLoading,
-    confirming: confirmingPayment,
+    transitioning,
     error: saleError,
     loadActiveSale,
-    confirmPayment,
 } = useActiveSale(phoneRef);
 
 const activeConversation = computed(() =>
     conversations.value.find((conversation) => conversation.phone === selectedPhone.value),
 );
 
-const onConfirmPayment = async () => {
-    const ok = await confirmPayment();
-    if (ok) {
-        await loadActiveSale();
-    }
+const { humanAttentionChats, showAlert, dismissAlert } = useHumanAttentionAlert(conversations);
+
+const goToHumanChat = async (phone: string) => {
+    await selectConversation(phone);
+    dismissAlert();
 };
 
-watch(selectedPhone, () => {
-    void loadActiveSale();
-});
+const onTransitionCompleted = async (sale: Sale) => {
+    if (activeSale.value?.id === sale.id) {
+        activeSale.value = sale;
+    }
+
+    await loadActiveSale();
+};
+
+const openTransition = (transition: SaleTransition) => {
+    activeTransition.value = transition;
+    transitionOpen.value = true;
+};
 </script>
 
 <template>
     <Head title="Chat WhatsApp" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div
-            class="flex h-[calc(100vh-5rem)] min-h-[32rem] flex-col gap-4 overflow-hidden lg:flex-row lg:gap-0 lg:rounded-xl lg:border lg:border-border lg:shadow-sm"
-        >
+        <ChatHumanAlertBanner
+            :visible="showAlert"
+            :chats="humanAttentionChats"
+            @dismiss="dismissAlert"
+            @select="goToHumanChat"
+        />
+
+        <div class="crm-page !gap-4 pb-4 pt-2">
+            <div
+                class="flex h-[calc(100vh-7.5rem)] min-h-[32rem] flex-col gap-4 overflow-hidden lg:flex-row lg:gap-0 lg:rounded-xl lg:border lg:border-border lg:shadow-sm"
+            >
             <ChatConversationList
                 :conversations="conversations"
                 :selected-phone="selectedPhone"
@@ -74,14 +103,15 @@ watch(selectedPhone, () => {
                 <ChatThreadHeader
                     :name="activeConversation?.name ?? null"
                     :phone="selectedPhone"
+                    @mode-change="chatMode = $event"
                 />
 
                 <ChatSalePanel
                     :sale="activeSale"
                     :loading="saleLoading"
-                    :confirming="confirmingPayment"
+                    :transitioning="transitioning"
                     :error="saleError"
-                    @confirm-payment="onConfirmPayment"
+                    @open-transition="openTransition"
                     @refresh="loadActiveSale"
                 />
 
@@ -92,6 +122,13 @@ watch(selectedPhone, () => {
                     <div v-if="loading && filteredMessages.length === 0" class="flex justify-center py-8">
                         <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
                     </div>
+
+                    <p
+                        v-if="loadError"
+                        class="py-4 text-center text-sm text-destructive"
+                    >
+                        {{ loadError }}
+                    </p>
 
                     <ChatMessageBubble
                         v-for="message in filteredMessages"
@@ -110,16 +147,32 @@ watch(selectedPhone, () => {
                 </div>
 
                 <ChatComposer
-                    v-if="selectedPhone"
+                    v-if="selectedPhone && chatMode === 'human'"
                     v-model="newMessage"
                     :sending="sending"
                     @submit="sendMessage"
                 />
 
+                <div
+                    v-else-if="selectedPhone"
+                    class="flex items-center gap-2 border-t border-border bg-[#f0f2f5] px-4 py-3 text-sm text-muted-foreground dark:bg-muted/30"
+                >
+                    <Bot class="h-4 w-4 shrink-0 text-emerald-600" />
+                    La IA responde sola. Cambia a <strong class="mx-1 font-medium text-foreground">Humano</strong> para escribir manualmente.
+                </div>
+
                 <p v-if="sendError" class="bg-[#f0f2f5] px-4 pb-3 text-sm text-destructive dark:bg-muted/30">
                     {{ sendError }}
                 </p>
             </section>
+
+            <SaleTransitionModal
+                v-model:open="transitionOpen"
+                :sale="activeSale"
+                :transition="activeTransition"
+                @completed="onTransitionCompleted"
+            />
+        </div>
         </div>
     </AppLayout>
 </template>

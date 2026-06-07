@@ -52,18 +52,11 @@ class ClienteGemini
         $this->ultimoUso = null;
 
         try {
-            $url = sprintf(
-                '%s/models/%s:generateContent?key=%s',
-                self::BASE_URL,
-                $this->modelo,
-                $this->apiKey
-            );
+            $url = $this->urlGenerateContent();
 
             $contents = $this->construirContents($historialMensajes);
 
-            $response = Http::withHeaders([
-                'Content-Type' => 'application/json',
-            ])
+            $response = Http::withHeaders($this->headersApi())
                 ->timeout(30)
                 ->connectTimeout(10)
                 ->retry(2, 200, throw: false)
@@ -246,12 +239,7 @@ class ClienteGemini
         ?array $tools = null,
         ?array $toolConfig = null,
     ): ?array {
-        $url = sprintf(
-            '%s/models/%s:generateContent?key=%s',
-            self::BASE_URL,
-            $this->modelo,
-            $this->apiKey
-        );
+        $url = $this->urlGenerateContent();
 
         $payload = [
             'systemInstruction' => [
@@ -274,7 +262,7 @@ class ClienteGemini
             $payload['toolConfig'] = $toolConfig;
         }
 
-        $response = Http::withHeaders(['Content-Type' => 'application/json'])
+        $response = Http::withHeaders($this->headersApi())
             ->timeout(45)
             ->connectTimeout(10)
             ->retry(2, 200, throw: false)
@@ -405,5 +393,21 @@ class ClienteGemini
 
         // Colapsar más de 2 líneas vacías seguidas
         return preg_replace("/\n{3,}/u", "\n\n", $texto) ?? $texto;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function headersApi(): array
+    {
+        return [
+            'Content-Type' => 'application/json',
+            'x-goog-api-key' => $this->apiKey,
+        ];
+    }
+
+    private function urlGenerateContent(): string
+    {
+        return sprintf('%s/models/%s:generateContent', self::BASE_URL, $this->modelo);
     }
 }

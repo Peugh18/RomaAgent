@@ -6,12 +6,18 @@ use App\Actions\Mensajes\EnviarMensajeWhatsappSaliente;
 use App\Actions\Pedidos\ActualizarPedidoVenta;
 use App\Actions\Pedidos\EnviarFotoProductoDesdeAgente;
 use App\Actions\Pedidos\RegistrarComprobantePedido;
+use App\Enums\SaleStatus;
 use App\Models\CompanySetting;
-use App\Support\MensajesEmpresaDefaults;
 use App\Models\Customer;
 use App\Models\Message;
 use App\Models\Sale;
-use App\Support\HorarioAtencionEmpresa;
+use App\Models\VentaConfig;
+use App\Services\Agente\Tools\BuscarProductosTool;
+use App\Services\Agente\Tools\CalcularEnvioTool;
+use App\Services\Agente\Tools\VerificarStockTool;
+use App\Support\FormateadorCatalogoProductos;
+use App\Support\MensajesEmpresaDefaults;
+use App\Support\NormalizadorStockTallas;
 use Illuminate\Support\Facades\Log;
 
 class EjecutorHerramientasAgente
@@ -79,7 +85,7 @@ class EjecutorHerramientasAgente
             ],
             [
                 'name' => 'solicitar_atencion_humana',
-                'description' => 'Pausa la IA y escala a un asesor: tarjeta (link de pago), quejas, casos fuera del flujo, o cuando no puedas resolver.',
+                'description' => 'Pausa la IA y escala a un asesor: SOLO tarjeta (link de pago), quejas graves o casos imposibles con el catálogo. NO uses para métodos de pago (Yape/transferencia), stickers ni preguntas que están en el prompt.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -96,6 +102,9 @@ class EjecutorHerramientasAgente
                     'properties' => new \stdClass,
                 ],
             ],
+            BuscarProductosTool::definition(),
+            VerificarStockTool::definition(),
+            CalcularEnvioTool::definition(),
         ];
     }
 
@@ -108,9 +117,12 @@ class EjecutorHerramientasAgente
         return match ($nombre) {
             'actualizar_pedido' => $this->ejecutarActualizarPedido($customer, $args),
             'enviar_foto_producto' => $this->ejecutarEnviarFoto($customer, $mensajeEntrante, $args),
-            'registrar_comprobante_recibido' => $this->ejecutarComprobante($customer),
+            'registrar_comprobante_recibido' => $this->ejecutarComprobante($customer, $mensajeEntrante),
             'solicitar_atencion_humana' => $this->ejecutarHumano($customer, $args, $mensajeEntrante),
             'consultar_pedido_activo' => $this->ejecutarConsultarPedido($customer),
+            'buscar_productos' => BuscarProductosTool::execute($args),
+            'verificar_stock' => VerificarStockTool::execute($args),
+            'calcular_envio' => CalcularEnvioTool::execute($args),
             default => ['ok' => false, 'error' => "Herramienta desconocida: {$nombre}"],
         };
     }
@@ -123,13 +135,47 @@ class EjecutorHerramientasAgente
     {
         $sale = $this->actualizarPedido->handle($customer, $args);
 
+        return $this->formatearRespuestaPedido($sale);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatearRespuestaPedido(Sale $sale): array
+    {
+        $moneda = VentaConfig::query()->value('moneda')
+            ?? CompanySetting::query()->value('moneda')
+            ?? 'PEN';
+        $simbolo = FormateadorCatalogoProductos::simboloDesdeMoneda((string) $moneda);
+        $quantity = max(1, (int) $sale->quantity);
+        $unitPrice = (float) $sale->unit_price;
+        $deliveryCost = (float) $sale->delivery_cost;
+        $total = (float) $sale->total_amount;
+        $subtotal = $unitPrice * $quantity;
+
         return [
             'ok' => true,
             'sale_id' => $sale->id,
             'status' => $sale->status->value,
             'product_name' => $sale->product_name,
             'color' => $sale->color,
-            'total_amount' => (float) $sale->total_amount,
+            'size' => NormalizadorStockTallas::etiquetaPublica($sale->size),
+            'quantity' => $quantity,
+            'unit_price' => $unitPrice,
+            'delivery_cost' => $deliveryCost,
+            'subtotal_producto' => $subtotal,
+            'total_amount' => $total,
+            'moneda' => $simbolo,
+            'desglose' => sprintf(
+                '%d × %s %.2f + envío %s %.2f = total %s %.2f',
+                $quantity,
+                $simbolo,
+                $unitPrice,
+                $simbolo,
+                $deliveryCost,
+                $simbolo,
+                $total,
+            ),
         ];
     }
 
@@ -173,9 +219,9 @@ class EjecutorHerramientasAgente
     /**
      * @return array<string, mixed>
      */
-    private function ejecutarComprobante(Customer $customer): array
+    private function ejecutarComprobante(Customer $customer, Message $mensajeEntrante): array
     {
-        $result = $this->registrarComprobante->handle($customer);
+        $result = $this->registrarComprobante->handle($customer, $mensajeEntrante);
 
         return [
             'ok' => true,
@@ -192,13 +238,38 @@ class EjecutorHerramientasAgente
     private function ejecutarHumano(Customer $customer, array $args, Message $mensajeEntrante): array
     {
         $motivo = (string) ($args['motivo'] ?? 'Atención humana requerida');
+
+        if (! $this->debeEscalarAtencionHumana($mensajeEntrante, $motivo)) {
+            Log::info('Escalado a humano bloqueado', [
+                'phone' => $customer->phone_number,
+                'motivo' => $motivo,
+                'message_type' => is_array($mensajeEntrante->metadata) ? ($mensajeEntrante->metadata['type'] ?? 'text') : 'text',
+            ]);
+
+            return [
+                'ok' => false,
+                'ia_pausada' => false,
+                'error' => 'No escales: responde tú con la información del prompt (métodos de pago, catálogo, etc.). Los stickers no requieren humano.',
+            ];
+        }
+
         $customer->pausarIa($motivo);
 
-        $settings = CompanySetting::query()->first();
-        $mensajeTarjeta = $settings?->mensaje_espera_link_tarjeta
+        $settings = CompanySetting::query()->with('mensajes')->first();
+        $mensajeTarjeta = $settings?->mensajes?->espera_link_tarjeta
             ?: MensajesEmpresaDefaults::esperaLinkTarjeta();
 
         $esTarjeta = str_contains(mb_strtolower($motivo), 'tarjeta');
+
+        if ($esTarjeta) {
+            $sale = $customer->activeSale;
+            if ($sale !== null) {
+                $sale->update([
+                    'status' => SaleStatus::PagoPendiente,
+                    'payment_method' => 'tarjeta',
+                ]);
+            }
+        }
 
         return [
             'ok' => true,
@@ -206,6 +277,67 @@ class EjecutorHerramientasAgente
             'motivo' => $motivo,
             'mensaje_sugerido' => $esTarjeta ? $mensajeTarjeta : null,
         ];
+    }
+
+    private function debeEscalarAtencionHumana(Message $mensajeEntrante, string $motivo): bool
+    {
+        $metadata = is_array($mensajeEntrante->metadata) ? $mensajeEntrante->metadata : [];
+        $tipo = $metadata['type'] ?? 'text';
+
+        if ($tipo === 'sticker') {
+            return false;
+        }
+
+        $motivoLower = mb_strtolower(trim($motivo));
+
+        if (str_contains($motivoLower, 'sticker') || str_contains($motivoLower, 'emoji')) {
+            return false;
+        }
+
+        if (str_contains($motivoLower, 'tarjeta')) {
+            return true;
+        }
+
+        $motivosQueSiempreEscalan = [
+            'comprobante',
+            'voucher',
+            'captura de pago',
+            'verificar pago',
+            'confirmar pago',
+            'pago recibido',
+            'revisar pago',
+        ];
+
+        foreach ($motivosQueSiempreEscalan as $patron) {
+            if (str_contains($motivoLower, $patron)) {
+                return true;
+            }
+        }
+
+        $motivosResolviblesPorIa = [
+            'metodo de pago',
+            'método de pago',
+            'metodos de pago',
+            'métodos de pago',
+            'como pago',
+            'cómo pago',
+            'donde pago',
+            'dónde pago',
+            'yape',
+            'transferencia',
+            'plin',
+            'cuenta bancaria',
+            'numero de cuenta',
+            'número de cuenta',
+        ];
+
+        foreach ($motivosResolviblesPorIa as $patron) {
+            if (str_contains($motivoLower, $patron)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -220,19 +352,44 @@ class EjecutorHerramientasAgente
             return ['ok' => true, 'pedido' => null];
         }
 
+        $moneda = VentaConfig::query()->value('moneda')
+            ?? CompanySetting::query()->value('moneda')
+            ?? 'PEN';
+        $simbolo = FormateadorCatalogoProductos::simboloDesdeMoneda((string) $moneda);
+        $quantity = max(1, (int) $sale->quantity);
+        $unitPrice = (float) $sale->unit_price;
+        $deliveryCost = (float) $sale->delivery_cost;
+        $total = (float) $sale->total_amount;
+
         return [
             'ok' => true,
             'pedido' => [
                 'id' => $sale->id,
                 'product_name' => $sale->product_name,
                 'color' => $sale->color,
+                'size' => NormalizadorStockTallas::etiquetaPublica($sale->size),
+                'quantity' => $quantity,
+                'unit_price' => $unitPrice,
+                'delivery_cost' => $deliveryCost,
+                'subtotal_producto' => $unitPrice * $quantity,
+                'total_amount' => $total,
+                'moneda' => $simbolo,
+                'desglose' => sprintf(
+                    '%d × %s %.2f + envío %s %.2f = total %s %.2f',
+                    $quantity,
+                    $simbolo,
+                    $unitPrice,
+                    $simbolo,
+                    $deliveryCost,
+                    $simbolo,
+                    $total,
+                ),
                 'status' => $sale->status->value,
-                'total_amount' => (float) $sale->total_amount,
                 'payment_method' => $sale->payment_method,
                 'delivery_type' => $sale->delivery_type,
                 'delivery_district' => $sale->delivery_district,
                 'customer_data' => $sale->customer_data ?? [],
-                'nota' => 'Producto y color ya confirmados; no volver a pedirlos.',
+                'nota' => 'Producto, color y cantidad ya confirmados; no volver a pedirlos salvo cambio de la clienta.',
             ],
         ];
     }

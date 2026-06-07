@@ -39,6 +39,10 @@ class ProcessIncomingMessage
             $metadata = $this->mediaService->aplicarAMetadata($metadata, $resolved, $messageType);
         }
 
+        $esMensajeNuevo = ! Message::query()
+            ->where('message_id', $this->extractMessageId($payload))
+            ->exists();
+
         $message = Message::updateOrCreate(
             ['message_id' => $this->extractMessageId($payload)],
             [
@@ -72,12 +76,18 @@ class ProcessIncomingMessage
             'type' => $messageType,
         ]);
 
-        // Generar respuesta automática: para imagen/audio, primero procesar media; para texto y otros, responder directo
-        $tipo = is_array($message->metadata) ? ($message->metadata['type'] ?? 'text') : 'text';
-        if (in_array($tipo, ['image', 'audio'], true)) {
-            ProcessMediaThenRespondJob::dispatch($message->id);
-        } else {
-            $this->generarRespuestaIA($message);
+        // Solo procesar IA en mensajes entrantes nuevos (idempotencia ante reintentos del webhook)
+        if ($esMensajeNuevo && $message->direction === 'incoming') {
+            $tipo = is_array($message->metadata) ? ($message->metadata['type'] ?? 'text') : 'text';
+            if ($tipo === 'sticker') {
+                Log::info('Sticker entrante: no se encola respuesta IA', [
+                    'phone' => $phoneNumber,
+                ]);
+            } elseif (in_array($tipo, ['image', 'audio'], true)) {
+                ProcessMediaThenRespondJob::dispatch($message->id);
+            } else {
+                $this->generarRespuestaIA($message);
+            }
         }
 
         return $message;

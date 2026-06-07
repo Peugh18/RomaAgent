@@ -1,27 +1,24 @@
 ﻿<script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import CrmAlert from '@/components/crm/CrmAlert.vue';
+import CrmListCard from '@/components/crm/CrmListCard.vue';
+import CrmPagination from '@/components/crm/CrmPagination.vue';
+import CrmSearchBar from '@/components/crm/CrmSearchBar.vue';
 import PageHeader from '@/components/crm/PageHeader.vue';
-import CrmPanel from '@/components/crm/CrmPanel.vue';
+import ZoneEmptyState from '@/components/zones/ZoneEmptyState.vue';
+import ZoneTableSkeleton from '@/components/zones/ZoneTableSkeleton.vue';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type BreadcrumbItem } from '@/types';
+import { useCurrency } from '@/composables/useCurrency';
 import { apiJson, ApiError } from '@/composables/useApi';
 import { Head } from '@inertiajs/vue3';
 import { ref, computed, watch, onMounted } from 'vue';
-import {
-    Search,
-    Plus,
-    MapPin,
-    TrendingUp,
-    Truck,
-    Edit,
-    Trash2,
-    ChevronLeft,
-    ChevronRight,
-    Globe,
-} from 'lucide-vue-next';
+import { Plus, MapPin, Edit, Trash2, Globe, Truck } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Tarifas de Delivery', href: '/zonas-delivery' },
@@ -64,8 +61,10 @@ const distritosSugeridos = [
 
 const esSoloShalom = (zone: DeliveryZone): boolean => Number(zone.cost_motorizado) <= 0;
 
+const { format: formatMoney } = useCurrency();
+
 const formatearMotorizado = (zone: DeliveryZone): string =>
-    esSoloShalom(zone) ? 'No aplica' : `S/ ${Number(zone.cost_motorizado).toFixed(2)}`;
+    esSoloShalom(zone) ? '—' : formatMoney(zone.cost_motorizado);
 
 const fetchDeliveryZones = async () => {
     loading.value = true;
@@ -106,6 +105,18 @@ const paginatedZones = computed(() => {
     const start = (currentPage.value - 1) * itemsPerPage;
     return filteredZones.value.slice(start, start + itemsPerPage);
 });
+
+const fromItem = computed(() => {
+    if (filteredZones.value.length === 0) {
+        return 0;
+    }
+
+    return (currentPage.value - 1) * itemsPerPage + 1;
+});
+
+const toItem = computed(() =>
+    Math.min(currentPage.value * itemsPerPage, filteredZones.value.length),
+);
 
 watch(searchQuery, () => {
     currentPage.value = 1;
@@ -222,142 +233,117 @@ onMounted(fetchDeliveryZones);
                 </template>
             </PageHeader>
 
-            <div
-                v-if="error"
-                class="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
-                role="alert"
-            >
-                {{ error }}
-            </div>
+            <CrmAlert v-if="error">{{ error }}</CrmAlert>
 
-            <div class="flex items-center justify-between gap-4 flex-wrap">
+            <div class="crm-toolbar">
                 <p class="text-xs text-muted-foreground">
                     Las zonas <strong>Solo Shalom</strong> aparecen primero. Todo se refleja en el prompt de la IA.
                 </p>
-                <div class="relative w-full max-w-xs">
-                    <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input v-model="searchQuery" placeholder="Buscar zona..." class="pl-9" />
-                </div>
+                <CrmSearchBar v-model="searchQuery" placeholder="Buscar zona…" :disabled="loading" />
             </div>
 
-            <CrmPanel noPadding>
-                <div v-if="loading" class="py-20 text-center text-sm text-muted-foreground">
-                    Cargando tarifas...
-                </div>
+            <CrmListCard>
+                <ZoneTableSkeleton v-if="loading" />
 
-                <div v-else-if="filteredZones.length === 0" class="py-20 text-center text-sm text-muted-foreground">
-                    No se encontraron zonas
-                </div>
+                <ZoneEmptyState
+                    v-else-if="filteredZones.length === 0"
+                    :search-query="searchQuery"
+                    @create="openCreateModal"
+                />
 
-                <div v-else>
+                <template v-else>
                     <div class="overflow-x-auto">
-                        <table class="crm-table">
-                            <thead>
-                                <tr>
-                                    <th>Zona / Distrito</th>
-                                    <th>Tipo</th>
-                                    <th>Motorizado</th>
-                                    <th>Shalom</th>
-                                    <th class="text-right !text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-border">
-                                <tr
+                        <Table>
+                            <TableHeader>
+                                <TableRow class="hover:bg-transparent">
+                                    <TableHead class="w-[250px]">Zona / Distrito</TableHead>
+                                    <TableHead class="w-[120px]">Tipo</TableHead>
+                                    <TableHead class="w-[140px]">Motorizado</TableHead>
+                                    <TableHead class="w-[120px]">Shalom</TableHead>
+                                    <TableHead class="w-[100px] text-right">Acciones</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                <TableRow
                                     v-for="zone in paginatedZones"
                                     :key="zone.id"
-                                    :class="esSoloShalom(zone) ? 'bg-amber-50/40 dark:bg-amber-950/15' : ''"
+                                    class="crm-table-row-action"
+                                    :class="esSoloShalom(zone) ? 'bg-amber-50/30 dark:bg-amber-950/10' : ''"
                                 >
-                                    <td class="font-medium text-foreground">
-                                        <div class="flex items-center gap-2">
-                                            <Globe v-if="esSoloShalom(zone)" class="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                                            <MapPin v-else class="h-4 w-4 text-primary" />
-                                            <span>{{ zone.district }}</span>
+                                    <TableCell>
+                                        <div class="flex items-center gap-3">
+                                            <div
+                                                class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md"
+                                                :class="esSoloShalom(zone) ? 'bg-amber-100 dark:bg-amber-900' : 'bg-muted'"
+                                            >
+                                                <Globe v-if="esSoloShalom(zone)" class="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                                <MapPin v-else class="h-4 w-4 text-primary" />
+                                            </div>
+                                            <span class="font-medium">{{ zone.district }}</span>
                                         </div>
-                                    </td>
-                                    <td>
-                                        <span
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge
                                             v-if="esSoloShalom(zone)"
-                                            class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 dark:bg-amber-900 dark:text-amber-200"
+                                            class="bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300"
                                         >
                                             Solo Shalom
-                                        </span>
-                                        <span
+                                        </Badge>
+                                        <Badge
                                             v-else
-                                            class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                            variant="secondary"
+                                            class="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
                                         >
                                             Lima
-                                        </span>
-                                    </td>
-                                    <td class="text-muted-foreground">
-                                        <div class="flex items-center gap-1.5">
-                                            <Truck class="h-4 w-4 text-muted-foreground/75" />
-                                            <span :class="esSoloShalom(zone) ? 'italic text-muted-foreground/70' : ''">
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div class="flex items-center gap-2">
+                                            <Truck class="h-4 w-4 text-muted-foreground" />
+                                            <span :class="esSoloShalom(zone) ? 'text-muted-foreground' : 'font-medium'">
                                                 {{ formatearMotorizado(zone) }}
                                             </span>
                                         </div>
-                                    </td>
-                                    <td class="text-muted-foreground">
-                                        <div class="flex items-center gap-1.5">
-                                            <TrendingUp class="h-4 w-4 text-muted-foreground/75" />
-                                            <span>S/ {{ Number(zone.cost_shalom).toFixed(2) }}</span>
-                                        </div>
-                                    </td>
-                                    <td class="text-right">
-                                        <div class="flex justify-end gap-1.5">
+                                    </TableCell>
+                                    <TableCell class="font-medium">
+                                        {{ formatMoney(zone.cost_shalom) }}
+                                    </TableCell>
+                                    <TableCell class="text-right">
+                                        <div class="flex justify-end gap-1">
                                             <Button
                                                 variant="ghost"
-                                                size="sm"
-                                                class="h-8 px-2 text-primary hover:bg-primary/10 hover:text-primary"
+                                                size="icon"
+                                                class="h-8 w-8"
                                                 @click="openEditModal(zone)"
                                             >
-                                                <Edit class="h-3.5 w-3.5" />
+                                                <Edit class="h-4 w-4" />
                                             </Button>
                                             <Button
                                                 variant="ghost"
-                                                size="sm"
-                                                class="h-8 px-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                size="icon"
+                                                class="h-8 w-8 text-destructive hover:text-destructive"
                                                 @click="deleteZone(zone.id)"
                                             >
-                                                <Trash2 class="h-3.5 w-3.5" />
+                                                <Trash2 class="h-4 w-4" />
                                             </Button>
                                         </div>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                                    </TableCell>
+                                </TableRow>
+                            </TableBody>
+                        </Table>
                     </div>
 
-                    <div class="flex flex-wrap items-center justify-between gap-4 border-t border-border bg-muted/10 px-5 py-4">
-                        <div class="text-xs text-muted-foreground">
-                            Mostrando
-                            <span class="font-semibold">{{ Math.min(filteredZones.length, (currentPage - 1) * itemsPerPage + 1) }}</span>
-                            a
-                            <span class="font-semibold">{{ Math.min(filteredZones.length, currentPage * itemsPerPage) }}</span>
-                            de
-                            <span class="font-semibold">{{ filteredZones.length }}</span>
-                            zonas
-                        </div>
-                        <div class="flex items-center gap-1">
-                            <Button variant="outline" size="icon" class="h-8 w-8" :disabled="currentPage === 1" @click="currentPage--">
-                                <ChevronLeft class="h-4 w-4" />
-                            </Button>
-                            <Button
-                                v-for="page in totalPages"
-                                :key="page"
-                                size="sm"
-                                class="h-8 w-8 p-0"
-                                :variant="currentPage === page ? 'default' : 'outline'"
-                                @click="currentPage = page"
-                            >
-                                {{ page }}
-                            </Button>
-                            <Button variant="outline" size="icon" class="h-8 w-8" :disabled="currentPage === totalPages" @click="currentPage++">
-                                <ChevronRight class="h-4 w-4" />
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            </CrmPanel>
+                    <CrmPagination
+                        :page="currentPage"
+                        :last-page="totalPages"
+                        :total="filteredZones.length"
+                        :from="fromItem"
+                        :to="toItem"
+                        :disabled="loading"
+                        @update:page="currentPage = $event"
+                    />
+                </template>
+            </CrmListCard>
         </div>
 
         <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">

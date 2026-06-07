@@ -6,17 +6,25 @@ use App\Infrastructure\Whatsapp\RomaWhatsappClient;
 use App\Models\Message;
 use App\Support\MessageBroadcaster;
 use App\Support\WhatsappSendError;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 
-class SendWhatsappMessageJob implements ShouldQueue
+class SendWhatsappMessageJob implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
     public int $tries = 5;
 
+    public int $uniqueFor = 120;
+
     public function __construct(protected Message $message) {}
+
+    public function uniqueId(): string
+    {
+        return 'send_wa_'.$this->message->id;
+    }
 
     /**
      * @return array<int, int>

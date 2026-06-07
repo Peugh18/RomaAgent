@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Actions\GenerarRespuestaAgente;
 use App\Enums\SaleStatus;
 use App\Models\Customer;
+use App\Models\Message;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Sale;
@@ -15,6 +17,11 @@ use Tests\TestCase;
 class SalePaymentConfirmationTest extends TestCase
 {
     use RefreshDatabase;
+
+    private function mensajeConfirmacion(): string
+    {
+        return 'Confirmado test {producto} por S/ {total}';
+    }
 
     public function test_admin_can_confirm_payment_and_stock_decreases(): void
     {
@@ -46,11 +53,14 @@ class SalePaymentConfirmationTest extends TestCase
             'quantity' => 1,
             'total_amount' => 195,
             'delivery_cost' => 15,
+            'payment_method' => 'yape',
         ]);
 
         $customer->update(['active_sale_id' => $sale->id]);
 
-        $response = $this->actingAs($user)->postJson("/api/sales/{$sale->id}/confirm-payment");
+        $response = $this->actingAs($user)->postJson("/api/sales/{$sale->id}/confirm-payment", [
+            'message' => $this->mensajeConfirmacion(),
+        ]);
 
         $response->assertOk();
         $response->assertJsonPath('status', SaleStatus::Confirmado->value);
@@ -59,8 +69,7 @@ class SalePaymentConfirmationTest extends TestCase
         $this->assertSame(4, $variant->sizes_stock['UNICA']);
 
         $customer->refresh();
-        $this->assertFalse($customer->ia_paused);
-        $this->assertNull($customer->active_sale_id);
+        $this->assertTrue($customer->ia_paused);
 
         $this->assertDatabaseHas('sales', [
             'id' => $sale->id,
@@ -69,13 +78,99 @@ class SalePaymentConfirmationTest extends TestCase
         ]);
     }
 
+    public function test_cannot_confirm_yape_from_datos_listos_without_comprobante(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+
+        $sale = Sale::factory()->create([
+            'status' => SaleStatus::DatosListos,
+            'payment_method' => 'yape',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/sales/{$sale->id}/confirm-payment", [
+                'message' => $this->mensajeConfirmacion(),
+            ])
+            ->assertStatus(422);
+    }
+
+    public function test_can_confirm_yape_after_comprobante_registered(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+
+        $product = Product::query()->create([
+            'name' => 'Mariela',
+            'price' => 180,
+            'status' => Product::ESTADO_DISPONIBLE,
+        ]);
+
+        $variant = ProductVariant::query()->create([
+            'product_id' => $product->id,
+            'color' => 'camel',
+            'sizes_stock' => ['UNICA' => 3],
+        ]);
+
+        $sale = Sale::factory()->forProduct($product, $variant)->create([
+            'status' => SaleStatus::PagoRecibido,
+            'payment_method' => 'yape',
+            'payment_received_at' => now(),
+            'size' => 'UNICA',
+            'quantity' => 1,
+            'total_amount' => 192,
+            'delivery_cost' => 12,
+        ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/sales/{$sale->id}/confirm-payment", [
+                'message' => $this->mensajeConfirmacion(),
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', SaleStatus::Confirmado->value);
+    }
+
+    public function test_tarjeta_only_confirmable_from_pago_pendiente(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+
+        $saleDatosListos = Sale::factory()->create([
+            'status' => SaleStatus::DatosListos,
+            'payment_method' => 'tarjeta',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/sales/{$saleDatosListos->id}/confirm-payment", [
+                'message' => 'Confirmado tarjeta',
+            ])
+            ->assertStatus(422);
+
+        $salePendiente = Sale::factory()->create([
+            'status' => SaleStatus::PagoPendiente,
+            'payment_method' => 'tarjeta',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/sales/{$salePendiente->id}/confirm-payment", [
+                'message' => 'Confirmado tarjeta',
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', SaleStatus::Confirmado->value);
+    }
+
     public function test_cannot_confirm_sale_that_is_already_confirmed(): void
     {
         $user = User::factory()->create();
         $sale = Sale::factory()->confirmado()->create();
 
         $this->actingAs($user)
-            ->postJson("/api/sales/{$sale->id}/confirm-payment")
+            ->postJson("/api/sales/{$sale->id}/confirm-payment", [
+                'message' => 'Otro mensaje',
+            ])
             ->assertStatus(422);
     }
 
@@ -98,14 +193,51 @@ class SalePaymentConfirmationTest extends TestCase
             'phone_number' => '+51911112222',
         ]);
 
-        $agente = app(\App\Actions\GenerarRespuestaAgente::class);
+        $agente = app(GenerarRespuestaAgente::class);
 
-        $message = \App\Models\Message::factory()->create([
+        $message = Message::factory()->create([
             'phone_number' => '+51911112222',
             'direction' => 'incoming',
             'metadata' => ['type' => 'text'],
         ]);
 
         $this->assertFalse($agente->debeResponder($message));
+    }
+
+    public function test_cannot_send_manual_message_when_bot_is_active(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+
+        Customer::factory()->create([
+            'phone_number' => '+51955556666',
+            'ia_paused' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->postJson('/api/send-message', [
+                'phone_number' => '+51955556666',
+                'content' => 'Hola manual',
+            ])
+            ->assertStatus(422);
+    }
+
+    public function test_can_send_manual_message_when_human_mode(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+
+        Customer::factory()->iaPausada()->create([
+            'phone_number' => '+51955557777',
+        ]);
+
+        $this->actingAs($user)
+            ->postJson('/api/send-message', [
+                'phone_number' => '+51955557777',
+                'content' => 'Link de pago aquí',
+            ])
+            ->assertOk();
     }
 }

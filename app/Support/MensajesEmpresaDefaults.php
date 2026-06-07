@@ -16,7 +16,17 @@ class MensajesEmpresaDefaults
 
     public static function pedidoConfirmado(): string
     {
-        return 'Listo hermosa 💕 Tu pedido de {producto} quedó confirmado. Total S/ {total}. Pronto coordinamos el envío.';
+        return 'Listo {nombre}, tu pedido de {producto} quedó confirmado. Total S/ {total}. Pronto coordinamos el envío.';
+    }
+
+    public static function pedidoEnviado(): string
+    {
+        return '¡Buenas noticias {nombre}! Tu pedido de {producto} ya salió hacia {distrito}. Te avisamos cuando esté cerca.';
+    }
+
+    public static function pedidoEntregado(): string
+    {
+        return 'Gracias por tu preferencia, {nombre}. Esperamos verte pronto. Si necesitas algo más, escríbenos.';
     }
 
     public static function esperaLinkTarjeta(): string

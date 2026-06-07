@@ -16,7 +16,7 @@ return new class extends Migration
             $table->string('ruc', 20)->nullable()->after('company_name');
             $table->string('razon_social')->nullable()->after('ruc');
             $table->string('celular', 20)->nullable()->after('razon_social');
-            $table->string('email')->nullable()->change(); // Ya existe, solo cambiar nullable
+            $table->string('email')->nullable()->after('celular');
             $table->string('website')->nullable()->after('email');
             $table->string('logo_path')->nullable()->after('website');
 

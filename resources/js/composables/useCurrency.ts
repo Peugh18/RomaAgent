@@ -10,6 +10,12 @@ const currencySymbols: Record<CurrencyCode, string> = {
     EUR: '€',
 };
 
+export function setGlobalCurrency(code: CurrencyCode): void {
+    if (code in currencySymbols) {
+        currentCurrency.value = code;
+    }
+}
+
 export function useCurrency(currency?: CurrencyCode) {
     const targetCurrency = currency ?? currentCurrency.value;
 

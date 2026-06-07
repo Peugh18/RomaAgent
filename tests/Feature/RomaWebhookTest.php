@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Jobs\GenerarRespuestaAgenteJob;
+use App\Jobs\ProcessMediaThenRespondJob;
 use App\Models\CompanySetting;
 use App\Models\Message;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -143,9 +145,51 @@ class RomaWebhookTest extends TestCase
         Queue::assertPushed(GenerarRespuestaAgenteJob::class);
     }
 
+    public function test_dispatches_media_job_for_inbound_audio(): void
+    {
+        Queue::fake();
+
+        CompanySetting::factory()->withIaEnabled()->create();
+
+        $this->postJson('/api/roma/messages', [
+            'from' => '51944443333',
+            'wa_id' => 'wamid.audio123',
+            'direction' => 'incoming',
+            'message_type' => 'audio',
+            'media_url' => 'https://cdn.example.com/audio.ogg',
+            'raw' => ['type' => 'audio'],
+        ], [
+            'X-Roma-Sync-Token' => 'test-sync-token',
+        ])->assertOk();
+
+        Queue::assertPushed(ProcessMediaThenRespondJob::class);
+        Queue::assertNotPushed(GenerarRespuestaAgenteJob::class);
+    }
+
+    public function test_dispatches_media_job_for_inbound_image(): void
+    {
+        Queue::fake();
+
+        CompanySetting::factory()->withIaEnabled()->create();
+
+        $this->postJson('/api/roma/messages', [
+            'from' => '51933332222',
+            'wa_id' => 'wamid.image123',
+            'direction' => 'incoming',
+            'message_type' => 'image',
+            'image_url' => 'https://cdn.example.com/comprobante.jpg',
+            'raw' => ['type' => 'image'],
+        ], [
+            'X-Roma-Sync-Token' => 'test-sync-token',
+        ])->assertOk();
+
+        Queue::assertPushed(ProcessMediaThenRespondJob::class);
+        Queue::assertNotPushed(GenerarRespuestaAgenteJob::class);
+    }
+
     public function test_filters_messages_by_phone_number(): void
     {
-        $user = \App\Models\User::factory()->create();
+        $user = User::factory()->create();
 
         Message::factory()->create(['phone_number' => '51111111111', 'content' => 'A']);
         Message::factory()->create(['phone_number' => '52222222222', 'content' => 'B']);

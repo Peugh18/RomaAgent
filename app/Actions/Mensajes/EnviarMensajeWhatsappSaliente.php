@@ -17,6 +17,7 @@ class EnviarMensajeWhatsappSaliente
         ?string $customerName = null,
         ?string $imageUrl = null,
         array $metadataExtra = [],
+        int $delaySeconds = 0,
     ): Message {
         $metadata = array_merge([
             'type' => $imageUrl ? 'image' : 'text',
@@ -39,7 +40,11 @@ class EnviarMensajeWhatsappSaliente
         ]);
 
         MessageBroadcaster::broadcast($message, 'EnviarMensajeWhatsappSaliente');
-        SendWhatsappMessageJob::dispatch($message);
+
+        $job = SendWhatsappMessageJob::dispatch($message);
+        if ($delaySeconds > 0) {
+            $job->delay(now()->addSeconds($delaySeconds));
+        }
 
         return $message;
     }

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Customer extends Model
 {
-    /** @use HasFactory<\Database\Factories\CustomerFactory> */
+    /** @use HasFactory<CustomerFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -17,6 +18,7 @@ class Customer extends Model
         'name',
         'ia_paused',
         'ia_pause_reason',
+        'notes',
         'active_sale_id',
         'last_inbound_at',
         'reminder_3min_sent_at',

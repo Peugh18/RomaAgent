@@ -4,14 +4,13 @@ namespace App\Actions;
 
 use App\Actions\Mensajes\EnviarMensajeWhatsappSaliente;
 use App\Exceptions\GeminiQuotaExceededException;
-use App\Jobs\SendWhatsappMessageJob;
 use App\Models\Customer;
-use App\Models\LogIA;
 use App\Models\Message;
 use App\Services\Agente\AgenteVendedor;
 use App\Services\ConfiguracionAgente;
+use App\Services\ConfiguracionEmpresa;
 use App\Services\ContextoConversacion;
-use App\Support\MessageBroadcaster;
+use App\Support\NormalizadorRespuestaAgente;
 use Illuminate\Support\Facades\Log;
 
 class GenerarRespuestaAgente
@@ -21,6 +20,7 @@ class GenerarRespuestaAgente
         private ContextoConversacion $contexto,
         private AgenteVendedor $agenteVendedor,
         private EnviarMensajeWhatsappSaliente $enviarMensaje,
+        private NormalizadorRespuestaAgente $normalizadorRespuesta,
     ) {}
 
     /**
@@ -62,17 +62,43 @@ class GenerarRespuestaAgente
                 ]);
             }
 
-            return $this->enviarMensaje->handle(
-                phoneNumber: $mensajeEntrante->phone_number,
-                content: $resultado->textoFinal,
-                customerName: $mensajeEntrante->customer_name,
-                metadataExtra: [
-                    'generated_by' => 'ai_agent',
-                    'in_reply_to' => $mensajeEntrante->message_id,
-                    'model' => $this->configuracion->obtenerModelo(),
-                    'agent_iterations' => $resultado->iteraciones,
-                ],
+            $customer = Customer::query()->where('phone_number', $mensajeEntrante->phone_number)->first();
+            $customer?->loadMissing('activeSale');
+            $moneda = app(ConfiguracionEmpresa::class)->obtenerMoneda();
+
+            $textoFinal = $this->normalizadorRespuesta->procesar(
+                $resultado->textoFinal,
+                $moneda,
+                $customer?->activeSale,
             );
+
+            $partes = $this->normalizadorRespuesta->partirEnMensajes($textoFinal);
+            if ($partes === []) {
+                return null;
+            }
+
+            $ultimoMensaje = null;
+            $metadataBase = [
+                'generated_by' => 'ai_agent',
+                'in_reply_to' => $mensajeEntrante->message_id,
+                'model' => $this->configuracion->obtenerModelo(),
+                'agent_iterations' => $resultado->iteraciones,
+            ];
+
+            foreach ($partes as $indice => $parte) {
+                $ultimoMensaje = $this->enviarMensaje->handle(
+                    phoneNumber: $mensajeEntrante->phone_number,
+                    content: $parte,
+                    customerName: $mensajeEntrante->customer_name,
+                    metadataExtra: array_merge($metadataBase, [
+                        'message_part' => $indice + 1,
+                        'message_parts_total' => count($partes),
+                    ]),
+                    delaySeconds: $indice > 0 ? $indice : 0,
+                );
+            }
+
+            return $ultimoMensaje;
         } catch (GeminiQuotaExceededException $e) {
             throw $e;
         } catch (\Exception $e) {

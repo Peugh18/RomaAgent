@@ -2,31 +2,45 @@ import { onMounted, onUnmounted } from 'vue';
 import type { ChatMessage } from '@/types/chat';
 
 interface ChatRealtimeHandlers {
-    onPoll: () => void;
-    onMessageReceived: (message: ChatMessage) => void;
+    onInitialLoad: () => void | Promise<void>;
+    onPoll: () => void | Promise<void>;
+    onMessageReceived?: (message: ChatMessage) => void;
 }
 
 export function useChatRealtime(handlers: ChatRealtimeHandlers) {
-     
-    let echo: any = null;
+    let echo: {
+        private: (channel: string) => {
+            listen: (event: string, callback: (payload: { message: ChatMessage }) => void) => void;
+        };
+        leave: (channel: string) => void;
+    } | null = null;
     let pollingInterval: ReturnType<typeof setInterval> | null = null;
+    let echoActive = false;
 
-    onMounted(() => {
-        handlers.onPoll();
-
-        pollingInterval = setInterval(handlers.onPoll, 30_000);
+    onMounted(async () => {
+        await handlers.onInitialLoad();
 
         if (typeof window !== 'undefined' && (window as Window & { Echo?: unknown }).Echo) {
             try {
-                echo = (window as Window & { Echo: typeof echo }).Echo;
+                echo = (window as Window & { Echo: NonNullable<typeof echo> }).Echo;
+                echoActive = true;
 
-                echo.private('crm.messages').listen('.message.received', (e: { message: ChatMessage }) => {
-                    handlers.onMessageReceived(e.message);
+                echo.private('crm.messages').listen('.message.received', (payload: { message: ChatMessage }) => {
+                    if (handlers.onMessageReceived) {
+                        handlers.onMessageReceived(payload.message);
+                    } else {
+                        void handlers.onPoll();
+                    }
                 });
             } catch (error) {
                 console.error('Error configuring Echo:', error);
             }
         }
+
+        const pollMs = echoActive ? 90_000 : 45_000;
+        pollingInterval = setInterval(() => {
+            void handlers.onPoll();
+        }, pollMs);
     });
 
     onUnmounted(() => {

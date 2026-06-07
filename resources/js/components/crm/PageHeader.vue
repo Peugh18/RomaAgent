@@ -11,8 +11,10 @@ defineProps<{
             <h1 class="text-2xl font-semibold tracking-tight text-foreground">{{ title }}</h1>
             <p v-if="description" class="max-w-2xl text-sm text-muted-foreground">{{ description }}</p>
         </div>
-        <div v-if="$slots.actions" class="flex shrink-0 flex-wrap items-center gap-2">
-            <slot name="actions" />
+        <div v-if="$slots.actions || $slots.default" class="flex shrink-0 flex-wrap items-center gap-2">
+            <slot name="actions">
+                <slot />
+            </slot>
         </div>
     </div>
 </template>

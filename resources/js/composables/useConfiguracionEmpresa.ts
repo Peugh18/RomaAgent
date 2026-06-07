@@ -3,7 +3,9 @@ import { useForm } from '@inertiajs/vue3';
 import type { CompanySettingsForm } from '@/types/settings';
 import { mapConfiguracionAgenteDesdeApi } from '@/lib/configuracionAgente';
 import { normalizarPlantillasDatos, PLANTILLAS_DATOS_DEFECTO } from '@/lib/plantillasDatos';
+import { setGlobalCurrency, type CurrencyCode } from '@/composables/useCurrency';
 import { invalidateStandardSizeCache } from '@/composables/useStandardSize';
+import { apiJson } from '@/composables/useApi';
 
 export function useConfiguracionEmpresa() {
     const loading = ref(false);
@@ -11,8 +13,9 @@ export function useConfiguracionEmpresa() {
     const resetting = ref(false);
     const error = ref<string | null>(null);
     const success = ref<string | null>(null);
+    const promptCompleto = ref('');
 
-    const form = useForm<CompanySettingsForm & { prompt_preview?: string; prompt_completo?: string; estadisticas?: Record<string, unknown> }>({
+    const form = useForm<CompanySettingsForm & { prompt_preview?: string; estadisticas?: Record<string, unknown> }>({
         company_name: '',
         ruc: '',
         razon_social: '',
@@ -45,10 +48,13 @@ export function useConfiguracionEmpresa() {
         mensaje_recordatorio_15min: '',
         mensaje_recordatorio_datos: '',
         comision_tarjeta: null as number | null,
+        link_pago_tarjeta: '',
         formato_registro_venta: '',
         mensaje_comprobante_recibido: '',
         mensaje_comprobante_fuera_horario: '',
         mensaje_pedido_confirmado: '',
+        mensaje_pedido_enviado: '',
+        mensaje_pedido_entregado: '',
         mensaje_espera_link_tarjeta: '',
         configuracion_agente: {
             agente_ia_activado: false,
@@ -59,9 +65,17 @@ export function useConfiguracionEmpresa() {
             modelos_disponibles: {},
         },
         prompt_preview: '',
-        prompt_completo: '',
         estadisticas: {},
     });
+
+    const cargarPromptCompleto = async () => {
+        try {
+            const datos = await apiJson<{ prompt_completo: string }>('/api/company-settings/prompt-completo');
+            promptCompleto.value = datos.prompt_completo || '';
+        } catch {
+            promptCompleto.value = form.prompt_preview || '';
+        }
+    };
 
     const aplicarDatosApi = (datos: any) => {
         Object.assign(form, {
@@ -101,16 +115,23 @@ export function useConfiguracionEmpresa() {
             mensaje_recordatorio_15min: datos.flujo?.recordatorios?.['15min'] || '',
             mensaje_recordatorio_datos: datos.flujo?.recordatorios?.datos || '',
             comision_tarjeta: datos.flujo?.pagos?.tarjeta?.comision ?? null,
+            link_pago_tarjeta: datos.flujo?.pagos?.tarjeta?.link_pago || '',
             formato_registro_venta: datos.flujo?.formato_registro_venta || '',
             mensaje_comprobante_recibido: datos.flujo?.confirmacion_pago?.mensaje_comprobante_recibido || '',
             mensaje_comprobante_fuera_horario: datos.flujo?.confirmacion_pago?.mensaje_comprobante_fuera_horario || '',
             mensaje_pedido_confirmado: datos.flujo?.confirmacion_pago?.mensaje_pedido_confirmado || '',
+            mensaje_pedido_enviado: datos.flujo?.confirmacion_pago?.mensaje_pedido_enviado || '',
+            mensaje_pedido_entregado: datos.flujo?.confirmacion_pago?.mensaje_pedido_entregado || '',
             mensaje_espera_link_tarjeta: datos.flujo?.confirmacion_pago?.mensaje_espera_link_tarjeta || '',
             configuracion_agente: mapConfiguracionAgenteDesdeApi(datos.configuracion_agente),
             prompt_preview: datos.prompt_preview || '',
-            prompt_completo: datos.prompt_completo || '',
             estadisticas: datos.estadisticas || {},
         });
+
+        const moneda = (datos.moneda || 'PEN') as CurrencyCode;
+        if (moneda === 'PEN' || moneda === 'USD' || moneda === 'EUR') {
+            setGlobalCurrency(moneda);
+        }
     };
 
     const cargarDatos = async () => {
@@ -138,6 +159,7 @@ export function useConfiguracionEmpresa() {
             }
 
             aplicarDatosApi(datos);
+            await cargarPromptCompleto();
         } catch (err) {
             error.value = err instanceof Error ? err.message : 'Error desconocido';
         } finally {
@@ -197,8 +219,11 @@ export function useConfiguracionEmpresa() {
                 mensaje_comprobante_recibido: form.mensaje_comprobante_recibido ? String(form.mensaje_comprobante_recibido) : null,
                 mensaje_comprobante_fuera_horario: form.mensaje_comprobante_fuera_horario ? String(form.mensaje_comprobante_fuera_horario) : null,
                 mensaje_pedido_confirmado: form.mensaje_pedido_confirmado ? String(form.mensaje_pedido_confirmado) : null,
+                mensaje_pedido_enviado: form.mensaje_pedido_enviado ? String(form.mensaje_pedido_enviado) : null,
+                mensaje_pedido_entregado: form.mensaje_pedido_entregado ? String(form.mensaje_pedido_entregado) : null,
                 mensaje_espera_link_tarjeta: form.mensaje_espera_link_tarjeta ? String(form.mensaje_espera_link_tarjeta) : null,
                 comision_tarjeta: form.comision_tarjeta != null ? Number(form.comision_tarjeta) : null,
+                link_pago_tarjeta: form.link_pago_tarjeta ? String(form.link_pago_tarjeta) : null,
             };
 
             const response = await fetch('/api/company-settings', {
@@ -238,8 +263,9 @@ export function useConfiguracionEmpresa() {
             }
 
             form.prompt_preview = datos.prompt_preview || form.prompt_preview;
-            form.prompt_completo = datos.prompt_completo || form.prompt_completo;
             form.estadisticas = datos.estadisticas || form.estadisticas;
+
+            await cargarPromptCompleto();
 
             success.value = 'Configuración guardada correctamente';
 
@@ -325,6 +351,7 @@ export function useConfiguracionEmpresa() {
             }
 
             aplicarDatosApi(datos);
+            await cargarPromptCompleto();
             success.value = 'Configuración restablecida. Los productos del catálogo no se modificaron.';
 
             setTimeout(() => {
@@ -344,7 +371,9 @@ export function useConfiguracionEmpresa() {
         resetting,
         error,
         success,
+        promptCompleto,
         cargarDatos,
+        cargarPromptCompleto,
         guardarConfiguracion,
         resetearConfiguracion,
         agregarMetodoPago,

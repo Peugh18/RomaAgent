@@ -34,6 +34,7 @@ const filteredConversations = computed(() => {
 });
 
 const pendingCount = computed(() => props.conversations.filter((c) => c.pending_payment).length);
+const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused).length);
 </script>
 
 <template>
@@ -44,12 +45,20 @@ const pendingCount = computed(() => props.conversations.filter((c) => c.pending_
                     <MessageSquare class="h-4 w-4 text-emerald-600" />
                     Chat
                 </div>
-                <span
-                    v-if="pendingCount > 0"
-                    class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200"
-                >
-                    {{ pendingCount }} pago(s)
-                </span>
+                <div class="flex items-center gap-1">
+                    <span
+                        v-if="humanCount > 0"
+                        class="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-800 dark:bg-violet-950 dark:text-violet-200"
+                    >
+                        {{ humanCount }} humano
+                    </span>
+                    <span
+                        v-if="pendingCount > 0"
+                        class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                    >
+                        {{ pendingCount }} pago(s)
+                    </span>
+                </div>
             </div>
 
             <div class="flex gap-1 rounded-lg bg-background p-1">

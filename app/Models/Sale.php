@@ -3,13 +3,14 @@
 namespace App\Models;
 
 use App\Enums\SaleStatus;
+use Database\Factories\SaleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Sale extends Model
 {
-    /** @use HasFactory<\Database\Factories\SaleFactory> */
+    /** @use HasFactory<SaleFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -34,6 +35,7 @@ class Sale extends Model
         'payment_received_at',
         'confirmed_at',
         'shipped_at',
+        'delivered_at',
         'confirmed_by_user_id',
     ];
 
@@ -50,6 +52,7 @@ class Sale extends Model
             'payment_received_at' => 'datetime',
             'confirmed_at' => 'datetime',
             'shipped_at' => 'datetime',
+            'delivered_at' => 'datetime',
         ];
     }
 
@@ -81,9 +84,48 @@ class Sale extends Model
         ]);
     }
 
+    public function esPagoTarjeta(): bool
+    {
+        return str_contains(mb_strtolower((string) $this->payment_method), 'tarjeta');
+    }
+
+    public function puedeVerificarPago(): bool
+    {
+        if ($this->esPagoTarjeta()) {
+            return $this->status === SaleStatus::PagoPendiente;
+        }
+
+        return $this->status === SaleStatus::PagoRecibido;
+    }
+
+    public function puedeMarcarEnviado(): bool
+    {
+        return $this->status === SaleStatus::Confirmado;
+    }
+
+    public function puedeMarcarEntregado(): bool
+    {
+        return $this->status === SaleStatus::Enviado;
+    }
+
     public function estaAbierto(): bool
     {
         return $this->status->esPipelineAbierto()
-            && ! in_array($this->status, [SaleStatus::Confirmado, SaleStatus::Enviado], true);
+            && ! in_array($this->status, [SaleStatus::Confirmado, SaleStatus::Enviado, SaleStatus::Entregado], true);
+    }
+
+    /**
+     * @return array{nombre: string|null, direccion: string|null, maps_url: string|null}
+     */
+    public function datosEntregaResumen(): array
+    {
+        $data = $this->customer_data ?? [];
+
+        return [
+            'nombre' => $this->customer?->name
+                ?? ($data['nombre'] ?? $data['name'] ?? null),
+            'direccion' => $data['direccion'] ?? $data['address'] ?? $data['ubicacion_actual'] ?? null,
+            'maps_url' => $data['maps_url'] ?? null,
+        ];
     }
 }

@@ -3,8 +3,10 @@
 namespace App\Services;
 
 use App\Models\CompanySetting;
+use App\Models\Customer;
 use App\Models\Message;
 use App\Models\Product;
+use App\Support\ContextoPedidoActivo;
 use App\Support\FormateadorCatalogoProductos;
 use App\Support\MensajesEmpresaDefaults;
 use App\Support\NormalizadorStockTallas;
@@ -71,15 +73,40 @@ class ContextoConversacion
             .$this->construirInstruccionesAgente();
     }
 
+    public function construirPromptParaAgenteConPedido(?Customer $customer): string
+    {
+        $prompt = $this->construirPromptParaAgente();
+
+        if ($customer === null) {
+            return $prompt;
+        }
+
+        $customer->loadMissing('activeSale');
+
+        return $prompt
+            ."\n\n---\n\n"
+            .ContextoPedidoActivo::formatear(
+                $customer->activeSale,
+                $this->configuracion->obtenerMoneda(),
+            );
+    }
+
     /**
      * Obtiene el historial de mensajes de una conversación.
      *
      * @return array<int, array{role: string, content: string}>
      */
-    public function obtenerHistorial(string $phoneNumber, int $limite = 10): array
+    public function obtenerHistorial(string $phoneNumber, int $limite = 10, ?int $excluirMessageId = null): array
     {
-        $mensajes = Message::where('phone_number', $phoneNumber)
-            ->orderBy('created_at', 'desc')
+        $query = Message::query()
+            ->where('phone_number', $phoneNumber)
+            ->orderBy('created_at', 'desc');
+
+        if ($excluirMessageId !== null) {
+            $query->where('id', '!=', $excluirMessageId);
+        }
+
+        $mensajes = $query
             ->limit($limite)
             ->get()
             ->reverse();
@@ -133,6 +160,8 @@ class ContextoConversacion
         $descripcionPersonalidad = trim((string) ($personalidad['descripcion'] ?? ''));
         $respuestaSiEsBot = trim((string) ($personalidad['respuesta_si_es_bot'] ?? ''));
         $moneda = $contexto['moneda'] ?? 'PEN';
+        $simboloMonedaCliente = $this->simboloMoneda($moneda);
+        $instruccionMoneda = $this->instruccionMonedaCliente($moneda, $simboloMonedaCliente);
         $horarioAtencion = trim((string) ($contexto['horario'] ?? ''));
         $politicaDevoluciones = trim((string) ($contexto['politica_devoluciones'] ?? ''));
         $restriccionesEspeciales = trim((string) ($contexto['restricciones'] ?? ''));
@@ -202,7 +231,7 @@ class ContextoConversacion
 {$identidadPersonalidadTexto}
 
 - Actividad: {$actividad}
-- Moneda: {$moneda}
+- {$instruccionMoneda}
 
 ## INFORMACIÓN DE CONTACTO
 Cómo pueden comunicarse con la empresa:
@@ -368,10 +397,15 @@ IDENTIDAD;
 
     private function simboloMoneda(string $moneda): string
     {
+        return FormateadorCatalogoProductos::simboloDesdeMoneda($moneda);
+    }
+
+    private function instruccionMonedaCliente(string $moneda, string $simbolo): string
+    {
         return match ($moneda) {
-            'USD' => '$',
-            'EUR' => '€',
-            default => 'S/',
+            'USD' => "Moneda obligatoria en mensajes al cliente: dólares ({$simbolo}). Nunca uses soles ni S/.",
+            'EUR' => "Moneda obligatoria en mensajes al cliente: euros ({$simbolo}).",
+            default => "Moneda obligatoria en mensajes al cliente: soles peruanos ({$simbolo}). NUNCA uses \$ ni dólares ni USD.",
         };
     }
 
@@ -548,17 +582,21 @@ PROTOCOLO;
      */
     public function construirInstruccionesAgente(): string
     {
-        $settings = CompanySetting::query()->first();
+        $settings = CompanySetting::query()->with('mensajes')->first();
+        $mensajes = $settings?->mensajes;
+        $moneda = $this->configuracion->obtenerMoneda();
+        $simbolo = $this->simboloMoneda($moneda);
+        $instruccionMoneda = $this->instruccionMonedaCliente($moneda, $simbolo);
         $mensajeComprobante = $this->valorConfigurado(
-            $settings?->mensaje_comprobante_recibido ?? '',
+            $mensajes?->comprobante_recibido ?? '',
             MensajesEmpresaDefaults::comprobanteRecibido(),
         );
         $mensajeNoche = $this->valorConfigurado(
-            $settings?->mensaje_comprobante_fuera_horario ?? '',
+            $mensajes?->comprobante_fuera_horario ?? '',
             MensajesEmpresaDefaults::comprobanteFueraHorario(),
         );
         $mensajeTarjeta = $this->valorConfigurado(
-            $settings?->mensaje_espera_link_tarjeta ?? '',
+            $mensajes?->espera_link_tarjeta ?? '',
             MensajesEmpresaDefaults::esperaLinkTarjeta(),
         );
 
@@ -571,14 +609,37 @@ Eres la vendedora experta: hablas como en el prompt maestro (personalidad, flujo
 - **actualizar_pedido**: cada vez que avances la venta (producto, color, envío, total, pago, datos).
 - **enviar_foto_producto**: cuando la clienta pida foto, color, "cómo se ve", o confirmes un modelo — SI el catálogo dice foto: sí. Llama la herramienta INMEDIATAMENTE; envía la imagen real de Productos por WhatsApp (no describas la foto en texto, envíala). Luego responde con caption corto.
 - **registrar_comprobante_recibido**: cuando envíe captura de Yape/transferencia/voucher. Después di: "{$mensajeComprobante}" (fuera de horario: "{$mensajeNoche}").
-- **solicitar_atencion_humana**: tarjeta ({$mensajeTarjeta}), quejas, casos especiales. Nunca confirmes pagos tú sola.
+- **solicitar_atencion_humana**: SOLO tarjeta ({$mensajeTarjeta}), quejas graves o casos imposibles de resolver con el catálogo. Nunca confirmes pagos tú sola.
 - **consultar_pedido_activo**: si necesitas recordar en qué paso va la venta.
+- **buscar_productos**: para encontrar modelos por nombre/tags con filtros opcionales (color, talla, precio, foto). Solo ofrece lo que tenga stock.
+- **verificar_stock**: antes de confirmar talla/color, valida disponibilidad en vivo (usa talla estándar si no especifican).
+- **calcular_envio**: obtiene costo estimado por distrito y método (motorizado o Shalom) desde la base de datos.
 
 ### Reglas de venta
-- Solo productos del catálogo con stock real; no inventes precios, fotos ni productos.
+- Solo productos del catálogo con stock real; no inventes precios, fotos ni productos. Usa **buscar_productos** para explorar y **verificar_stock** para validar.
+- {$instruccionMoneda}
+- Tallas: di **talla estándar** al cliente. Nunca digas "única", "UNICA" ni el código interno de talla.
+- Cada vez que calcules producto × cantidad + envío = total, llama **actualizar_pedido** con quantity, unit_price, delivery_cost y total_amount ANTES de decirle el monto. El total que escribes debe coincidir con el bloque PEDIDO ACTIVO.
+- Si cambia la cantidad (ej. quiere 3 vestidos), actualiza quantity y recalcula el total antes de responder.
 - No confirmes pagos tú sola; usa registrar_comprobante_recibido o solicitar_atencion_humana.
-- Al pedir datos de envío: consultar_pedido_activo primero; no repitas producto/color (ver plantillas arriba).
-- WhatsApp: sin markdown (**negrita**). Emojis moderados. Una pregunta clara por mensaje.
+- Si preguntan **métodos de pago**, **Yape**, **transferencia** o **cómo pagar**: responde TÚ con la sección **MÉTODOS DE PAGO DISPONIBLES** del prompt (números, titular, instrucciones). **NUNCA** uses solicitar_atencion_humana para eso.
+- Stickers, emojis sueltos o reacciones no requieren humano: ignóralos o responde con 1 emoji/frase corta. **NUNCA** escales por un sticker.
+- solicitar_atencion_humana solo para: link de tarjeta, queja seria, producto fuera de catálogo, o imposible resolver con herramientas.
+- Para costos/ETA de envío usa **calcular_envio** (no adivines tarifas).
+- Al pedir datos de envío: usa el pedido activo; no repitas producto/color (ver plantillas arriba).
+
+### Formato WhatsApp (OBLIGATORIO)
+- Sin markdown (**negrita**). Emojis con moderación (0-1 por burbuja).
+- Escribe como chat real: frases cortas, tono cercano, nunca un solo bloque enorme.
+- Si tu respuesta tiene 2 o más ideas (saludo, detalle del pedido/producto, precio, pregunta final), sepáralas con ---SPLIT--- en una línea sola entre cada burbuja.
+- Máximo 3 burbujas por respuesta. Cada burbuja: 1-2 frases.
+- Ejemplo natural:
+  ¡Claro, hermosa! Teníamos tu pedido del vestido Mariela en lila, talla estándar, envío motorizado a Ate.
+  ---SPLIT---
+  El total a cobrar es de {$simbolo} 190.00.
+  ---SPLIT---
+  ¿Deseas que continuemos con este pedido o prefieres ver otro modelo? 😊
+- Si solo respondes una frase muy corta (ej. "Sí, hermosa"), una burbuja basta.
 AGENTE;
     }
 

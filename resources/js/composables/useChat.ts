@@ -3,8 +3,12 @@ import type { ChatConversation, ChatMessage } from '@/types/chat';
 import { apiJson } from '@/composables/useApi';
 import { useChatRealtime } from '@/composables/useChatRealtime';
 
-export function useChat() {
-    const selectedPhone = ref<string | null>(null);
+interface UseChatOptions {
+    initialPhone?: string | null;
+}
+
+export function useChat(options: UseChatOptions = {}) {
+    const selectedPhone = ref<string | null>(options.initialPhone ?? null);
     const newMessage = ref('');
     const messages = ref<ChatMessage[]>([]);
     const conversations = ref<ChatConversation[]>([]);
@@ -12,6 +16,7 @@ export function useChat() {
     const sending = ref(false);
     const resendingId = ref<number | null>(null);
     const sendError = ref<string | null>(null);
+    const loadError = ref<string | null>(null);
     const messagesContainer = ref<HTMLElement | null>(null);
 
     const filteredMessages = computed(() => {
@@ -29,6 +34,15 @@ export function useChat() {
                 el.scrollTop = el.scrollHeight;
             }
         });
+    };
+
+    const isNearBottom = (): boolean => {
+        const el = messagesContainer.value;
+        if (!el) {
+            return true;
+        }
+
+        return el.scrollHeight - el.scrollTop - el.clientHeight < 120;
     };
 
     const isOptimisticMessage = (message: ChatMessage): boolean =>
@@ -102,12 +116,17 @@ export function useChat() {
         );
     };
 
-    const fetchMessages = async () => {
+    const initialLoad = async () => {
         loading.value = true;
+        loadError.value = null;
+
         try {
             await fetchConversations();
 
-            if (!selectedPhone.value && conversations.value.length > 0) {
+            const phoneFromUrl = options.initialPhone?.trim() || null;
+            if (phoneFromUrl) {
+                selectedPhone.value = phoneFromUrl;
+            } else if (!selectedPhone.value && conversations.value.length > 0) {
                 selectedPhone.value = conversations.value[0].phone;
             }
 
@@ -116,17 +135,42 @@ export function useChat() {
             } else {
                 messages.value = [];
             }
+        } catch (error) {
+            loadError.value = error instanceof Error ? error.message : 'No se pudo cargar el chat';
         } finally {
             loading.value = false;
             scrollToBottom();
         }
     };
 
+    const pollUpdate = async () => {
+        try {
+            await fetchConversations();
+
+            if (!selectedPhone.value) {
+                return;
+            }
+
+            const stickToBottom = isNearBottom();
+            await fetchMessagesForPhone(selectedPhone.value);
+
+            if (stickToBottom) {
+                scrollToBottom();
+            }
+        } catch {
+            // Polling silencioso: no interrumpir al operador
+        }
+    };
+
     const selectConversation = async (phone: string) => {
         selectedPhone.value = phone;
         loading.value = true;
+        loadError.value = null;
+
         try {
             await fetchMessagesForPhone(phone);
+        } catch (error) {
+            loadError.value = error instanceof Error ? error.message : 'No se pudo cargar los mensajes';
         } finally {
             loading.value = false;
             scrollToBottom();
@@ -209,9 +253,19 @@ export function useChat() {
 
     watch(selectedPhone, () => scrollToBottom());
 
+    const handleMessageReceived = async (incoming: ChatMessage) => {
+        upsertMessage(incoming);
+        try {
+            await fetchConversations();
+        } catch {
+            // Actualización silenciosa del estado ia_paused
+        }
+    };
+
     useChatRealtime({
-        onPoll: fetchMessages,
-        onMessageReceived: upsertMessage,
+        onInitialLoad: initialLoad,
+        onPoll: pollUpdate,
+        onMessageReceived: handleMessageReceived,
     });
 
     return {
@@ -224,8 +278,10 @@ export function useChat() {
         sending,
         resendingId,
         sendError,
+        loadError,
         messagesContainer,
-        fetchMessages,
+        initialLoad,
+        pollUpdate,
         selectConversation,
         sendMessage,
         resendMessage,

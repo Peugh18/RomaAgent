@@ -3,14 +3,16 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\CompanySetting;
 use App\Models\DeliveryZone;
+use App\Support\InvalidatesPromptCache;
+use Database\Seeders\RomaStoreDeliveryZonesSeeder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 
 class DeliveryZoneController extends Controller
 {
+    use InvalidatesPromptCache;
+
     public function index(): JsonResponse
     {
         return response()->json(DeliveryZone::all());
@@ -61,23 +63,16 @@ class DeliveryZoneController extends Controller
 
     public function importRomaStore(): JsonResponse
     {
-        $seeder = new \Database\Seeders\RomaStoreDeliveryZonesSeeder;
+        $seeder = new RomaStoreDeliveryZonesSeeder;
         $seeder->setContainer(app());
         $seeder->run();
+
+        $this->invalidarCachePrompt();
 
         return response()->json([
             'message' => 'Tarifario Roma Store importado correctamente.',
             'total' => DeliveryZone::query()->count(),
             'zones' => DeliveryZone::query()->orderBy('district')->get(),
         ]);
-    }
-
-    private function invalidarCachePrompt(): void
-    {
-        $settings = CompanySetting::query()->first();
-
-        if ($settings !== null) {
-            Cache::forget('contexto_prompt_completo_'.$settings->id);
-        }
     }
 }

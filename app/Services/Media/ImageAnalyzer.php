@@ -2,53 +2,60 @@
 
 namespace App\Services\Media;
 
+use App\Exceptions\GeminiQuotaExceededException;
 use App\Services\ConfiguracionAgente;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
-class ImageAnalyzer
+/**
+ * Servicio de análisis de imágenes usando Gemini API.
+ *
+ * Hereda de BaseGeminiService para reutilizar:
+ * - Obtención de API key y modelo
+ * - Normalización de MIME types
+ * - Manejo de errores HTTP
+ * - Detección de errores de cuota (429)
+ *
+ * @extends BaseGeminiService
+ */
+class ImageAnalyzer extends BaseGeminiService
 {
+    public function __construct(
+        ConfiguracionAgente $configuracion,
+        private CargadorBytesMedia $cargador,
+    ) {
+        parent::__construct($configuracion);
+    }
+
     /**
-     * Analyze an image (caption, colors) using Gemini models with image URL input.
-     * Returns an associative array with keys: caption, colors (string), ocr (string|null).
+     * Analiza una imagen (caption / OCR breve) con el mismo modelo Gemini del agente.
+     *
+     * @return array{caption: string}|null
      */
     public function analyzeUrl(string $imageUrl): ?array
     {
-        $apiKey = config('services.gemini.key') ?? env('GEMINI_API_KEY');
-        $model = config('services.gemini.model', 'gemini-1.5-flash');
-
-        if (empty($apiKey)) {
-            // Fallback: DB-stored API key used by the agent configuration
-            try {
-                $apiKey = (new ConfiguracionAgente)->obtenerApiKey();
-            } catch (\Throwable $e) {
-                $apiKey = '';
-            }
-            if (empty($apiKey)) {
-                Log::warning('ImageAnalyzer: GEMINI_API_KEY not configured');
-
-                return null;
-            }
+        $apiKey = $this->obtenerApiKey();
+        if ($apiKey === null) {
+            return null;
         }
 
-        $endpoint = sprintf('https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s', $model, $apiKey);
-
-        $prompt = 'Describe brevemente la imagen para ayudar en ventas (1-2 frases). Identifica colores dominantes y cualquier texto visible (OCR) si es relevante.';
-
-        // Fetch image bytes
-        $imgResp = Http::timeout(30)->get($imageUrl);
-        if (! $imgResp->successful()) {
-            Log::warning('ImageAnalyzer: unable to fetch image', [
-                'status' => $imgResp->status(),
-                'url' => $imageUrl,
-            ]);
+        $media = $this->cargador->desdeUrl($imageUrl);
+        if ($media === null) {
+            Log::warning('ImageAnalyzer: no se pudo cargar la imagen', ['url' => $imageUrl]);
 
             return null;
         }
 
-        $bytes = $imgResp->body();
-        $mime = $imgResp->header('Content-Type') ?? 'image/jpeg';
-        $mime = is_string($mime) ? $mime : 'image/jpeg';
+        $modelo = $this->obtenerModelo();
+        $endpoint = $this->construirEndpoint($modelo);
+
+        $prompt = <<<'PROMPT'
+Describe brevemente la imagen para ayudar en ventas por WhatsApp (1-2 frases en español).
+Si parece comprobante de pago (Yape, Plin, transferencia, voucher), indícalo claramente.
+Identifica colores dominantes si es foto de producto y cualquier texto visible relevante.
+PROMPT;
+
+        $mime = $this->normalizarMimeImagen($media['mime']);
 
         $payload = [
             'contents' => [[
@@ -57,42 +64,42 @@ class ImageAnalyzer
                     [
                         'inline_data' => [
                             'mime_type' => $mime,
-                            'data' => base64_encode($bytes),
+                            'data' => base64_encode($media['bytes']),
                         ],
                     ],
                 ],
             ]],
+            'generationConfig' => [
+                'temperature' => 0.2,
+                'maxOutputTokens' => 512,
+            ],
         ];
 
-        try {
-            $response = Http::withHeaders(['Content-Type' => 'application/json'])
-                ->timeout(45)
-                ->post($endpoint, $payload);
+        return $this->ejecutarConRetry(function () use ($endpoint, $payload, $apiKey) {
+            return $this->callGeminiApi($endpoint, $payload, $apiKey);
+        });
+    }
 
-            if (! $response->successful()) {
-                Log::error('ImageAnalyzer: Gemini error', [
-                    'status' => $response->status(),
-                    'body' => substr((string) $response->body(), 0, 300),
-                ]);
+    /**
+     * Realiza la llamada HTTP a la API de Gemini.
+     *
+     * @return array{caption: string}|null
+     *
+     * @throws GeminiQuotaExceededException
+     */
+    private function callGeminiApi(string $endpoint, array $payload, string $apiKey): ?array
+    {
+        $response = Http::withHeaders($this->headersGemini($apiKey))
+            ->timeout($this->timeout)
+            ->post($endpoint, $payload);
 
-                return null;
-            }
+        $data = $this->procesarRespuestaApi($response);
+        $text = $this->extraerTextoRespuesta($data);
 
-            $data = $response->json();
-            $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
-            $text = is_string($text) ? trim($text) : '';
-
-            if ($text === '') {
-                return null;
-            }
-
-            return [
-                'caption' => $text,
-            ];
-        } catch (\Throwable $e) {
-            Log::error('ImageAnalyzer exception', ['error' => $e->getMessage()]);
-
+        if ($text === null || $text === '') {
             return null;
         }
+
+        return ['caption' => $text];
     }
 }

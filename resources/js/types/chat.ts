@@ -20,6 +20,7 @@ export interface ChatConversation {
     direction: ChatMessage['direction'];
     status: ChatMessage['status'];
     ia_paused?: boolean;
+    ia_pause_reason?: string | null;
     pending_payment?: boolean;
     active_sale_status?: string | null;
 }

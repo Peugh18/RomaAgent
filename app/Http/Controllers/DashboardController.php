@@ -17,15 +17,19 @@ class DashboardController extends Controller
         $hoy = now()->startOfDay();
         $inicioMes = now()->startOfMonth();
 
-        // Aggregates optimizados en una única query por entidad
-        $stats = Sale::query()
-            ->select([
-                DB::raw('sum(case when status = ? and confirmed_at >= ? then total_amount end) as ventas_hoy'),
-                DB::raw('sum(case when status = ? and confirmed_at >= ? then total_amount end) as ventas_mes'),
-                DB::raw('count(case when status in (?, ?) then 1 end) as pendientes_pago'),
-            ])
-            ->addBinding([SaleStatus::Confirmado->value, $hoy, SaleStatus::Confirmado->value, $inicioMes, SaleStatus::PagoPendiente->value, SaleStatus::PagoRecibido->value])
-            ->first();
+        $ventasHoy = (float) Sale::query()
+            ->where('status', '!=', SaleStatus::Cancelado)
+            ->where('confirmed_at', '>=', $hoy)
+            ->sum('total_amount');
+
+        $ventasMes = (float) Sale::query()
+            ->where('status', '!=', SaleStatus::Cancelado)
+            ->where('confirmed_at', '>=', $inicioMes)
+            ->sum('total_amount');
+
+        $pendientesPago = Sale::query()
+            ->whereIn('status', [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido])
+            ->count();
 
         // Queries individuales para métricas de otras entidades
         $conversacionesHoy = Message::query()
@@ -39,6 +43,7 @@ class DashboardController extends Controller
 
         $pedidosRecientes = Sale::query()
             ->with('customer')
+            ->where('status', '!=', SaleStatus::Cancelado)
             ->latest()
             ->limit(8)
             ->get()
@@ -47,21 +52,53 @@ class DashboardController extends Controller
                 'product_name' => $sale->product_name,
                 'color' => $sale->color,
                 'phone_number' => $sale->phone_number,
+                'customer_name' => $sale->customer?->name,
                 'total_amount' => (float) $sale->total_amount,
                 'status' => $sale->status->value,
                 'status_label' => $sale->status->label(),
                 'created_at' => $sale->created_at?->toIso8601String(),
             ]);
 
+        // Chart data: sales last 7 days
+        $hace7Dias = now()->subDays(6)->startOfDay();
+        $chartData = Sale::query()
+            ->select([
+                DB::raw('DATE(confirmed_at) as date'),
+                DB::raw('SUM(total_amount) as total'),
+                DB::raw('COUNT(*) as orders'),
+            ])
+            ->where('status', '!=', SaleStatus::Cancelado)
+            ->whereNotNull('confirmed_at')
+            ->where('confirmed_at', '>=', $hace7Dias)
+            ->groupBy(DB::raw('DATE(confirmed_at)'))
+            ->orderBy(DB::raw('DATE(confirmed_at)'))
+            ->get()
+            ->keyBy('date');
+
+        // Fill missing days with zeros
+        $chart = collect(range(0, 6))->map(function (int $daysAgo) use ($chartData): array {
+            $date = now()->subDays($daysAgo)->startOfDay();
+            $dateStr = $date->toDateString();
+            $data = $chartData->get($dateStr);
+
+            return [
+                'date' => $dateStr,
+                'label' => $date->format('D j'),
+                'sales' => (float) ($data->total ?? 0),
+                'orders' => (int) ($data->orders ?? 0),
+            ];
+        })->reverse()->values();
+
         return Inertia::render('Dashboard', [
             'stats' => [
                 'conversaciones_hoy' => $conversacionesHoy,
-                'pendientes_pago' => (int) ($stats->pendientes_pago ?? 0),
+                'pendientes_pago' => $pendientesPago,
                 'productos_activos' => $productosActivos,
-                'ventas_hoy' => (float) ($stats->ventas_hoy ?? 0),
-                'ventas_mes' => (float) ($stats->ventas_mes ?? 0),
+                'ventas_hoy' => $ventasHoy,
+                'ventas_mes' => $ventasMes,
             ],
             'pedidosRecientes' => $pedidosRecientes,
+            'chartData' => $chart,
         ]);
     }
 }

@@ -8,6 +8,7 @@ use App\Services\AlertaCuotaGemini;
 use App\Services\ClienteGemini;
 use App\Services\ConfiguracionAgente;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 
 class EstadoIAController extends Controller
 {
@@ -37,10 +38,14 @@ class EstadoIAController extends Controller
             'temperatura' => $configuracion->obtenerTemperatura(),
         ];
 
-        // Verificar conexión con Gemini si hay API key
+        // Verificar conexión con Gemini si hay API key (cache 5 min para no gastar cuota)
         $pruebaApi = null;
         if ($estado['api_key_configurada']) {
-            $pruebaApi = $this->probarConexionGemini($configuracion);
+            $pruebaApi = Cache::remember(
+                'estado_ia_prueba_gemini',
+                300,
+                fn (): array => $this->probarConexionGemini($configuracion),
+            );
         }
 
         // Estadísticas de uso

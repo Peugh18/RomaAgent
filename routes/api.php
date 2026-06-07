@@ -1,27 +1,16 @@
 <?php
 
-
-
 use App\Http\Controllers\Api\CategoryController as ApiCategoryController;
-
 use App\Http\Controllers\Api\CompanySettingController as ApiCompanySettingController;
-
-use App\Http\Controllers\Api\DeliveryZoneController as ApiDeliveryZoneController;
-
-use App\Http\Controllers\Api\ProductController as ApiProductController;
-
-use App\Http\Controllers\Api\ProductoSimilarController;
-
-use App\Http\Controllers\Api\ProductVariantPhotoController;
-
 use App\Http\Controllers\Api\CustomerController;
+use App\Http\Controllers\Api\DeliveryZoneController as ApiDeliveryZoneController;
 use App\Http\Controllers\Api\EstadoIAController;
+use App\Http\Controllers\Api\ProductController as ApiProductController;
+use App\Http\Controllers\Api\ProductoSimilarController;
+use App\Http\Controllers\Api\ProductVariantPhotoController;
 use App\Http\Controllers\Api\RomaMessageController;
 use App\Http\Controllers\Api\SaleController;
-
 use Illuminate\Support\Facades\Route;
-
-
 
 Route::prefix('roma')->middleware(['throttle:roma-webhook'])->group(function () {
 
@@ -29,9 +18,7 @@ Route::prefix('roma')->middleware(['throttle:roma-webhook'])->group(function () 
 
 });
 
-
-
-Route::middleware(['web', 'auth'])->group(function () {
+Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
 
     Route::get('/messages', [RomaMessageController::class, 'index']);
 
@@ -40,8 +27,6 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/send-message', [RomaMessageController::class, 'send']);
 
     Route::post('/messages/{message}/resend', [RomaMessageController::class, 'resend']);
-
-
 
     Route::apiResource('products', ApiProductController::class);
 
@@ -58,6 +43,8 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     Route::get('company-settings', [ApiCompanySettingController::class, 'index']);
 
+    Route::get('company-settings/prompt-completo', [ApiCompanySettingController::class, 'promptCompleto']);
+
     Route::put('company-settings', [ApiCompanySettingController::class, 'update']);
 
     Route::delete('company-settings', [ApiCompanySettingController::class, 'destroy']);
@@ -65,11 +52,19 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('sales', [SaleController::class, 'index']);
     Route::get('sales/active/{phoneNumber}', [SaleController::class, 'activeForPhone'])
         ->where('phoneNumber', '[0-9+]+');
+    Route::get('sales/{sale}/transition-preview', [SaleController::class, 'transitionPreview']);
     Route::post('sales/{sale}/confirm-payment', [SaleController::class, 'confirmPayment']);
+    Route::post('sales/{sale}/send-payment-link', [SaleController::class, 'sendPaymentLink']);
     Route::post('sales/{sale}/mark-shipped', [SaleController::class, 'markShipped']);
+    Route::post('sales/{sale}/mark-delivered', [SaleController::class, 'markDelivered']);
+    Route::post('sales/{sale}/revert-delivered', [SaleController::class, 'revertDelivered']);
+    Route::post('sales/{sale}/revert-shipped', [SaleController::class, 'revertShipped']);
 
+    Route::get('customers', [CustomerController::class, 'index']);
     Route::get('customers/{phoneNumber}', [CustomerController::class, 'show'])
         ->where('phoneNumber', '[0-9+]+');
+    Route::put('customers/{id}', [CustomerController::class, 'update'])
+        ->where('id', '[0-9]+');
     Route::put('customers/{phoneNumber}/ia-mode', [CustomerController::class, 'updateIaMode'])
         ->where('phoneNumber', '[0-9+]+');
 
@@ -77,4 +72,3 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::get('alerta-cuota-gemini', [EstadoIAController::class, 'alertaCuota']);
 
 });
-

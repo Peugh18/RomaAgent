@@ -8,6 +8,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Sale;
 use App\Support\NormalizadorStockTallas;
+use App\Support\ValidadorPrecioPedido;
 use Illuminate\Support\Facades\DB;
 
 class ActualizarPedidoVenta
@@ -23,12 +24,13 @@ class ActualizarPedidoVenta
             $product = $this->resolverProducto($datos['product_name'] ?? $sale->product_name);
             $variant = $this->resolverVariante($product, $datos['color'] ?? $sale->color);
 
-            $unitPrice = isset($datos['unit_price'])
-                ? (float) $datos['unit_price']
-                : (float) ($product?->price ?? $sale->unit_price);
+            $unitPrice = ValidadorPrecioPedido::resolverPrecioUnitario(
+                $product,
+                $datos['unit_price'] ?? null,
+            );
 
             $deliveryCost = isset($datos['delivery_cost'])
-                ? (float) $datos['delivery_cost']
+                ? max(0, (float) $datos['delivery_cost'])
                 : (float) $sale->delivery_cost;
 
             $quantity = max(1, (int) ($datos['quantity'] ?? $sale->quantity));
@@ -37,9 +39,7 @@ class ActualizarPedidoVenta
                 ? SaleStatus::from($datos['status'])
                 : ($sale->exists ? $sale->status : SaleStatus::Cotizando);
 
-            $total = isset($datos['total_amount'])
-                ? (float) $datos['total_amount']
-                : ($unitPrice * $quantity) + $deliveryCost;
+            $total = ValidadorPrecioPedido::calcularTotal($unitPrice, $quantity, $deliveryCost);
 
             $payload = [
                 'phone_number' => $customer->phone_number,
@@ -67,6 +67,14 @@ class ActualizarPedidoVenta
                 $sale = Sale::query()->create($payload);
             }
 
+            // Update customer name from customer_data if provided
+            $customerName = $datos['customer_data']['nombre']
+                ?? $datos['customer_data']['name']
+                ?? null;
+            if ($customerName !== null && trim($customerName) !== '' && $customer->name !== $customerName) {
+                $customer->update(['name' => trim($customerName)]);
+            }
+
             $customer->asignarPedidoActivo($sale);
 
             return $sale->fresh(['product', 'productVariant']);
@@ -87,6 +95,7 @@ class ActualizarPedidoVenta
             ->whereNotIn('status', [
                 SaleStatus::Confirmado,
                 SaleStatus::Enviado,
+                SaleStatus::Entregado,
                 SaleStatus::Cancelado,
             ])
             ->latest()

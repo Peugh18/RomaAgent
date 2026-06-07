@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { chatStatusLabel, formatChatTime } from '@/lib/chatFormatting';
-import { isMediaOnlyLabel, mediaKind, mediaSource, mediaUnavailable } from '@/composables/useChatMedia';
+import { isMediaOnlyLabel, isStickerMessage, mediaKind, mediaSource, mediaUnavailable } from '@/composables/useChatMedia';
 import type { ChatMessage } from '@/types/chat';
 import { ExternalLink, MapPin, RotateCw } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -17,6 +17,8 @@ const emit = defineEmits<{
 const canResend = computed(
     () => props.message.direction === 'outgoing' && props.message.status === 'failed',
 );
+
+const isSticker = computed(() => isStickerMessage(props.message));
 
 const isLocationMessage = computed(
     () =>
@@ -64,11 +66,14 @@ const locationLabel = computed(() => {
 <template>
     <div class="flex" :class="message.direction === 'outgoing' ? 'justify-end' : 'justify-start'">
         <div
-            class="max-w-[min(85%,28rem)] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm"
+            class="max-w-[min(85%,28rem)] text-sm"
             :class="
-                message.direction === 'outgoing'
-                    ? 'rounded-br-md bg-[#d9fdd3] text-[#111b21] dark:bg-emerald-900/50 dark:text-emerald-50'
-                    : 'rounded-bl-md border border-border bg-white text-foreground dark:bg-card'
+                isSticker
+                    ? 'px-0 py-0 shadow-none'
+                    : 'rounded-2xl px-3.5 py-2.5 shadow-sm ' +
+                      (message.direction === 'outgoing'
+                          ? 'rounded-br-md bg-[#d9fdd3] text-[#111b21] dark:bg-emerald-900/50 dark:text-emerald-50'
+                          : 'rounded-bl-md border border-border bg-white text-foreground dark:bg-card')
             "
         >
             <div
@@ -96,13 +101,25 @@ const locationLabel = computed(() => {
 
             <template v-else>
                 <p
-                    v-if="message.content && (!isMediaOnlyLabel(message.content) || !mediaSource(message))"
+                    v-if="
+                        message.content &&
+                        (!isMediaOnlyLabel(message.content) || !mediaSource(message)) &&
+                        !isSticker
+                    "
                     class="whitespace-pre-wrap break-words leading-relaxed"
                 >
                     {{ message.content }}
                 </p>
+                <div v-if="isSticker && mediaSource(message)" class="inline-flex flex-col items-start gap-1">
+                    <img
+                        :src="mediaSource(message)!"
+                        alt="Sticker"
+                        class="max-h-28 max-w-28 object-contain"
+                    />
+                    <span class="text-[10px] text-muted-foreground">Sticker</span>
+                </div>
                 <img
-                    v-if="['image', 'sticker'].includes(mediaKind(message)) && mediaSource(message)"
+                    v-else-if="mediaKind(message) === 'image' && mediaSource(message)"
                     :src="mediaSource(message)!"
                     :alt="message.content"
                     class="mt-1 max-h-64 rounded-lg object-contain"
@@ -120,7 +137,7 @@ const locationLabel = computed(() => {
                     class="mt-2 max-h-64 max-w-full rounded-lg"
                 />
                 <p v-if="mediaUnavailable(message)" class="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                    Media no disponible — activa ngrok de roma-api (puerto 3000) y reenvía el mensaje.
+                    No se pudo cargar el archivo. Pide a la clienta que lo reenvíe.
                 </p>
             </template>
 

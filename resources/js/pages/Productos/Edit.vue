@@ -353,8 +353,9 @@ const submit = async () => {
 
 const fetchAllProducts = async () => {
     try {
-        const list = await fetch('/api/products', { headers: { Accept: 'application/json' } }).then((r) => r.json());
-        allProducts.value = (list as { id: number; name: string }[]).filter((p) => p.id !== props.product.id);
+        const list = await fetch('/api/products?per_page=100', { headers: { Accept: 'application/json' } }).then((r) => r.json());
+        const items = Array.isArray(list) ? list : (list.data ?? []);
+        allProducts.value = (items as { id: number; name: string }[]).filter((p) => p.id !== props.product.id);
     } catch {
         allProducts.value = [];
     }

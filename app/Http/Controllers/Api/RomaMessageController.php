@@ -8,11 +8,13 @@ use App\Actions\UpdateMessageStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreMessageRequest;
 use App\Jobs\SendWhatsappMessageJob;
+use App\Models\Customer;
 use App\Models\Message;
 use App\Support\AutenticacionWebhookRoma;
 use App\Support\MessageBroadcaster;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 
 class RomaMessageController extends Controller
@@ -59,7 +61,7 @@ class RomaMessageController extends Controller
         return response()->json($messages);
     }
 
-    private function fetchMessages(?string $phoneNumber, int $limit): \Illuminate\Support\Collection
+    private function fetchMessages(?string $phoneNumber, int $limit): Collection
     {
         $query = Message::query()->orderBy('created_at', 'desc');
 
@@ -77,17 +79,21 @@ class RomaMessageController extends Controller
         return response()->json($conversations);
     }
 
-    private function fetchConversations(): \Illuminate\Support\Collection
+    private function fetchConversations(): Collection
     {
         $latestIds = Message::query()
             ->selectRaw('MAX(id) as id')
             ->groupBy('phone_number')
             ->pluck('id');
 
-        return Message::query()
+        $messages = Message::query()
             ->whereIn('id', $latestIds)
             ->orderByDesc('created_at')
-            ->get()
+            ->get();
+
+        $customersByPhone = $this->loadCustomersByPhone($messages);
+
+        return $messages
             ->map(fn (Message $message): array => [
                 'phone' => $message->phone_number,
                 'name' => $message->customer_name,
@@ -95,33 +101,61 @@ class RomaMessageController extends Controller
                 'last_at' => $message->created_at?->toIso8601String(),
                 'direction' => $message->direction,
                 'status' => $message->status,
-                ...$this->customerMeta($message->phone_number),
+                ...$this->customerMetaFromMap($message->phone_number, $customersByPhone),
             ])->values();
     }
 
     /**
-     * @return array{ia_paused: bool, pending_payment: bool, active_sale_status: string|null}
+     * @param  Collection<int, Message>  $messages
+     * @return Collection<string, Customer>
      */
-    private function customerMeta(string $phoneNumber): array
+    private function loadCustomersByPhone(Collection $messages): Collection
     {
-        $customer = \App\Models\Customer::query()
-            ->where('phone_number', $phoneNumber)
+        $phones = $messages->pluck('phone_number')->unique()->filter()->values();
+
+        if ($phones->isEmpty()) {
+            return collect();
+        }
+
+        return Customer::query()
+            ->whereIn('phone_number', $phones)
             ->with('activeSale')
-            ->first();
+            ->get()
+            ->keyBy('phone_number');
+    }
+
+    /**
+     * @param  Collection<string, Customer>  $customersByPhone
+     * @return array{ia_paused: bool, ia_pause_reason: string|null, pending_payment: bool, active_sale_status: string|null}
+     */
+    private function customerMetaFromMap(string $phoneNumber, Collection $customersByPhone): array
+    {
+        $customer = $customersByPhone->get($phoneNumber);
 
         if ($customer === null) {
             return [
                 'ia_paused' => false,
+                'ia_pause_reason' => null,
                 'pending_payment' => false,
                 'active_sale_status' => null,
             ];
         }
 
-        $status = $customer->activeSale?->status?->value;
+        return $this->customerMetaFromModel($customer);
+    }
+
+    /**
+     * @return array{ia_paused: bool, ia_pause_reason: string|null, pending_payment: bool, active_sale_status: string|null}
+     */
+    private function customerMetaFromModel(Customer $customer): array
+    {
+        $activeSale = $customer->activeSale;
+        $status = $activeSale?->status?->value;
 
         return [
             'ia_paused' => (bool) $customer->ia_paused,
-            'pending_payment' => in_array($status, ['pago_recibido', 'pago_pendiente'], true),
+            'ia_pause_reason' => $customer->ia_pause_reason,
+            'pending_payment' => $activeSale !== null && $activeSale->puedeVerificarPago(),
             'active_sale_status' => $status,
         ];
     }
@@ -129,6 +163,16 @@ class RomaMessageController extends Controller
     public function send(StoreMessageRequest $request): JsonResponse
     {
         $validated = $request->validated();
+
+        $customer = Customer::query()
+            ->where('phone_number', $validated['phone_number'])
+            ->first();
+
+        if ($customer !== null && ! $customer->ia_paused) {
+            return response()->json([
+                'message' => 'La IA está activa para esta clienta. Cambia a modo Humano para escribir manualmente.',
+            ], 422);
+        }
 
         try {
             $message = Message::create([
@@ -160,6 +204,16 @@ class RomaMessageController extends Controller
 
     public function resend(Message $message): JsonResponse
     {
+        $customer = Customer::query()
+            ->where('phone_number', $message->phone_number)
+            ->first();
+
+        if ($customer !== null && ! $customer->ia_paused) {
+            return response()->json([
+                'message' => 'La IA está activa para esta clienta. Cambia a modo Humano para reenviar mensajes manuales.',
+            ], 422);
+        }
+
         try {
             $reenviado = $this->reenviarMensaje->handle($message);
 
