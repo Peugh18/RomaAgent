@@ -45,7 +45,7 @@ class CompanySettingAlignmentTest extends TestCase
         ];
     }
 
-    public function test_prompt_preview_reflects_company_configuration(): void
+    public function test_prompt_completo_reflects_company_configuration(): void
     {
         $user = User::factory()->create();
         $settings = CompanySetting::factory()->create($this->configuracionCompleta());
@@ -57,14 +57,15 @@ class CompanySettingAlignmentTest extends TestCase
         $response->assertOk();
         $response->assertJsonMissing(['prompt_completo']);
 
-        $preview = $response->json('prompt_preview');
+        $prompt = $this->promptCompleto($user);
 
-        $this->assertStringContainsString('Moda y Vestuario', $preview);
-        $this->assertStringContainsString('dólares ($)', $preview);
-        $this->assertStringContainsString('@romastore', $preview);
-        $this->assertStringContainsString('HOLA LINDA WAPA', $preview);
-        $this->assertStringContainsString('959166911', $preview);
-        $this->assertStringContainsString('asesora de ventas', $preview);
+        $this->assertStringContainsString('Moda y Vestuario', $prompt);
+        $this->assertStringContainsString('dólares ($)', $prompt);
+        $this->assertStringContainsString('@romastore', $prompt);
+        $this->assertStringContainsString('HOLA LINDA WAPA', $prompt);
+        $this->assertStringContainsString('959166911', $prompt);
+        $this->assertStringContainsString('asesora de ventas', $prompt);
+        $this->assertStringContainsString('buscar_productos', $prompt);
     }
 
     public function test_statistics_align_with_configuration_state(): void
@@ -130,11 +131,11 @@ class CompanySettingAlignmentTest extends TestCase
 
         $response->assertOk();
 
-        $preview = $response->json('prompt_preview');
+        $prompt = $this->promptCompleto($user);
 
-        $this->assertStringContainsString('Moda y Vestuario', $preview);
-        $this->assertStringContainsString('dólares ($)', $preview);
-        $this->assertStringContainsString('@nueva_cuenta', $preview);
+        $this->assertStringContainsString('Moda y Vestuario', $prompt);
+        $this->assertStringContainsString('dólares ($)', $prompt);
+        $this->assertStringContainsString('@nueva_cuenta', $prompt);
         $this->assertSame('Moda y Vestuario', $response->json('actividad'));
         $this->assertSame('USD', $response->json('moneda'));
         $this->assertSame('@nueva_cuenta', $response->json('empresa.social_networks.instagram'));
@@ -196,22 +197,18 @@ class CompanySettingAlignmentTest extends TestCase
         $this->assertStringNotContainsString('Provincia (Shalom): $ 0', $prompt);
     }
 
-    public function test_prompt_preview_is_prefix_of_complete_prompt(): void
+    public function test_prompt_completo_endpoint_matches_contexto_conversacion(): void
     {
         $user = User::factory()->create();
         $settings = CompanySetting::factory()->create($this->configuracionCompleta());
 
         Cache::forget('contexto_prompt_completo_'.$settings->id);
 
-        $response = $this->actingAs($user)->getJson('/api/company-settings');
+        $prompt = $this->promptCompleto($user);
 
-        $response->assertOk();
-
-        $preview = $response->json('prompt_preview');
-        $completo = $this->promptCompleto($user);
-
-        $this->assertStringStartsWith($preview, $completo);
-        $this->assertGreaterThan(strlen($preview), strlen($completo));
+        $this->assertStringContainsString('AGENTE VENDEDOR', $prompt);
+        $this->assertStringContainsString('CATÁLOGO', $prompt);
+        $this->assertGreaterThan(500, strlen($prompt));
     }
 
     public function test_statistics_warn_when_no_products(): void

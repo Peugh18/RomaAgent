@@ -70,7 +70,6 @@ class ConfiguracionEmpresa
             'informacion_extra' => $this->obtenerInformacionExtra(),
             'ia' => (new ConfiguracionAgente)->obtenerDatosCompletos(),
             'estadisticas' => $this->obtenerEstadisticas($promptCompleto),
-            'prompt_preview' => $this->recortarPromptPreview($promptCompleto),
             'prompt_completo' => $promptCompleto,
         ];
     }
@@ -336,16 +335,5 @@ class ConfiguracionEmpresa
         $completados = count(array_filter($campos, fn (callable $check): bool => $check()));
 
         return (int) round(($completados / $total) * 100);
-    }
-
-    private function recortarPromptPreview(string $prompt): string
-    {
-        $preview = substr($prompt, 0, 1000);
-
-        if (! mb_check_encoding($preview, 'UTF-8')) {
-            $preview = mb_convert_encoding($preview, 'UTF-8', 'UTF-8');
-        }
-
-        return $preview;
     }
 }

@@ -6,7 +6,7 @@ defineProps<{
 
 <template>
     <div
-        class="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm"
+        class="overflow-hidden rounded-2xl border border-border/50 bg-card shadow-sm transition-shadow duration-200 hover:shadow-md"
         :class="padding ? '' : ''"
     >
         <slot />

@@ -46,19 +46,20 @@ const chartData = computed(() => ({
         {
             label: 'Ventas (S/)',
             data: props.data.map((d) => d.sales),
-            borderColor: theme.primary.value,
+            borderColor: theme.chartPrimary.value,
             backgroundColor: (context: { chart: { ctx: CanvasRenderingContext2D; height: number } }) => {
                 const ctx = context.chart.ctx;
                 const gradient = ctx.createLinearGradient(0, 0, 0, context.chart.height || 200);
-                gradient.addColorStop(0, hslWithAlpha(theme.primary.value, 0.25));
-                gradient.addColorStop(1, hslWithAlpha(theme.primary.value, 0));
+                gradient.addColorStop(0, hslWithAlpha(theme.chartPrimary.value, 0.28));
+                gradient.addColorStop(1, hslWithAlpha(theme.chartPrimary.value, 0));
                 return gradient;
             },
             fill: true,
-            tension: 0.4,
+            tension: 0.42,
             pointRadius: 4,
+            pointHoverRadius: 6,
             pointBackgroundColor: theme.background.value,
-            pointBorderColor: theme.primary.value,
+            pointBorderColor: theme.chartPrimary.value,
             pointBorderWidth: 2,
         },
     ],
@@ -70,6 +71,10 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
     interaction: {
         intersect: false,
         mode: 'index',
+    },
+    animation: {
+        duration: 800,
+        easing: 'easeOutQuart',
     },
     plugins: {
         legend: {
@@ -84,10 +89,12 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
             padding: 12,
             displayColors: false,
             callbacks: {
+                title: (items) => items[0]?.label ?? '',
                 label: (context) => {
                     const value = context.parsed.y ?? 0;
+                    const orders = props.data[context.dataIndex]?.orders ?? 0;
 
-                    return `S/ ${value.toFixed(2)}`;
+                    return [`S/ ${value.toFixed(2)}`, `${orders} pedido${orders === 1 ? '' : 's'}`];
                 },
             },
         },
@@ -107,7 +114,7 @@ const chartOptions = computed<ChartOptions<'line'>>(() => ({
         y: {
             beginAtZero: true,
             grid: {
-                color: theme.border.value,
+                color: hslWithAlpha(theme.border.value, 0.6),
             },
             ticks: {
                 color: theme.mutedForeground.value,
@@ -126,30 +133,36 @@ const avgTicket = computed(() => (totalOrders.value > 0 ? totalSales.value / tot
 </script>
 
 <template>
-    <Card class="col-span-full border-0 shadow-sm lg:col-span-3">
+    <Card class="border border-border/50 shadow-sm">
         <CardHeader class="pb-2">
-            <div class="flex items-start justify-between">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <CardTitle class="text-base font-semibold">Tendencia de Ventas</CardTitle>
-                    <CardDescription>Últimos 7 días · Ingresos reales confirmados</CardDescription>
+                    <CardDescription>Últimos 7 días · Ingresos confirmados</CardDescription>
                 </div>
-                <div class="text-right">
-                    <div class="text-2xl font-bold">S/ {{ totalSales.toFixed(2) }}</div>
-                    <div class="text-xs text-muted-foreground">
-                        {{ totalOrders }} pedidos · Ticket promedio S/{{ avgTicket.toFixed(2) }}
+                <div class="flex gap-6 sm:text-right">
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-muted-foreground">Total semana</p>
+                        <p class="text-2xl font-bold tabular-nums">S/ {{ totalSales.toFixed(2) }}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs uppercase tracking-wide text-muted-foreground">Ticket prom.</p>
+                        <p class="text-lg font-semibold tabular-nums">S/ {{ avgTicket.toFixed(2) }}</p>
+                        <p class="text-xs text-muted-foreground">{{ totalOrders }} pedidos</p>
                     </div>
                 </div>
             </div>
         </CardHeader>
         <CardContent class="pt-4">
-            <div v-if="loading" class="flex h-[280px] items-center justify-center">
-                <div class="h-32 w-32 animate-pulse rounded-lg bg-muted" />
+            <div v-if="loading" class="flex h-[300px] items-center justify-center">
+                <div class="h-40 w-full max-w-md animate-pulse rounded-xl bg-muted/60" />
             </div>
-            <div v-else-if="data.length === 0" class="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
-                Sin datos de ventas recientes
+            <div v-else-if="data.length === 0" class="flex h-[300px] flex-col items-center justify-center text-center">
+                <p class="text-sm font-medium text-muted-foreground">Sin datos de ventas recientes</p>
+                <p class="mt-1 text-xs text-muted-foreground">Confirma pedidos en el pipeline para ver la tendencia</p>
             </div>
-            <div v-else class="relative h-[280px] w-full">
-                <Line v-if="chartReady" :key="theme.primary.value" :data="chartData" :options="chartOptions" />
+            <div v-else class="relative h-[300px] w-full">
+                <Line v-if="chartReady" :key="theme.chartPrimary.value" :data="chartData" :options="chartOptions" />
             </div>
         </CardContent>
     </Card>

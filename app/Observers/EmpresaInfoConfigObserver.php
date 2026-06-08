@@ -3,40 +3,29 @@
 namespace App\Observers;
 
 use App\Models\EmpresaInfoConfig;
-use Illuminate\Support\Facades\Cache;
+use App\Support\InvalidatesPromptCache;
+use Illuminate\Support\Facades\Log;
 
-/**
- * Observer que invalida caché del prompt cuando cambian datos de empresa
- */
 class EmpresaInfoConfigObserver
 {
+    use InvalidatesPromptCache;
+
     public function updated(EmpresaInfoConfig $empresaInfo): void
     {
-        $this->invalidarCache($empresaInfo);
+        $this->invalidar($empresaInfo);
     }
 
     public function created(EmpresaInfoConfig $empresaInfo): void
     {
-        $this->invalidarCache($empresaInfo);
+        $this->invalidar($empresaInfo);
     }
 
-    /**
-     * Invalida solo la sección de empresa y el prompt completo
-     *
-     * NOTA: Usa Cache::forget() simple para compatibilidad sin Redis
-     */
-    private function invalidarCache(EmpresaInfoConfig $empresaInfo): void
+    private function invalidar(EmpresaInfoConfig $empresaInfo): void
     {
-        $configId = $empresaInfo->company_setting_id;
+        $this->invalidarCachePrompt($empresaInfo->company_setting_id);
 
-        // Invalidar solo la sección de empresa (sin tags, compatible con cualquier driver)
-        Cache::forget("seccion_empresa_{$configId}");
-
-        // Invalidar prompt completo
-        Cache::forget("prompt_unificado_v2_{$configId}");
-
-        \Log::info('Cache de empresa invalidada', [
-            'company_setting_id' => $configId,
+        Log::info('Cache de empresa invalidada', [
+            'company_setting_id' => $empresaInfo->company_setting_id,
         ]);
     }
 }

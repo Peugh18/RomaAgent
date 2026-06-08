@@ -3,40 +3,29 @@
 namespace App\Observers;
 
 use App\Models\MensajeConfig;
-use Illuminate\Support\Facades\Cache;
+use App\Support\InvalidatesPromptCache;
+use Illuminate\Support\Facades\Log;
 
-/**
- * Observer que invalida caché del prompt cuando cambian mensajes/plantillas
- */
 class MensajeConfigObserver
 {
+    use InvalidatesPromptCache;
+
     public function updated(MensajeConfig $mensajeConfig): void
     {
-        $this->invalidarCache($mensajeConfig);
+        $this->invalidar($mensajeConfig);
     }
 
     public function created(MensajeConfig $mensajeConfig): void
     {
-        $this->invalidarCache($mensajeConfig);
+        $this->invalidar($mensajeConfig);
     }
 
-    /**
-     * Invalida solo la sección de mensajes y el prompt completo
-     *
-     * NOTA: Usa Cache::forget() simple para compatibilidad sin Redis
-     */
-    private function invalidarCache(MensajeConfig $mensajeConfig): void
+    private function invalidar(MensajeConfig $mensajeConfig): void
     {
-        $configId = $mensajeConfig->company_setting_id;
+        $this->invalidarCachePrompt($mensajeConfig->company_setting_id);
 
-        // Invalidar solo la sección de mensajes (sin tags, compatible con cualquier driver)
-        Cache::forget("seccion_mensajes_{$configId}");
-
-        // Invalidar prompt completo
-        Cache::forget("prompt_unificado_v2_{$configId}");
-
-        \Log::info('Cache de mensajes invalidada', [
-            'company_setting_id' => $configId,
+        Log::info('Cache de mensajes invalidada', [
+            'company_setting_id' => $mensajeConfig->company_setting_id,
         ]);
     }
 }

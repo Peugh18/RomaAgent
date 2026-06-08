@@ -46,8 +46,32 @@ class DashboardTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Dashboard')
                 ->where('stats.ventas_hoy', 190)
+                ->where('stats.pedidos_activos', 0)
+                ->has('pipelineOverview', 1)
+                ->where('pipelineOverview.0.status', SaleStatus::Entregado->value)
                 ->has('pedidosRecientes', 1)
                 ->where('pedidosRecientes.0.status', SaleStatus::Entregado->value)
+            );
+    }
+
+    public function test_dashboard_includes_pipeline_overview_and_trend_stats(): void
+    {
+        $user = User::factory()->create();
+
+        Sale::factory()->create([
+            'status' => SaleStatus::Cotizando,
+            'total_amount' => 120,
+        ]);
+
+        $this->actingAs($user)
+            ->get('/dashboard')
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dashboard')
+                ->where('stats.pedidos_activos', 1)
+                ->has('stats.ventas_trend')
+                ->has('pipelineOverview', 1)
+                ->where('pipelineOverview.0.status', SaleStatus::Cotizando->value)
             );
     }
 }

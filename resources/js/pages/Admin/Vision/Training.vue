@@ -2,7 +2,8 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import CrmAlert from '@/components/crm/CrmAlert.vue';
 import CrmListCard from '@/components/crm/CrmListCard.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
 import StatCard from '@/components/dashboard/StatCard.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -142,13 +143,16 @@ onMounted(async () => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="crm-page">
-            <PageHeader
+            <CrmPageHero
                 title="Entrenamiento visión"
                 description="Métricas y feedback para afinar el reconocimiento de productos por imagen."
+                :icon="Brain"
+                variant="violet"
             />
 
             <CrmAlert v-if="loadError" variant="error">{{ loadError }}</CrmAlert>
 
+            <CrmAnimatedSection :delay="80">
             <Tabs v-model="activeTab" class="w-full">
                 <TabsList class="grid w-full max-w-md grid-cols-2">
                     <TabsTrigger value="stats" class="gap-2">
@@ -296,6 +300,7 @@ onMounted(async () => {
                     </div>
                 </TabsContent>
             </Tabs>
+            </CrmAnimatedSection>
         </div>
     </AppLayout>
 </template>

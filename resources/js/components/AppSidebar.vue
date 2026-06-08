@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
-import { mainNavItems, trainingNavItems } from '@/config/appNavigation';
+import {
+    primaryNavGroups,
+    systemNavGroup,
+    toNavMainItems,
+    trainingNavGroup,
+} from '@/config/appNavigation';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { Link } from '@inertiajs/vue3';
 import AppLogo from './AppLogo.vue';
@@ -13,7 +18,7 @@ import AppLogo from './AppLogo.vue';
             <SidebarMenu>
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child>
-                        <Link :href="route('chat.index')">
+                        <Link :href="route('dashboard')">
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>
@@ -21,14 +26,21 @@ import AppLogo from './AppLogo.vue';
             </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent>
-            <NavMain :items="mainNavItems.map((item) => ({ title: item.title, url: item.href, icon: item.icon }))" />
-            <div class="mt-6">
-                <NavMain 
-                    :items="trainingNavItems.map((item) => ({ title: item.title, url: item.href, icon: item.icon }))" 
-                    group-label="Entrenamiento IA"
-                />
-            </div>
+        <SidebarContent class="gap-0">
+            <NavMain
+                v-for="group in primaryNavGroups"
+                :key="group.label"
+                :items="toNavMainItems(group.items)"
+                :group-label="group.label"
+            />
+
+            <div class="mx-3 my-3 border-t border-sidebar-border/80" role="separator" />
+
+            <NavMain :items="toNavMainItems(systemNavGroup.items)" :group-label="systemNavGroup.label" />
+
+            <div class="mx-3 my-3 border-t border-sidebar-border/80" role="separator" />
+
+            <NavMain :items="toNavMainItems(trainingNavGroup.items)" :group-label="trainingNavGroup.label" />
         </SidebarContent>
 
         <SidebarFooter>

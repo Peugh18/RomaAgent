@@ -1,10 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import CrmAlert from '@/components/crm/CrmAlert.vue';
 import CrmListCard from '@/components/crm/CrmListCard.vue';
 import CrmPagination from '@/components/crm/CrmPagination.vue';
 import CrmSearchBar from '@/components/crm/CrmSearchBar.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
 import ZoneEmptyState from '@/components/zones/ZoneEmptyState.vue';
 import ZoneTableSkeleton from '@/components/zones/ZoneTableSkeleton.vue';
 import { Badge } from '@/components/ui/badge';
@@ -218,23 +219,27 @@ onMounted(fetchDeliveryZones);
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="crm-page space-y-4">
-            <PageHeader
+            <CrmPageHero
                 title="Zonas de delivery"
                 :description="`${deliveryZones.length} zonas · Motorizado por distrito Lima · Shalom Lima S/ 10 · Provincia solo Shalom`"
+                :icon="MapPin"
+                variant="sky"
+                :stats="[{ label: 'Zonas', value: deliveryZones.length }]"
             >
                 <template #actions>
                     <div class="flex flex-wrap gap-2">
                         <Button variant="secondary" @click="importRomaStoreZones">Importar Roma Store</Button>
-                        <Button @click="openCreateModal">
+                        <Button class="bg-emerald-600 hover:bg-emerald-700" @click="openCreateModal">
                             <Plus class="mr-1.5 h-4 w-4" />
                             Nueva zona
                         </Button>
                     </div>
                 </template>
-            </PageHeader>
+            </CrmPageHero>
 
             <CrmAlert v-if="error">{{ error }}</CrmAlert>
 
+            <CrmAnimatedSection :delay="80">
             <div class="crm-toolbar">
                 <p class="text-xs text-muted-foreground">
                     Las zonas <strong>Solo Shalom</strong> aparecen primero. Todo se refleja en el prompt de la IA.
@@ -344,6 +349,7 @@ onMounted(fetchDeliveryZones);
                     />
                 </template>
             </CrmListCard>
+            </CrmAnimatedSection>
         </div>
 
         <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-background/80 p-4 backdrop-blur-sm">

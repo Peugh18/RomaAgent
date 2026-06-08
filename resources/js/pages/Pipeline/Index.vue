@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
 import PipelineColumn from '@/components/pipeline/PipelineColumn.vue';
 import PipelineEmptyState from '@/components/pipeline/PipelineEmptyState.vue';
 import PipelineEntregadosArchivo from '@/components/pipeline/PipelineEntregadosArchivo.vue';
@@ -22,7 +23,7 @@ import { PIPELINE_ALWAYS_VISIBLE_COLUMNS, PIPELINE_COLUMNS, type Sale, type Sale
 import { useCurrency } from '@/composables/useCurrency';
 import { Head } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import { RefreshCw } from 'lucide-vue-next';
+import { Kanban, RefreshCw } from 'lucide-vue-next';
 import type { SortableEvent } from 'sortablejs';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Pipeline de ventas', href: '/pipeline' }];
@@ -197,18 +198,25 @@ const onTransitionCancelled = async () => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="crm-page space-y-6">
-            <PageHeader
+            <CrmPageHero
                 title="Pipeline de ventas"
                 description="Confirma pagos con botones. En Confirmado → Enviado → Entregado puedes arrastrar o usar botones; siempre se abre el modal de WhatsApp al avanzar."
+                :icon="Kanban"
+                variant="blue"
+                :stats="[
+                    { label: 'Pedidos', value: filteredSales.length },
+                    { label: 'En pago', value: needsPaymentAttention },
+                ]"
             >
                 <template #actions>
-                    <Button variant="outline" class="gap-2" :disabled="loading" @click="loadSales">
+                    <Button variant="outline" class="gap-2 border-border/70 bg-background/60" :disabled="loading" @click="loadSales">
                         <RefreshCw class="h-4 w-4" :class="loading ? 'animate-spin' : ''" />
                         Actualizar
                     </Button>
                 </template>
-            </PageHeader>
+            </CrmPageHero>
 
+            <CrmAnimatedSection :delay="80">
             <PipelineToolbar
                 v-if="!loading || sales.length > 0"
                 v-model:search="searchQuery"
@@ -219,8 +227,9 @@ const onTransitionCancelled = async () => {
                 @focus-payments="focusPayments"
                 @clear-search="searchQuery = ''"
             />
+            </CrmAnimatedSection>
 
-            <div v-if="error || dragError" class="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
+            <div v-if="error || dragError" class="rounded-xl border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
                 {{ error || dragError }}
             </div>
 
@@ -242,7 +251,7 @@ const onTransitionCancelled = async () => {
                 </div>
             </template>
 
-            <template v-else>
+            <CrmAnimatedSection v-else :delay="140">
                 <PipelineColumnNav
                     :columns="visibleColumns"
                     :counts="columnCounts"
@@ -267,7 +276,7 @@ const onTransitionCancelled = async () => {
                         @open-archive="archivoOpen = true"
                     />
                 </div>
-            </template>
+            </CrmAnimatedSection>
 
             <PipelineEntregadosArchivo
                 v-model:open="archivoOpen"

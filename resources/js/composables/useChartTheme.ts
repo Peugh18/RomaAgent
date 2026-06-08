@@ -11,7 +11,7 @@ function readCssHsl(variable: string, fallback: string): string {
 }
 
 export function useChartTheme() {
-    const primary = ref('hsl(142 76% 36%)');
+    const chartPrimary = ref('hsl(142 71% 45%)');
     const mutedForeground = ref('hsl(0 0% 63%)');
     const border = ref('hsl(0 0% 20%)');
     const popover = ref('hsl(0 0% 10%)');
@@ -19,7 +19,7 @@ export function useChartTheme() {
     const background = ref('hsl(0 0% 7%)');
 
     const refresh = (): void => {
-        primary.value = readCssHsl('--primary', primary.value);
+        chartPrimary.value = readCssHsl('--chart-1', chartPrimary.value);
         mutedForeground.value = readCssHsl('--muted-foreground', mutedForeground.value);
         border.value = readCssHsl('--border', border.value);
         popover.value = readCssHsl('--popover', popover.value);
@@ -38,7 +38,8 @@ export function useChartTheme() {
     });
 
     return {
-        primary,
+        chartPrimary,
+        primary: chartPrimary,
         mutedForeground,
         border,
         popover,

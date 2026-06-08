@@ -80,7 +80,6 @@ RomaAgent/
 │   │   ├── Agente/                 # AgenteVendedor, EjecutorHerramientasAgente, Tools
 │   │   ├── Media/                  # ImageAnalyzer, AudioTranscriber, DescargadorMediaWhatsapp
 │   │   ├── Vision/                 # HybridImageMatcher, ProductEmbeddingService…
-│   │   └── Prompt/                 # PromptBuilderService (caché admin)
 │   └── Support/                    # FormateadorCatalogoProductos, ParseadorRespuestaJsonGemini…
 ├── bootstrap/app.php               # Middleware Laravel 12
 ├── config/                         # services.php, queue, broadcasting…
@@ -225,7 +224,6 @@ Refactorizado de un "God Object" a 5 tablas especializadas:
 | Tabla | Uso |
 |-------|-----|
 | `vision_learning_feedback` | Matches de visión para entrenamiento |
-| `vision_analysis_cache` | Caché análisis imágenes |
 | `logs_ia` | Log requests/responses Gemini |
 | `delivery_zones` | Zonas delivery con horarios |
 | `producto_similares` | Productos relacionados |
@@ -387,15 +385,7 @@ Formatea productos para el prompt con:
 
 **Límite:** 100 productos en prompt. Catálogos mayores → agente debe usar tool `buscar_productos`.
 
-### 7.3 Sistema paralelo: PromptBuilderService
-
-**Archivo:** `app/Services/Prompt/PromptBuilderService.php`
-
-- Caché granular por sección (`prompt_unificado_v2_{id}`)
-- Se usa para **invalidación al guardar config** (`CompanySettingController::update()`)
-- **NO** es el que usa `AgenteVendedor` en runtime — ese usa `ContextoConversacion`
-
-### 7.4 ConfiguracionEmpresa
+### 7.3 ConfiguracionEmpresa
 
 **Archivo:** `app/Services/ConfiguracionEmpresa.php`
 
@@ -403,7 +393,7 @@ Formatea productos para el prompt con:
 - `obtenerTodos()` incluye `prompt_completo`, estadísticas, completitud
 - Alimenta `ContextoConversacion`
 
-### 7.5 ConfiguracionAgente
+### 7.4 ConfiguracionAgente
 
 **Archivo:** `app/Services/ConfiguracionAgente.php`
 
@@ -412,7 +402,7 @@ Formatea productos para el prompt con:
 - Modelos: `gemini-2.5-flash` (default), `gemini-2.0-flash`, etc.
 - API key **cifrada** en `agente_configs.api_key_encrypted`
 
-### 7.6 API admin de configuración
+### 7.5 API admin de configuración
 
 **Controlador:** `app/Http/Controllers/Api/CompanySettingController.php`
 
@@ -420,7 +410,7 @@ Formatea productos para el prompt con:
 - `GET /api/company-settings/prompt-completo` — preview del prompt
 - Al guardar: distribuye en 5 tablas + invalida cache
 
-### 7.7 Vista de configuración
+### 7.6 Vista de configuración
 
 **Página:** `resources/js/pages/Configuracion/ConfiguracionEmpresa.vue`
 
@@ -736,8 +726,8 @@ php artisan queue:restart
 | `vision:diagnostics` | Diagnóstico sistema visión | Semanal |
 | `catalogo:embeddings` | Embeddings vectoriales catálogo | Manual |
 | `config:migrar` | Migra CompanySetting monolítico a 5 tablas | Manual (una vez) |
-| `backfill:inbound-media` | Backfill media entrante | Manual |
-| `config:importar-sqlite` | Importa datos desde SQLite | Manual |
+| `media:backfill-inbound` | Backfill media entrante | Manual |
+| `db:import-sqlite` | Importa datos desde SQLite | Manual |
 
 ---
 
@@ -871,7 +861,7 @@ php artisan test --compact --filter=test_successful_image_analysis_clears_previo
 | Issue | Detalle | Prioridad |
 |-------|---------|-----------|
 | Contexto híbrido no implementado | `score_contexto` siempre 0, peso 20% desperdiciado | Media |
-| Dos sistemas de prompt | `ContextoConversacion` (runtime) vs `PromptBuilderService` (admin) | Media |
+| ~~Dos sistemas de prompt~~ | **Resuelto:** solo `ContextoConversacion` (runtime + preview) | — |
 | Vector search en PHP | Itera todas las variantes en memoria, no escala | Baja (por ahora) |
 | Embeddings batch síncrono | `processAll()` en UI puede timeout con catálogos grandes | Media |
 | Catálogo limitado a 100 en prompt | Productos >100 no aparecen en prompt, agente debe usar `buscar_productos` | Baja |
