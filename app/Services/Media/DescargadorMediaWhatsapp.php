@@ -60,6 +60,11 @@ class DescargadorMediaWhatsapp
                 Log::warning('DescargadorMediaWhatsapp: download failed', [
                     'wa_id' => $waId,
                     'status' => $response->status(),
+                    'media_id' => $mediaId !== '' ? $mediaId : null,
+                    'hint' => $response->status() === 401
+                        ? 'WHATSAPP_ACCESS_TOKEN inválido o expirado'
+                        : null,
+                    'body' => substr((string) $response->body(), 0, 200),
                 ]);
 
                 return null;
@@ -108,6 +113,15 @@ class DescargadorMediaWhatsapp
                 ->get(MetaWhatsAppSettings::graphBaseUrl().'/'.$mediaId);
 
             if (! $response->successful()) {
+                Log::warning('DescargadorMediaWhatsapp: graph media url failed', [
+                    'media_id' => $mediaId,
+                    'status' => $response->status(),
+                    'hint' => $response->status() === 401
+                        ? 'WHATSAPP_ACCESS_TOKEN inválido o expirado'
+                        : null,
+                    'body' => substr((string) $response->body(), 0, 200),
+                ]);
+
                 return null;
             }
 

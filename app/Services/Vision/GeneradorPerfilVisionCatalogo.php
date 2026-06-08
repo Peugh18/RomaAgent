@@ -22,6 +22,72 @@ class GeneradorPerfilVisionCatalogo extends BaseGeminiService
     }
 
     /**
+     * Una sola llamada Gemini: perfil de producto + color (ahorra cuota vs 2 llamadas).
+     *
+     * @return array{producto: array<string, mixed>, color: array<string, mixed>}|null
+     *
+     * @throws GeminiQuotaExceededException
+     */
+    public function generarPerfilesVariante(ProductVariant $variant, string $imageUrl): ?array
+    {
+        $media = $this->cargador->desdeUrl($imageUrl);
+        if ($media === null) {
+            return null;
+        }
+
+        $color = $variant->color;
+        $productName = $variant->product?->name ?? 'producto';
+
+        $prompt = <<<PROMPT
+Analiza la foto de catálogo de "{$productName}" color "{$color}" para ventas por WhatsApp.
+Responde SOLO JSON válido (sin markdown). Ignora marcas de agua o UI de redes sociales.
+
+Esquema:
+{
+  "producto": {
+    "tipo_prenda": "vestido|blusa|pantalón|accesorio|otro",
+    "material_aparente": "texto libre",
+    "silueta": "corta|midi|larga|otro",
+    "patron": "liso|estampado|rayas|otro",
+    "detalles": ["detalle visible"],
+    "keywords": ["palabras clave para búsqueda"]
+  },
+  "color": {
+    "color_canonical": "{$color}",
+    "colores_dominantes": ["color1", "color2"],
+    "aliases": ["sinónimos en español del color"],
+    "tono": "claro|medio|oscuro"
+  }
+}
+PROMPT;
+
+        $parsed = $this->analizarConPrompt($media, $prompt);
+        if (! is_array($parsed)) {
+            return null;
+        }
+
+        $producto = is_array($parsed['producto'] ?? null) ? $parsed['producto'] : null;
+        $colorProfile = is_array($parsed['color'] ?? null) ? $parsed['color'] : null;
+
+        if ($producto === null && $colorProfile === null) {
+            return null;
+        }
+
+        if ($producto !== null) {
+            $producto['origen'] = 'gemini';
+        }
+
+        if ($colorProfile !== null) {
+            $colorProfile['origen'] = 'gemini';
+        }
+
+        return [
+            'producto' => $producto ?? [],
+            'color' => $colorProfile ?? [],
+        ];
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     public function generarPerfilProducto(Product $product, string $imageUrl): ?array

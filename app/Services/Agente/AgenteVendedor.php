@@ -12,6 +12,7 @@ use App\Services\ConfiguracionAgente;
 use App\Services\ContextoConversacion;
 use App\Services\ResultadoGeminiAgente;
 use App\Services\Vision\CatalogoImageMatcher;
+use App\Services\Vision\HybridImageMatcher;
 
 class AgenteVendedor
 {
@@ -21,6 +22,7 @@ class AgenteVendedor
         private EjecutorHerramientasAgente $herramientas,
         private AlertaCuotaGemini $alertaCuota,
         private CatalogoImageMatcher $catalogoMatcher,
+        private HybridImageMatcher $hybridMatcher,
     ) {}
 
     public function procesar(Message $mensajeEntrante): ?ResultadoTurnoAgente
@@ -154,12 +156,21 @@ class AgenteVendedor
                     ? $visionMeta['caption_cliente']
                     : $this->extraerCaptionWhatsappDesdeMetadata($metadata);
 
-                return $this->catalogoMatcher->formatearParaAgente([
+                $resultadoMatch = [
                     'matches' => is_array($visionMeta['matches'] ?? null) ? $visionMeta['matches'] : [],
                     'mejor_match' => is_array($visionMeta['mejor_match'] ?? null) ? $visionMeta['mejor_match'] : null,
                     'confianza_final' => (float) ($visionMeta['confianza_final'] ?? 0),
                     'nivel' => (string) ($visionMeta['nivel'] ?? 'baja'),
-                ], $captionCliente);
+                    'nivel_confianza' => (string) ($visionMeta['nivel'] ?? 'baja'),
+                    'estrategia' => (string) ($visionMeta['estrategia'] ?? 'textual'),
+                    'recomendaciones' => is_array($visionMeta['recomendaciones'] ?? null) ? $visionMeta['recomendaciones'] : [],
+                ];
+
+                if (($visionMeta['estrategia'] ?? '') === 'hibrida') {
+                    return $this->hybridMatcher->formatearParaAgente($resultadoMatch, $captionCliente);
+                }
+
+                return $this->catalogoMatcher->formatearParaAgente($resultadoMatch, $captionCliente);
             }
 
             $vision = is_string($visionMeta['caption'] ?? null)

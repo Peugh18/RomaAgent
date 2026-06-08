@@ -2,10 +2,10 @@
 
 namespace App\Actions;
 
-use App\Jobs\GenerarRespuestaAgenteJob;
 use App\Jobs\ProcessMediaThenRespondJob;
 use App\Models\Customer;
 use App\Models\Message;
+use App\Services\EncolarRespuestaAgente;
 use App\Services\ServicioResolucionMediaEntrante;
 use App\Support\ContratoMensajeWhatsapp;
 use App\Support\MessageBroadcaster;
@@ -100,11 +100,7 @@ class ProcessIncomingMessage
     {
         try {
             if ($this->generarRespuestaAgente->debeResponder($mensaje)) {
-                Log::info('Encolando respuesta IA automática', [
-                    'phone' => $mensaje->phone_number,
-                ]);
-
-                GenerarRespuestaAgenteJob::dispatch($mensaje);
+                app(EncolarRespuestaAgente::class)->despachar($mensaje);
             }
         } catch (\Exception $e) {
             Log::error('Error encolando respuesta IA', [

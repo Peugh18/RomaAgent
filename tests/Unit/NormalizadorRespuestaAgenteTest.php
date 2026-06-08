@@ -101,4 +101,19 @@ class NormalizadorRespuestaAgenteTest extends TestCase
 
         $this->assertSame(['Sí hermosa, te envío la foto ahora 😊'], $partes);
     }
+
+    public function test_parte_mensajes_por_linea_sola_con_guiones(): void
+    {
+        $normalizador = new NormalizadorRespuestaAgente;
+
+        $partes = $normalizador->partirEnMensajes(
+            "¡Hola, hermosa! Entendí que buscas el vestido Mariela, ¡y que te quede espectacular! ✨\n---\nLo tenemos disponible en talla estándar. ¿En qué color te gustaría, bella? Tenemos lila, azul o camel.",
+        );
+
+        $this->assertCount(2, $partes);
+        $this->assertStringContainsString('Mariela', $partes[0]);
+        $this->assertStringContainsString('talla estándar', $partes[1]);
+        $this->assertStringNotContainsString('---', $partes[0]);
+        $this->assertStringNotContainsString('---', $partes[1]);
+    }
 }

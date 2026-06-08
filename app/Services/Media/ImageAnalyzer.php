@@ -4,6 +4,7 @@ namespace App\Services\Media;
 
 use App\Exceptions\GeminiQuotaExceededException;
 use App\Services\ConfiguracionAgente;
+use App\Services\Vision\OptimizedVisionPrompts;
 use App\Support\Vision\ParseadorRespuestaJsonGemini;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -45,27 +46,8 @@ class ImageAnalyzer extends BaseGeminiService
 
         $captionCliente = trim((string) ($contexto['caption_cliente'] ?? ''));
 
-        $prompt = <<<PROMPT
-Analiza la imagen para ventas por WhatsApp. Responde SOLO JSON válido (sin markdown).
-
-Si es comprobante de pago (Yape, Plin, transferencia), tipo=comprobante.
-Si es foto de producto/prenda o captura de red social con un artículo del catálogo, tipo=producto e ignora textos de marketing de la plataforma.
-Si es captura de pantalla de redes, marca es_captura_redes=true.
-
-Esquema:
-{
-  "tipo": "producto|comprobante|otro",
-  "es_comprobante": false,
-  "es_captura_redes": false,
-  "tipo_prenda": "vestido|blusa|pantalón|accesorio|otro|null",
-  "material_aparente": "punto|algodón|null",
-  "color_dominante": "color principal",
-  "colores_dominantes": ["color1", "color2"],
-  "descripcion_prenda": "1 frase sobre la prenda visible",
-  "texto_visible": "texto OCR relevante o vacío",
-  "caption_cliente": "{$captionCliente}"
-}
-PROMPT;
+        // Usar prompts optimizados del sistema de visión
+        $prompt = OptimizedVisionPrompts::promptAnalisisCliente($captionCliente);
 
         $modelo = $this->obtenerModelo();
         $endpoint = $this->construirEndpoint($modelo);
@@ -85,7 +67,7 @@ PROMPT;
             ]],
             'generationConfig' => [
                 'temperature' => 0.15,
-                'maxOutputTokens' => 1024,
+                'maxOutputTokens' => 2048,
                 'responseMimeType' => 'application/json',
             ],
         ];
@@ -110,19 +92,32 @@ PROMPT;
         $text = $this->extraerTextoRespuesta($data);
         $profile = ParseadorRespuestaJsonGemini::parse($text);
 
+        $finishReason = $data['candidates'][0]['finishReason'] ?? null;
+        if ($profile === null || ($finishReason === 'MAX_TOKENS' && $text !== null)) {
+            Log::warning('ImageAnalyzer: JSON de visión incompleto o inválido', [
+                'finish_reason' => $finishReason,
+                'text_len' => $text !== null ? strlen($text) : 0,
+                'preview' => $text !== null ? substr($text, 0, 120) : null,
+            ]);
+        }
+
         if ($profile === null) {
             if ($text === null || $text === '') {
                 return null;
             }
 
             return [
-                'caption' => $text,
+                'caption' => $captionCliente !== '' ? $captionCliente : 'imagen de producto sin análisis completo',
                 'inbound_profile' => [
                     'tipo' => 'otro',
                     'descripcion_prenda' => $text,
                     'caption_cliente' => $captionCliente,
                 ],
             ];
+        }
+
+        if (($profile['tipo'] ?? '') === 'producto' && empty($profile['tipo_prenda'])) {
+            $profile['tipo_prenda'] = 'vestido';
         }
 
         if ($captionCliente !== '') {

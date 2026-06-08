@@ -128,7 +128,15 @@ abstract class BaseGeminiService
 
         for ($intento = 1; $intento <= $this->maxRetries; $intento++) {
             try {
-                return $callback();
+                $resultado = $callback();
+
+                if ($resultado !== null) {
+                    return $resultado;
+                }
+
+                $ultimoError = new \RuntimeException('Respuesta vacía de Gemini');
+
+                Log::warning(static::class.': Respuesta vacía en intento '.$intento.'/'.$this->maxRetries);
             } catch (GeminiQuotaExceededException $e) {
                 // Error 429: No reintentar, propagar inmediatamente
                 throw $e;
@@ -138,11 +146,11 @@ abstract class BaseGeminiService
                 Log::warning(static::class.': Error en intento '.$intento.'/'.$this->maxRetries, [
                     'error' => $e->getMessage(),
                 ]);
+            }
 
-                if ($intento < $this->maxRetries) {
-                    // Backoff exponencial: 1s, 2s, 4s
-                    usleep((2 ** ($intento - 1)) * 1000000);
-                }
+            if ($intento < $this->maxRetries) {
+                // Backoff exponencial: 1s, 2s, 4s
+                usleep((2 ** ($intento - 1)) * 1000000);
             }
         }
 
@@ -178,6 +186,12 @@ abstract class BaseGeminiService
                 $retryAfter = (int) ($response->header('Retry-After') ?? 60);
 
                 throw new GeminiQuotaExceededException($mensaje, $retryAfter);
+            }
+
+            if (in_array($status, [500, 502, 503], true)) {
+                throw new \RuntimeException(
+                    'Gemini temporalmente no disponible (HTTP '.$status.')'
+                );
             }
 
             return null;

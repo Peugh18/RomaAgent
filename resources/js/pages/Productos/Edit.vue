@@ -154,23 +154,42 @@ const fetchMoneda = async () => {
     }
 };
 
-const variantPreviewUrl = (variant: ProductVariant): string | null => {
+const pendingPreviewUrls = ref<Record<number, string>>({});
+
+const variantPreviewUrl = (variant: ProductVariant, index: number): string | null => {
+    if (variant.pendingFile) {
+        if (!pendingPreviewUrls.value[index]) {
+            pendingPreviewUrls.value[index] = URL.createObjectURL(variant.pendingFile);
+        }
+        return pendingPreviewUrls.value[index];
+    }
     if (variant.public_image_url) return variant.public_image_url;
     if (variant.image_path) return `/storage/${variant.image_path}`;
     return variant.image_url || null;
 };
 
-const onVariantPhotoSelected = (variant: ProductVariant, event: Event) => {
-    console.log('onVariantPhotoSelected called');
+const clearPendingPreview = (index: number): void => {
+    const url = pendingPreviewUrls.value[index];
+    if (url) {
+        URL.revokeObjectURL(url);
+        delete pendingPreviewUrls.value[index];
+    }
+};
+
+const onVariantPhotoSelected = async (variant: ProductVariant, index: number, event: Event) => {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
-    console.log('File selected:', file);
     if (!file) {
-        console.log('No file selected, returning');
         return;
     }
+
+    clearPendingPreview(index);
     variant.pendingFile = file;
-    console.log('File set as pending, variant ID:', variant.id);
+
+    if (variant.id) {
+        await uploadVariantPhoto(variant, index);
+        return;
+    }
 };
 
 const uploadVariantPhotoForId = async (variantId: number, file: File): Promise<{ image_path: string; public_url: string }> => {
@@ -201,9 +220,9 @@ const uploadVariantPhotoForId = async (variantId: number, file: File): Promise<{
     return response.json();
 };
 
-const uploadVariantPhoto = async (variant: ProductVariant) => {
+const uploadVariantPhoto = async (variant: ProductVariant, index?: number) => {
     if (!variant.id) {
-        alert('Guarda el producto primero (botón Guardar abajo) y luego sube la foto, o guarda con la foto ya seleccionada.');
+        alert('Guarda el producto primero (botón Guardar abajo). La foto se subirá automáticamente al guardar.');
         return;
     }
     if (!variant.pendingFile) {
@@ -218,7 +237,9 @@ const uploadVariantPhoto = async (variant: ProductVariant) => {
         variant.public_image_url = data.public_url;
         variant.image_url = '';
         variant.pendingFile = null;
-        alert('Foto guardada exitosamente');
+        if (index !== undefined) {
+            clearPendingPreview(index);
+        }
     } catch (error: any) {
         console.error('Error al subir foto:', error);
         alert(`Error al subir foto (${variant.color || 'variante'}): ${error.message}`);
@@ -227,24 +248,50 @@ const uploadVariantPhoto = async (variant: ProductVariant) => {
     }
 };
 
-const uploadPendingVariantPhotos = async (savedVariants: { id: number }[]) => {
+const resolveSavedVariantId = (
+    variant: ProductVariant,
+    savedVariants: Array<{ id: number; color?: string }>,
+): number | null => {
+    if (variant.id) {
+        return variant.id;
+    }
+
+    const color = variant.color?.trim().toLowerCase();
+    if (!color) {
+        return null;
+    }
+
+    const match = savedVariants.find((saved) => saved.color?.trim().toLowerCase() === color);
+
+    return match?.id ?? null;
+};
+
+const uploadPendingVariantPhotos = async (savedVariants: Array<{ id: number; color?: string }>) => {
     const errors: string[] = [];
 
     for (let i = 0; i < form.value.variants.length; i++) {
-        const pending = form.value.variants[i].pendingFile;
-        const saved = savedVariants[i];
-        if (!pending || !saved?.id) {
+        const variant = form.value.variants[i];
+        const pending = variant.pendingFile;
+        if (!pending) {
+            continue;
+        }
+
+        const targetId = resolveSavedVariantId(variant, savedVariants);
+        if (!targetId) {
+            errors.push(`${variant.color || `Variante ${i + 1}`}: no se encontró la variante guardada`);
             continue;
         }
 
         try {
-            const data = await uploadVariantPhotoForId(saved.id, pending);
-            form.value.variants[i].image_path = data.image_path;
-            form.value.variants[i].public_image_url = data.public_url;
-            form.value.variants[i].image_url = '';
-            form.value.variants[i].pendingFile = null;
+            const data = await uploadVariantPhotoForId(targetId, pending);
+            variant.id = targetId;
+            variant.image_path = data.image_path;
+            variant.public_image_url = data.public_url;
+            variant.image_url = '';
+            variant.pendingFile = null;
+            clearPendingPreview(i);
         } catch (error: any) {
-            errors.push(`${form.value.variants[i].color || `Variante ${i + 1}`}: ${error.message}`);
+            errors.push(`${variant.color || `Variante ${i + 1}`}: ${error.message}`);
         }
     }
 
@@ -693,7 +740,7 @@ onMounted(() => {
                                                     type="file"
                                                     accept="image/*"
                                                     class="hidden"
-                                                    @change="onVariantPhotoSelected(variant, $event)"
+                                                    @change="onVariantPhotoSelected(variant, index, $event)"
                                                 />
                                             </label>
                                             <div class="text-xs flex-1">
@@ -708,22 +755,28 @@ onMounted(() => {
                                                         type="button"
                                                         size="xs"
                                                         class="h-7 text-[10px]"
-                                                        @click="uploadVariantPhoto(variant)"
+                                                        @click="uploadVariantPhoto(variant, index)"
                                                         :disabled="!variant.pendingFile || variant.uploading"
                                                     >
-                                                        {{ variant.uploading ? 'Subiendo...' : 'Subir Foto Ahora' }}
+                                                        {{ variant.uploading ? 'Subiendo...' : (variant.id ? 'Reintentar subida' : 'Subir Foto Ahora') }}
                                                     </Button>
                                                 </div>
-                                                <p class="text-[9px] text-muted-foreground/75 mt-1">Selecciona la foto y pulsa «Subir Foto Ahora», o guarda el producto para subirla automáticamente.</p>
+                                                <p class="text-[9px] text-muted-foreground/75 mt-1">
+                                                    {{ variant.id
+                                                        ? 'Al elegir archivo se sube automáticamente. Si falla, usa «Reintentar subida».'
+                                                        : 'Nueva variante: guarda el producto y la foto se sube sola al guardar.' }}
+                                                </p>
                                                 <p v-if="!variant.id" class="text-[9px] text-amber-600 mt-1 font-medium">Nueva variante: se creará al guardar el producto.</p>
                                             </div>
                                         </div>
 
                                         <!-- Vista Previa de Imagen -->
-                                        <div v-if="variantPreviewUrl(variant)" class="mt-1">
-                                            <div class="text-[10px] text-muted-foreground mb-1">Imagen actual / seleccionada:</div>
+                                        <div v-if="variantPreviewUrl(variant, index)" class="mt-1">
+                                            <div class="text-[10px] text-muted-foreground mb-1">
+                                                {{ variant.pendingFile ? 'Vista previa (pendiente de guardar):' : 'Imagen guardada:' }}
+                                            </div>
                                             <img
-                                                :src="variantPreviewUrl(variant)!"
+                                                :src="variantPreviewUrl(variant, index)!"
                                                 alt="Vista previa"
                                                 class="h-28 w-28 rounded-md object-cover border border-border bg-muted/20"
                                             />
