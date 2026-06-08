@@ -51,8 +51,9 @@ class NormalizadorRespuestaAgente
             return [];
         }
 
-        if (str_contains($texto, self::SEPARADOR_MENSAJES)) {
-            return $this->limitarPartes($this->partesDesdeSeparador($texto));
+        $partesExplicitas = $this->partesDesdeSeparadoresExplicitos($texto);
+        if (count($partesExplicitas) >= 2) {
+            return $this->limitarPartes($partesExplicitas);
         }
 
         if (mb_strlen($texto) <= self::UMBRAL_TEXTO_LARGO) {
@@ -75,7 +76,24 @@ class NormalizadorRespuestaAgente
     /**
      * @return list<string>
      */
-    private function partesDesdeSeparador(string $texto): array
+    private function partesDesdeSeparadoresExplicitos(string $texto): array
+    {
+        if (str_contains($texto, self::SEPARADOR_MENSAJES)) {
+            return $this->partesDesdeSeparadorCanonico($texto);
+        }
+
+        $partes = preg_split('/\R\s*-{3,}\s*\R/u', $texto) ?: [];
+
+        return array_values(array_filter(array_map(
+            static fn (string $parte): string => trim($parte),
+            $partes,
+        ), static fn (string $parte): bool => $parte !== ''));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function partesDesdeSeparadorCanonico(string $texto): array
     {
         return array_values(array_filter(array_map(
             static fn (string $parte): string => trim($parte),
