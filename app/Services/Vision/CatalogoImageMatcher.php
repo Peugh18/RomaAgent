@@ -4,6 +4,7 @@ namespace App\Services\Vision;
 
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Support\Vision\PerfilVisionFallback;
 
 class CatalogoImageMatcher
 {
@@ -130,6 +131,11 @@ class CatalogoImageMatcher
             $score += 0.25;
         }
 
+        $corpus = $this->corpusTextoInbound($inboundProfile);
+        if ($nameLower !== '' && $corpus !== '' && str_contains($corpus, $nameLower)) {
+            $score += 0.45;
+        }
+
         return min(1.0, $score);
     }
 
@@ -144,6 +150,18 @@ class CatalogoImageMatcher
         }
 
         $colorVariant = mb_strtolower(trim($variant->color));
+        $corpus = $this->corpusTextoInbound($inboundProfile);
+
+        if ($colorVariant !== '' && $corpus !== '' && str_contains($corpus, $colorVariant)) {
+            return 0.95;
+        }
+
+        foreach (PerfilVisionFallback::aliasesParaColor($variant->color) as $alias) {
+            if ($alias !== '' && $corpus !== '' && str_contains($corpus, $alias)) {
+                return 0.9;
+            }
+        }
+
         $profile = is_array($variant->color_profile) ? $variant->color_profile : [];
         $aliases = array_map(
             mb_strtolower(...),
@@ -285,5 +303,25 @@ class CatalogoImageMatcher
         }
 
         return implode(' ', $lineas);
+    }
+
+    /**
+     * @param  array<string, mixed>  $inboundProfile
+     */
+    private function corpusTextoInbound(array $inboundProfile): string
+    {
+        $partes = [
+            (string) ($inboundProfile['caption_cliente'] ?? ''),
+            (string) ($inboundProfile['descripcion_prenda'] ?? ''),
+            (string) ($inboundProfile['texto_visible'] ?? ''),
+            (string) ($inboundProfile['color_dominante'] ?? ''),
+        ];
+
+        $colores = $inboundProfile['colores_dominantes'] ?? [];
+        if (is_array($colores)) {
+            $partes = array_merge($partes, array_map(strval(...), $colores));
+        }
+
+        return mb_strtolower(trim(implode(' ', array_filter($partes))));
     }
 }

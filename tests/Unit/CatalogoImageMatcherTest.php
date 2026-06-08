@@ -70,6 +70,32 @@ class CatalogoImageMatcherTest extends TestCase
         $this->assertNull($result['mejor_match']);
     }
 
+    public function test_match_por_nombre_en_caption_sin_perfiles_gemini(): void
+    {
+        $aurora = Product::query()->create([
+            'name' => 'Aurora',
+            'price' => 120,
+            'status' => Product::ESTADO_DISPONIBLE,
+            'tags_ia' => ['vestido'],
+        ]);
+
+        $aurora->variants()->create([
+            'color' => 'naranja',
+            'sizes_stock' => ['UNICA' => 3],
+        ]);
+
+        $result = app(CatalogoImageMatcher::class)->match([
+            'tipo' => 'producto',
+            'caption_cliente' => 'quiero el aurora naranja',
+            'descripcion_prenda' => 'vestido naranja en captura de tiktok',
+        ]);
+
+        $this->assertNotNull($result['mejor_match']);
+        $this->assertSame('Aurora', $result['mejor_match']['product_name']);
+        $this->assertSame('naranja', $result['mejor_match']['color']);
+        $this->assertGreaterThan(0.5, $result['confianza_final']);
+    }
+
     public function test_formatear_para_agente_incluye_match(): void
     {
         $texto = app(CatalogoImageMatcher::class)->formatearParaAgente([
