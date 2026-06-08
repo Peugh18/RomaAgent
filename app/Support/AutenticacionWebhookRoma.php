@@ -20,7 +20,7 @@ class AutenticacionWebhookRoma
 
     public static function verify(Request $request): bool
     {
-        $expected = (string) config('services.roma.token');
+        $expected = (string) config('services.whatsapp.sync_token');
         if ($expected === '') {
             return false;
         }
@@ -30,7 +30,7 @@ class AutenticacionWebhookRoma
             return false;
         }
 
-        $secret = (string) config('services.roma.webhook_secret');
+        $secret = (string) config('services.whatsapp.webhook_secret');
         if ($secret === '') {
             return true;
         }

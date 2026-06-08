@@ -32,13 +32,16 @@ class GenerarRespuestaAgenteJobTest extends TestCase
                     'totalTokenCount' => 18,
                 ],
             ]),
-            'https://roma-api.test/api/messages' => Http::response([
-                'ok' => true,
-                'wa_id' => 'wamid.testreply123',
+            'https://graph.facebook.com/v21.0/999888777/messages' => Http::response([
+                'messages' => [['id' => 'wamid.testreply123']],
             ]),
         ]);
 
-        config(['services.roma.url' => 'https://roma-api.test']);
+        config([
+            'services.whatsapp.access_token' => 'test-token',
+            'services.whatsapp.phone_number_id' => '999888777',
+            'services.whatsapp.graph_version' => 'v21.0',
+        ]);
 
         $incoming = Message::factory()->incoming()->create([
             'content' => 'Tienen vestidos?',

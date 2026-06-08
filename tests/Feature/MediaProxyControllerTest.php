@@ -19,7 +19,6 @@ class MediaProxyControllerTest extends TestCase
         config([
             'app.url' => 'https://caravan-cycle-elixir.ngrok-free.dev',
             'app.public_url' => 'https://caravan-cycle-elixir.ngrok-free.dev',
-            'services.roma.api_public_url' => 'https://roma-api.ngrok-free.dev',
         ]);
 
         $user = User::factory()->create();
@@ -35,7 +34,6 @@ class MediaProxyControllerTest extends TestCase
     public function test_rejects_unknown_media_hosts(): void
     {
         config([
-            'services.roma.api_public_url' => 'https://roma-api.ngrok-free.dev',
             'app.public_url' => 'https://app.ngrok-free.dev',
         ]);
 

@@ -9,11 +9,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
-class SendWhatsappMessageJobTest extends TestCase
+class MetaWhatsappDirectSendTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_marks_message_failed_immediately_on_permanent_meta_error(): void
+    public function test_sends_message_directly_to_meta_graph_api(): void
     {
         config([
             'services.whatsapp.access_token' => 'test-token',
@@ -23,18 +23,14 @@ class SendWhatsappMessageJobTest extends TestCase
 
         Http::fake([
             'https://graph.facebook.com/v21.0/999888777/messages' => Http::response([
-                'error' => [
-                    'message' => '(#131005) Access denied',
-                    'code' => 131005,
-                    'type' => 'OAuthException',
-                ],
-            ], 401),
+                'messages' => [['id' => 'wamid.direct123']],
+            ], 200),
         ]);
 
         $message = Message::create([
-            'message_id' => 'temp_test123',
+            'message_id' => 'temp_direct',
             'phone_number' => '51999999999',
-            'content' => 'hola',
+            'content' => 'hola directo',
             'direction' => 'outgoing',
             'status' => 'pending',
             'whatsapp_timestamp' => now(),
@@ -46,7 +42,7 @@ class SendWhatsappMessageJobTest extends TestCase
 
         $message->refresh();
 
-        $this->assertSame('failed', $message->status);
-        $this->assertStringContainsString('token de Meta', (string) ($message->metadata['send_error'] ?? ''));
+        $this->assertSame('sent', $message->status);
+        $this->assertSame('wamid.direct123', $message->message_id);
     }
 }

@@ -10,7 +10,15 @@ use App\Http\Controllers\Api\ProductoSimilarController;
 use App\Http\Controllers\Api\ProductVariantPhotoController;
 use App\Http\Controllers\Api\RomaMessageController;
 use App\Http\Controllers\Api\SaleController;
+use App\Http\Controllers\Api\WhatsappWebhookController;
 use Illuminate\Support\Facades\Route;
+
+Route::match(['get', 'post'], '/whatsapp/webhook', [WhatsappWebhookController::class, 'handle'])
+    ->middleware(['throttle:roma-webhook']);
+
+// Alias compatible con la URL que usaba roma-api (/api/webhook)
+Route::match(['get', 'post'], '/webhook', [WhatsappWebhookController::class, 'handle'])
+    ->middleware(['throttle:roma-webhook']);
 
 Route::prefix('roma')->middleware(['throttle:roma-webhook'])->group(function () {
 

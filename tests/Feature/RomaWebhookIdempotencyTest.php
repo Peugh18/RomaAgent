@@ -19,8 +19,8 @@ class RomaWebhookIdempotencyTest extends TestCase
         parent::setUp();
 
         config([
-            'services.roma.token' => 'test-sync-token',
-            'services.roma.webhook_secret' => '',
+            'services.whatsapp.sync_token' => 'test-sync-token',
+            'services.whatsapp.webhook_secret' => '',
         ]);
     }
 

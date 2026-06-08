@@ -10,7 +10,7 @@ class BackfillInboundMediaCommand extends Command
 {
     protected $signature = 'media:backfill-inbound {--phone=}';
 
-    protected $description = 'Descarga media faltante (audio, sticker, etc.) vía roma-api';
+    protected $description = 'Descarga media faltante (audio, sticker, etc.) vía Graph API de Meta';
 
     public function handle(ServicioResolucionMediaEntrante $resolver): int
     {

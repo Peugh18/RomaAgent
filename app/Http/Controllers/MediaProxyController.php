@@ -81,7 +81,6 @@ class MediaProxyController extends Controller
     private function hostsPermitidos(): array
     {
         return array_values(array_unique(array_filter([
-            parse_url((string) config('services.roma.api_public_url'), PHP_URL_HOST),
             parse_url((string) config('app.public_url', config('app.url')), PHP_URL_HOST),
             parse_url((string) config('app.url'), PHP_URL_HOST),
         ])));

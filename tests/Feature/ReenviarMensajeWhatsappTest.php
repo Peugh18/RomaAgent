@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Infrastructure\Whatsapp\RomaWhatsappClient;
 use App\Jobs\SendWhatsappMessageJob;
 use App\Models\Message;
 use App\Models\User;
@@ -106,14 +105,14 @@ class ReenviarMensajeWhatsappTest extends TestCase
         Queue::fake();
 
         config([
-            'services.roma.url' => 'https://roma-api.test',
-            'services.roma.token' => 'test-token',
+            'services.whatsapp.access_token' => 'test-token',
+            'services.whatsapp.phone_number_id' => '999888777',
+            'services.whatsapp.graph_version' => 'v21.0',
         ]);
 
         Http::fake([
-            'https://roma-api.test/api/messages' => Http::response([
-                'ok' => true,
-                'wa_id' => 'wamid.newtext123',
+            'https://graph.facebook.com/v21.0/999888777/messages' => Http::response([
+                'messages' => [['id' => 'wamid.newtext123']],
             ], 200),
         ]);
 

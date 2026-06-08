@@ -35,11 +35,13 @@ return [
         ],
     ],
 
-    'roma' => [
-        'url' => env('ROMA_API_URL'),
-        'token' => env('ROMA_SYNC_TOKEN'),
+    'whatsapp' => [
+        'access_token' => env('WHATSAPP_ACCESS_TOKEN'),
+        'phone_number_id' => env('WHATSAPP_PHONE_NUMBER_ID'),
+        'verify_token' => env('WHATSAPP_VERIFY_TOKEN'),
+        'graph_version' => env('WHATSAPP_GRAPH_VERSION', 'v21.0'),
+        'sync_token' => env('ROMA_SYNC_TOKEN'),
         'webhook_secret' => env('ROMA_WEBHOOK_SECRET'),
-        'api_public_url' => env('ROMA_API_PUBLIC_URL'),
     ],
 
 ];

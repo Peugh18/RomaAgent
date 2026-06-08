@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\GenerarPerfilVisionVarianteJob;
 use App\Models\ProductVariant;
 use App\Services\ServicioMediaProducto;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +18,8 @@ class ProductVariantPhotoController extends Controller
         ]);
 
         $path = $media->storeVariantPhoto($variant, $request->file('photo'));
+
+        GenerarPerfilVisionVarianteJob::dispatch($variant->id);
 
         return response()->json([
             'message' => 'Foto guardada',

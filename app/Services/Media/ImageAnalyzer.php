@@ -4,17 +4,12 @@ namespace App\Services\Media;
 
 use App\Exceptions\GeminiQuotaExceededException;
 use App\Services\ConfiguracionAgente;
+use App\Support\Vision\ParseadorRespuestaJsonGemini;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Servicio de análisis de imágenes usando Gemini API.
- *
- * Hereda de BaseGeminiService para reutilizar:
- * - Obtención de API key y modelo
- * - Normalización de MIME types
- * - Manejo de errores HTTP
- * - Detección de errores de cuota (429)
  *
  * @extends BaseGeminiService
  */
@@ -28,11 +23,13 @@ class ImageAnalyzer extends BaseGeminiService
     }
 
     /**
-     * Analiza una imagen (caption / OCR breve) con el mismo modelo Gemini del agente.
-     *
-     * @return array{caption: string}|null
+     * @param  array<string, mixed>  $contexto
+     * @return array{
+     *   caption: string,
+     *   inbound_profile: array<string, mixed>
+     * }|null
      */
-    public function analyzeUrl(string $imageUrl): ?array
+    public function analyzeUrl(string $imageUrl, array $contexto = []): ?array
     {
         $apiKey = $this->obtenerApiKey();
         if ($apiKey === null) {
@@ -46,15 +43,32 @@ class ImageAnalyzer extends BaseGeminiService
             return null;
         }
 
-        $modelo = $this->obtenerModelo();
-        $endpoint = $this->construirEndpoint($modelo);
+        $captionCliente = trim((string) ($contexto['caption_cliente'] ?? ''));
 
-        $prompt = <<<'PROMPT'
-Describe brevemente la imagen para ayudar en ventas por WhatsApp (1-2 frases en español).
-Si parece comprobante de pago (Yape, Plin, transferencia, voucher), indícalo claramente.
-Identifica colores dominantes si es foto de producto y cualquier texto visible relevante.
+        $prompt = <<<PROMPT
+Analiza la imagen para ventas por WhatsApp. Responde SOLO JSON válido (sin markdown).
+
+Si es comprobante de pago (Yape, Plin, transferencia), tipo=comprobante.
+Si es foto de prenda o captura de TikTok/Reels con un vestido, tipo=producto e ignora textos de marketing de la red social.
+Si es captura de pantalla de redes, marca es_captura_redes=true.
+
+Esquema:
+{
+  "tipo": "producto|comprobante|otro",
+  "es_comprobante": false,
+  "es_captura_redes": false,
+  "tipo_prenda": "vestido|blusa|otro|null",
+  "material_aparente": "punto|algodón|null",
+  "color_dominante": "color principal",
+  "colores_dominantes": ["color1", "color2"],
+  "descripcion_prenda": "1 frase sobre la prenda visible",
+  "texto_visible": "texto OCR relevante o vacío",
+  "caption_cliente": "{$captionCliente}"
+}
 PROMPT;
 
+        $modelo = $this->obtenerModelo();
+        $endpoint = $this->construirEndpoint($modelo);
         $mime = $this->normalizarMimeImagen($media['mime']);
 
         $payload = [
@@ -70,24 +84,23 @@ PROMPT;
                 ],
             ]],
             'generationConfig' => [
-                'temperature' => 0.2,
-                'maxOutputTokens' => 512,
+                'temperature' => 0.15,
+                'maxOutputTokens' => 1024,
+                'responseMimeType' => 'application/json',
             ],
         ];
 
-        return $this->ejecutarConRetry(function () use ($endpoint, $payload, $apiKey) {
-            return $this->callGeminiApi($endpoint, $payload, $apiKey);
+        return $this->ejecutarConRetry(function () use ($endpoint, $payload, $apiKey, $captionCliente) {
+            return $this->callGeminiApi($endpoint, $payload, $apiKey, $captionCliente);
         });
     }
 
     /**
-     * Realiza la llamada HTTP a la API de Gemini.
-     *
-     * @return array{caption: string}|null
+     * @return array{caption: string, inbound_profile: array<string, mixed>}|null
      *
      * @throws GeminiQuotaExceededException
      */
-    private function callGeminiApi(string $endpoint, array $payload, string $apiKey): ?array
+    private function callGeminiApi(string $endpoint, array $payload, string $apiKey, string $captionCliente): ?array
     {
         $response = Http::withHeaders($this->headersGemini($apiKey))
             ->timeout($this->timeout)
@@ -95,11 +108,35 @@ PROMPT;
 
         $data = $this->procesarRespuestaApi($response);
         $text = $this->extraerTextoRespuesta($data);
+        $profile = ParseadorRespuestaJsonGemini::parse($text);
 
-        if ($text === null || $text === '') {
-            return null;
+        if ($profile === null) {
+            if ($text === null || $text === '') {
+                return null;
+            }
+
+            return [
+                'caption' => $text,
+                'inbound_profile' => [
+                    'tipo' => 'otro',
+                    'descripcion_prenda' => $text,
+                    'caption_cliente' => $captionCliente,
+                ],
+            ];
         }
 
-        return ['caption' => $text];
+        if ($captionCliente !== '') {
+            $profile['caption_cliente'] = $captionCliente;
+        }
+
+        $caption = (string) ($profile['descripcion_prenda']
+            ?? $profile['texto_visible']
+            ?? $captionCliente
+            ?? 'imagen recibida');
+
+        return [
+            'caption' => $caption,
+            'inbound_profile' => $profile,
+        ];
     }
 }

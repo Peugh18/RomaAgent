@@ -186,7 +186,8 @@ class RomaMessageController extends Controller
             ]);
 
             MessageBroadcaster::broadcast($message, 'RomaMessageController');
-            SendWhatsappMessageJob::dispatch($message);
+            SendWhatsappMessageJob::dispatchSync($message);
+            $message->refresh();
 
             return response()->json([
                 'message' => 'Message queued for sending',

@@ -7,6 +7,7 @@ use App\Exceptions\GeminiQuotaExceededException;
 use App\Models\Message;
 use App\Services\Media\AudioTranscriber;
 use App\Services\Media\ImageAnalyzer;
+use App\Services\Vision\CatalogoImageMatcher;
 use App\Support\MessageBroadcaster;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -42,6 +43,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
     public function handle(
         AudioTranscriber $transcriber,
         ImageAnalyzer $analyzer,
+        CatalogoImageMatcher $matcher,
         GenerarRespuestaAgente $agente,
     ): void {
         $message = Message::find($this->messageId);
@@ -57,7 +59,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
             if ($type === 'audio') {
                 $enriquecido = $this->procesarAudio($message, $meta, $transcriber);
             } elseif ($type === 'image') {
-                $enriquecido = $this->procesarImagen($message, $meta, $analyzer);
+                $enriquecido = $this->procesarImagen($message, $meta, $analyzer, $matcher);
             }
         } catch (GeminiQuotaExceededException $e) {
             Log::warning('ProcessMediaThenRespondJob: cuota Gemini excedida, reintentando', [
@@ -143,21 +145,28 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
     /**
      * @param  array<string, mixed>  $meta
      */
-    private function procesarImagen(Message $message, array $meta, ImageAnalyzer $analyzer): bool
-    {
+    private function procesarImagen(
+        Message $message,
+        array $meta,
+        ImageAnalyzer $analyzer,
+        CatalogoImageMatcher $matcher,
+    ): bool {
         $imgUrl = $meta['local_url'] ?? $meta['image_url'] ?? $meta['media_url'] ?? null;
         if (! is_string($imgUrl) || $imgUrl === '') {
             return false;
         }
 
-        $res = $analyzer->analyzeUrl($this->resolveAbsoluteUrl($imgUrl));
+        $captionCliente = $this->extraerCaptionWhatsapp($meta);
+
+        $res = $analyzer->analyzeUrl($this->resolveAbsoluteUrl($imgUrl), [
+            'caption_cliente' => $captionCliente,
+        ]);
         if (! is_array($res) || empty($res['caption'])) {
             Log::warning('ProcessMediaThenRespondJob: análisis de imagen vacío, usando fallback', [
                 'msg' => $message->id,
                 'url' => $imgUrl,
             ]);
 
-            // Guardar que el análisis falló pero marcar como procesado
             $meta['vision_failed'] = true;
             $meta['vision_error'] = 'No se pudo analizar la imagen';
             $message->metadata = $meta;
@@ -166,13 +175,53 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
             return true;
         }
 
-        $meta['vision'] = $res;
+        $inboundProfile = is_array($res['inbound_profile'] ?? null) ? $res['inbound_profile'] : [];
+        $matchResult = $matcher->match($inboundProfile);
+
+        $meta['vision'] = [
+            'caption' => $res['caption'],
+            'inbound_profile' => $inboundProfile,
+            'matches' => $matchResult['matches'],
+            'mejor_match' => $matchResult['mejor_match'],
+            'confianza_final' => $matchResult['confianza_final'],
+            'nivel' => $matchResult['nivel'],
+        ];
+        if ($captionCliente !== '') {
+            $meta['vision']['caption_cliente'] = $captionCliente;
+        }
         $meta['vision_provider'] = 'gemini';
         $message->metadata = $meta;
-        $message->content = '[Imagen: '.$res['caption'].']';
+
+        $contenido = $captionCliente !== ''
+            ? '[Imagen — clienta: '.$captionCliente.'] '.$res['caption']
+            : '[Imagen: '.$res['caption'].']';
+        $message->content = $contenido;
         $message->save();
 
         return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function extraerCaptionWhatsapp(array $meta): string
+    {
+        $raw = $meta['whatsapp_raw'] ?? null;
+        if (! is_array($raw)) {
+            return '';
+        }
+
+        foreach (['image', 'sticker'] as $kind) {
+            $block = $raw[$kind] ?? null;
+            if (is_array($block) && is_string($block['caption'] ?? null)) {
+                $caption = trim($block['caption']);
+                if ($caption !== '' && ! str_starts_with($caption, '📷')) {
+                    return $caption;
+                }
+            }
+        }
+
+        return '';
     }
 
     private function marcarAnalisisFallido(Message $message, string $type, string $error): void

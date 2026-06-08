@@ -28,7 +28,13 @@ class ImageAnalyzerTest extends TestCase
         Http::fake([
             'generativelanguage.googleapis.com/*' => Http::response([
                 'candidates' => [
-                    ['content' => ['parts' => [['text' => 'Comprobante Yape por S/ 140']]]],
+                    ['content' => ['parts' => [[
+                        'text' => json_encode([
+                            'tipo_prenda' => 'vestido',
+                            'material_aparente' => 'punto',
+                            'keywords' => ['vestido', 'punto'],
+                        ]),
+                    ]]]],
                 ],
             ]),
         ]);
@@ -38,7 +44,8 @@ class ImageAnalyzerTest extends TestCase
         @unlink($fullPath);
 
         $this->assertIsArray($result);
-        $this->assertSame('Comprobante Yape por S/ 140', $result['caption'] ?? null);
+        $this->assertSame('vestido', $result['inbound_profile']['tipo_prenda'] ?? null);
+        $this->assertArrayHasKey('caption', $result);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'gemini-2.5-flash'));
     }
 }

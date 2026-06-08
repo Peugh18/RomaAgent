@@ -11,6 +11,7 @@ use App\Services\ClienteGemini;
 use App\Services\ConfiguracionAgente;
 use App\Services\ContextoConversacion;
 use App\Services\ResultadoGeminiAgente;
+use App\Services\Vision\CatalogoImageMatcher;
 
 class AgenteVendedor
 {
@@ -19,6 +20,7 @@ class AgenteVendedor
         private ContextoConversacion $contexto,
         private EjecutorHerramientasAgente $herramientas,
         private AlertaCuotaGemini $alertaCuota,
+        private CatalogoImageMatcher $catalogoMatcher,
     ) {}
 
     public function procesar(Message $mensajeEntrante): ?ResultadoTurnoAgente
@@ -126,13 +128,8 @@ class AgenteVendedor
 
         if ($tipo === 'image') {
             $visionMeta = is_array($metadata['vision'] ?? null) ? $metadata['vision'] : [];
-            $vision = is_string($visionMeta['caption'] ?? null)
-                ? trim($visionMeta['caption'])
-                : '';
-            $contenido = trim($mensaje->content);
             $visionFailed = (bool) ($metadata['vision_failed'] ?? false);
 
-            // Si el análisis explícitamente falló (por error de API o no se pudo analizar)
             if ($visionFailed) {
                 $errorMsg = is_string($metadata['vision_error'] ?? null) ? $metadata['vision_error'] : '';
 
@@ -141,9 +138,38 @@ class AgenteVendedor
                        ' Pídele amablemente que describa brevemente qué envió (comprobante, producto, talla, color, etc.).]';
             }
 
+            $inboundProfile = is_array($visionMeta['inbound_profile'] ?? null)
+                ? $visionMeta['inbound_profile']
+                : [];
+
+            if (($inboundProfile['tipo'] ?? '') === 'comprobante' || ($inboundProfile['es_comprobante'] ?? false) === true) {
+                $detalle = is_string($visionMeta['caption'] ?? null) ? trim($visionMeta['caption']) : 'posible comprobante de pago';
+
+                return '[La clienta envió un comprobante/imagen de pago]. '.$detalle.
+                       ' Usa registrar_comprobante_recibido si corresponde.';
+            }
+
+            if (isset($visionMeta['mejor_match']) || isset($visionMeta['matches'])) {
+                $captionCliente = is_string($visionMeta['caption_cliente'] ?? null)
+                    ? $visionMeta['caption_cliente']
+                    : $this->extraerCaptionWhatsappDesdeMetadata($metadata);
+
+                return $this->catalogoMatcher->formatearParaAgente([
+                    'matches' => is_array($visionMeta['matches'] ?? null) ? $visionMeta['matches'] : [],
+                    'mejor_match' => is_array($visionMeta['mejor_match'] ?? null) ? $visionMeta['mejor_match'] : null,
+                    'confianza_final' => (float) ($visionMeta['confianza_final'] ?? 0),
+                    'nivel' => (string) ($visionMeta['nivel'] ?? 'baja'),
+                ], $captionCliente);
+            }
+
+            $vision = is_string($visionMeta['caption'] ?? null)
+                ? trim($visionMeta['caption'])
+                : '';
+            $contenido = trim($mensaje->content);
             $detalle = $vision !== '' ? $vision : ($contenido !== '' ? $contenido : 'sin descripción automática');
 
-            return '[La clienta envió una imagen/comprobante]. '.$detalle;
+            return '[La clienta envió una imagen/comprobante]. '.$detalle.
+                   ' Usa buscar_productos para identificar el modelo en catálogo.';
         }
 
         if ($tipo === 'audio') {
@@ -220,5 +246,28 @@ class AgenteVendedor
         }
 
         return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    private function extraerCaptionWhatsappDesdeMetadata(array $metadata): ?string
+    {
+        $raw = $metadata['whatsapp_raw'] ?? null;
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        foreach (['image', 'sticker'] as $kind) {
+            $block = $raw[$kind] ?? null;
+            if (is_array($block) && is_string($block['caption'] ?? null)) {
+                $caption = trim($block['caption']);
+                if ($caption !== '' && ! str_starts_with($caption, '📷')) {
+                    return $caption;
+                }
+            }
+        }
+
+        return null;
     }
 }

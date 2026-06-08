@@ -13,10 +13,18 @@ class ProductVariant extends Model
         'image_path',
         'image_url',
         'sizes_stock',
+        'color_profile',
+        'color_profile_at',
+        'image_embedding',
+        'embedding_at',
     ];
 
     protected $casts = [
         'sizes_stock' => 'array',
+        'color_profile' => 'array',
+        'color_profile_at' => 'datetime',
+        'image_embedding' => 'array',
+        'embedding_at' => 'datetime',
     ];
 
     public function product(): BelongsTo

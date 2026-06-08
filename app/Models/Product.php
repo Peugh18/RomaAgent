@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class Product extends Model
 {
     use SoftDeletes;
+
     public const ESTADO_DISPONIBLE = 'disponible';
 
     public const ESTADO_AGOTADO = 'agotado';
@@ -26,10 +27,14 @@ class Product extends Model
         'category_id',
         'status',
         'tags_ia',
+        'vision_profile',
+        'vision_profile_at',
     ];
 
     protected $casts = [
         'tags_ia' => 'array',
+        'vision_profile' => 'array',
+        'vision_profile_at' => 'datetime',
         'price' => 'decimal:2',
         'price_tiktok' => 'decimal:2',
         'discount' => 'decimal:2',

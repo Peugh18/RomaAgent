@@ -2,29 +2,45 @@
 
 namespace App\Services;
 
+use App\Infrastructure\Whatsapp\MetaWhatsAppSettings;
+use App\Services\Media\DescargadorMediaWhatsapp;
 use App\Support\ContratoMensajeWhatsapp;
-use App\Support\RomaApiHeaders;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class ServicioResolucionMediaEntrante
 {
+    public function __construct(
+        private DescargadorMediaWhatsapp $descargadorMedia,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $payload
      * @return array{url: string, local_url: string|null, mime: string|null}|null
      */
     public function resolver(array $payload, string $messageType, string $waId): ?array
     {
-        $existing = $payload['media_url'] ?? $payload['image_url'] ?? null;
-        if (is_string($existing) && $existing !== '' && ! str_contains($existing, 'lookaside.fbsbx.com')) {
-            $mirrored = $this->espejarRemoto($existing, $waId, $messageType, $payload['mime_type'] ?? null);
+        $localUrl = $this->extraerRutaStorageLocal($payload);
+        if ($localUrl !== null) {
+            return $this->resolverDesdeStorageLocal($localUrl, $payload);
+        }
 
-            return $mirrored ?? [
-                'url' => $existing,
-                'local_url' => null,
-                'mime' => is_string($payload['mime_type'] ?? null) ? $payload['mime_type'] : null,
-            ];
+        $existing = $payload['media_url'] ?? $payload['image_url'] ?? null;
+        if (is_string($existing) && $existing !== '') {
+            if ($this->esUrlStoragePropio($existing)) {
+                return $this->resolverDesdeUrlStorage($existing, $payload);
+            }
+
+            if (! str_contains($existing, 'lookaside.fbsbx.com')) {
+                $mirrored = $this->espejarRemoto($existing, $waId, $messageType, $payload['mime_type'] ?? null);
+
+                return $mirrored ?? [
+                    'url' => $existing,
+                    'local_url' => null,
+                    'mime' => is_string($payload['mime_type'] ?? null) ? $payload['mime_type'] : null,
+                ];
+            }
         }
 
         if (! in_array($messageType, ['image', 'audio', 'video', 'sticker', 'document'], true)) {
@@ -36,48 +52,18 @@ class ServicioResolucionMediaEntrante
             return null;
         }
 
-        $baseUrl = rtrim((string) config('services.roma.url'), '/');
-        if ($baseUrl === '') {
-            return null;
-        }
-
-        try {
-            $response = Http::withHeaders(RomaApiHeaders::forJsonPost())
-                ->timeout(45)
-                ->post($baseUrl.'/api/media/resolve-inbound', [
-                    'wa_id' => $waId,
-                    'media_kind' => $messageType,
-                    'raw' => $raw,
-                ]);
-
-            $json = $response->json();
-            if (! $response->successful() || ! is_array($json) || empty($json['public_url'])) {
-                Log::warning('ServicioResolucionMediaEntrante: resolve failed', [
-                    'wa_id' => $waId,
-                    'type' => $messageType,
-                    'status' => $response->status(),
-                    'body' => is_string($response->body()) ? substr($response->body(), 0, 200) : $json,
-                ]);
-
-                return null;
+        if (MetaWhatsAppSettings::isConfigured()) {
+            $descargado = $this->descargadorMedia->descargar($waId, $messageType, $raw);
+            if ($descargado !== null) {
+                return [
+                    'url' => $descargado['url'],
+                    'local_url' => $descargado['local_url'],
+                    'mime' => $descargado['mime'],
+                ];
             }
-
-            $publicUrl = (string) $json['public_url'];
-            $mime = is_string($json['mime_type'] ?? null) ? $json['mime_type'] : null;
-
-            return $this->espejarRemoto($publicUrl, $waId, $messageType, $mime) ?? [
-                'url' => $publicUrl,
-                'local_url' => null,
-                'mime' => $mime,
-            ];
-        } catch (\Throwable $e) {
-            Log::error('ServicioResolucionMediaEntrante: exception', [
-                'wa_id' => $waId,
-                'error' => $e->getMessage(),
-            ]);
-
-            return null;
         }
+
+        return null;
     }
 
     /**
@@ -133,6 +119,80 @@ class ServicioResolucionMediaEntrante
         }
 
         return $type;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{url: string, local_url: string, mime: string|null}
+     */
+    protected function resolverDesdeStorageLocal(string $localUrl, array $payload): array
+    {
+        $publicBase = rtrim((string) config('app.public_url', config('app.url')), '/');
+        $absoluteUrl = $publicBase.$localUrl;
+
+        return [
+            'url' => $absoluteUrl,
+            'local_url' => $localUrl,
+            'mime' => is_string($payload['mime_type'] ?? null) ? $payload['mime_type'] : null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array{url: string, local_url: string, mime: string|null}
+     */
+    protected function resolverDesdeUrlStorage(string $url, array $payload): array
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+        $localUrl = is_string($path) && str_starts_with($path, '/storage/') ? $path : $url;
+
+        return [
+            'url' => $url,
+            'local_url' => $localUrl,
+            'mime' => is_string($payload['mime_type'] ?? null) ? $payload['mime_type'] : null,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    protected function extraerRutaStorageLocal(array $payload): ?string
+    {
+        $localUrl = $payload['local_url'] ?? null;
+        if (is_string($localUrl) && str_starts_with($localUrl, '/storage/')) {
+            return $localUrl;
+        }
+
+        $imageUrl = $payload['image_url'] ?? null;
+        if (is_string($imageUrl) && str_starts_with($imageUrl, '/storage/')) {
+            return $imageUrl;
+        }
+
+        return null;
+    }
+
+    protected function esUrlStoragePropio(string $url): bool
+    {
+        if (str_contains($url, '/storage/inbound-media/')) {
+            return true;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+        if (is_string($path) && str_starts_with($path, '/storage/inbound-media/')) {
+            return true;
+        }
+
+        $hosts = array_filter([
+            parse_url((string) config('app.public_url'), PHP_URL_HOST),
+            parse_url((string) config('app.url'), PHP_URL_HOST),
+        ]);
+
+        $urlHost = parse_url($url, PHP_URL_HOST);
+
+        return is_string($urlHost)
+            && in_array($urlHost, $hosts, true)
+            && is_string($path)
+            && str_starts_with($path, '/storage/');
     }
 
     /**

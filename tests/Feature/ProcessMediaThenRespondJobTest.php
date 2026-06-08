@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\Message;
 use App\Services\Media\AudioTranscriber;
 use App\Services\Media\ImageAnalyzer;
+use App\Services\Vision\CatalogoImageMatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -53,6 +54,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
+            app(CatalogoImageMatcher::class),
             app(GenerarRespuestaAgente::class),
         );
 
@@ -85,7 +87,13 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Http::fake([
             'generativelanguage.googleapis.com/*' => Http::response([
                 'candidates' => [
-                    ['content' => ['parts' => [['text' => 'Captura de Yape confirmando pago']]]],
+                    ['content' => ['parts' => [[
+                        'text' => json_encode([
+                            'tipo' => 'comprobante',
+                            'es_comprobante' => true,
+                            'descripcion_prenda' => 'Captura de Yape confirmando pago',
+                        ]),
+                    ]]]],
                 ],
             ]),
         ]);
@@ -101,6 +109,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
+            app(CatalogoImageMatcher::class),
             app(GenerarRespuestaAgente::class),
         );
 
@@ -108,7 +117,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
 
         $message->refresh();
         $this->assertStringContainsString('Captura de Yape', $message->content);
-        $this->assertStringContainsString('Captura de Yape', $message->metadata['vision']['caption'] ?? '');
+        $this->assertSame('comprobante', $message->metadata['vision']['inbound_profile']['tipo'] ?? null);
 
         Queue::assertPushed(GenerarRespuestaAgenteJob::class);
     }
@@ -135,6 +144,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
+            app(CatalogoImageMatcher::class),
             app(GenerarRespuestaAgente::class),
         );
 

@@ -41,11 +41,12 @@ class EnviarMensajeWhatsappSaliente
 
         MessageBroadcaster::broadcast($message, 'EnviarMensajeWhatsappSaliente');
 
-        $job = SendWhatsappMessageJob::dispatch($message);
         if ($delaySeconds > 0) {
-            $job->delay(now()->addSeconds($delaySeconds));
+            SendWhatsappMessageJob::dispatch($message)->delay(now()->addSeconds($delaySeconds));
+        } else {
+            SendWhatsappMessageJob::dispatchSync($message);
         }
 
-        return $message;
+        return $message->fresh();
     }
 }

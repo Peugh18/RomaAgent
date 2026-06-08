@@ -74,7 +74,7 @@ class ReenviarMensajeWhatsapp
         ]);
 
         MessageBroadcaster::broadcast($message->fresh(), 'ReenviarMensajeWhatsapp');
-        SendWhatsappMessageJob::dispatch($message->fresh());
+        SendWhatsappMessageJob::dispatchSync($message->fresh());
 
         return $message->fresh();
     }
