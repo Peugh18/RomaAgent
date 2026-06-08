@@ -74,4 +74,31 @@ class NormalizadorStockTallas
 
         return $key !== '' ? sprintf('talla %s', $key) : 'talla estándar';
     }
+
+    /**
+     * Regla de tallas para catálogo y prompts del agente (multi-empresa).
+     *
+     * En BD la talla por defecto puede ser UNICA u otro código interno ({@see defaultSizeKey()}),
+     * pero al cliente SIEMPRE se le dice "talla estándar". Nunca "única", "UNICA" ni el código interno.
+     */
+    public static function instruccionTallaParaPrompt(): string
+    {
+        $claveInterna = self::defaultSizeKey();
+
+        return implode("\n", [
+            'TALLAS (regla del sistema para toda la tienda):',
+            '- La talla principal del catálogo es **talla estándar** (así se le dice a la clienta).',
+            '- En base de datos el código interno puede ser "'.$claveInterna.'"; eso NO se menciona al cliente.',
+            '- **Nunca** digas "única", "UNICA", "talla única" ni expongas códigos internos de talla.',
+            '- Si la clienta no especifica talla, asume **talla estándar** al verificar stock y actualizar pedido.',
+            '- Otras tallas (S, M, L, etc.) solo si existen en el stock del producto; también di "talla S", "talla M", nunca códigos raros.',
+        ]);
+    }
+
+    /** Línea breve para el bloque de catálogo en el prompt. */
+    public static function instruccionTallaParaCatalogo(): string
+    {
+        return 'Toda la tienda usa talla estándar. Al hablar con la clienta di "talla estándar", '
+            .'nunca "única", "UNICA" ni el código interno "'.self::defaultSizeKey().'".';
+    }
 }

@@ -65,7 +65,7 @@ export interface CompanySettingsForm {
     [key: string]: unknown;
 }
 
-/** Talla única por defecto para todo el catálogo */
+/** Clave interna de talla estándar en BD (UNICA = talla estándar al cliente; configurable por empresa). */
 export const DEFAULT_STANDARD_SIZE = 'UNICA';
 
 export interface VariantStockShape {

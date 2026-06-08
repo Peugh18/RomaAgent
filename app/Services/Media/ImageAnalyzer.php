@@ -49,7 +49,7 @@ class ImageAnalyzer extends BaseGeminiService
 Analiza la imagen para ventas por WhatsApp. Responde SOLO JSON válido (sin markdown).
 
 Si es comprobante de pago (Yape, Plin, transferencia), tipo=comprobante.
-Si es foto de prenda o captura de TikTok/Reels con un vestido, tipo=producto e ignora textos de marketing de la red social.
+Si es foto de producto/prenda o captura de red social con un artículo del catálogo, tipo=producto e ignora textos de marketing de la plataforma.
 Si es captura de pantalla de redes, marca es_captura_redes=true.
 
 Esquema:
@@ -57,7 +57,7 @@ Esquema:
   "tipo": "producto|comprobante|otro",
   "es_comprobante": false,
   "es_captura_redes": false,
-  "tipo_prenda": "vestido|blusa|otro|null",
+  "tipo_prenda": "vestido|blusa|pantalón|accesorio|otro|null",
   "material_aparente": "punto|algodón|null",
   "color_dominante": "color principal",
   "colores_dominantes": ["color1", "color2"],

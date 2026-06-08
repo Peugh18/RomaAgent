@@ -32,18 +32,18 @@ class GeneradorPerfilVisionCatalogo extends BaseGeminiService
         }
 
         $prompt = <<<PROMPT
-Analiza la foto de catálogo de una prenda de moda. Responde SOLO JSON válido (sin markdown).
+Analiza la foto de catálogo de un producto de moda. Responde SOLO JSON válido (sin markdown).
 El producto se llama "{$product->name}".
-Describe el VESTIDO/MODELO (no el color de fondo ni la modelo). Ignora marcas de agua o UI de redes sociales.
+Describe el PRODUCTO/MODELO (no el color de fondo ni la modelo). Ignora marcas de agua o UI de redes sociales.
 
 Esquema:
 {
-  "tipo_prenda": "vestido|blusa|pantalón|otro",
-  "material_aparente": "punto|algodón|otro",
+  "tipo_prenda": "vestido|blusa|pantalón|accesorio|otro",
+  "material_aparente": "texto libre",
   "silueta": "corta|midi|larga|otro",
   "patron": "liso|estampado|rayas|otro",
-  "detalles": ["manga larga", "..."],
-  "keywords": ["vestido", "punto", "..."]
+  "detalles": ["detalle visible", "..."],
+  "keywords": ["palabras clave para búsqueda", "..."]
 }
 PROMPT;
 

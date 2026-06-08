@@ -44,7 +44,7 @@ class FormateadorCatalogoProductos
 
         $lineas = [
             '# CATÁLOGO DE PRODUCTOS DISPONIBLES',
-            'Toda la tienda usa talla estándar. Al hablar con la clienta di "talla estándar", nunca "única" ni "UNICA".',
+            NormalizadorStockTallas::instruccionTallaParaCatalogo(),
             'Precio normal para venta directa; precio TikTok cuando el cliente viene de TikTok. El descuento promo solo aplica al precio normal.',
             '',
         ];
