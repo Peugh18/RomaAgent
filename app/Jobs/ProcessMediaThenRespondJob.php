@@ -6,6 +6,7 @@ use App\Actions\GenerarRespuestaAgente;
 use App\Exceptions\GeminiQuotaExceededException;
 use App\Models\Message;
 use App\Services\Media\AudioTranscriber;
+use App\Services\Media\DescargadorMediaWhatsapp;
 use App\Services\Media\ImageAnalyzer;
 use App\Services\Vision\CatalogoImageMatcher;
 use App\Support\MessageBroadcaster;
@@ -21,7 +22,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
+    public int $tries = 5;
 
     public int $uniqueFor = 300;
 
@@ -37,7 +38,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
      */
     public function backoff(): array
     {
-        return [30, 60, 120];
+        return [30, 45, 60, 90, 120];
     }
 
     public function handle(
@@ -45,6 +46,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         ImageAnalyzer $analyzer,
         CatalogoImageMatcher $matcher,
         GenerarRespuestaAgente $agente,
+        DescargadorMediaWhatsapp $descargadorMedia,
     ): void {
         $message = Message::find($this->messageId);
         if (! $message) {
@@ -57,9 +59,9 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
 
         try {
             if ($type === 'audio') {
-                $enriquecido = $this->procesarAudio($message, $meta, $transcriber);
+                $enriquecido = $this->procesarAudio($message, $meta, $transcriber, $descargadorMedia);
             } elseif ($type === 'image') {
-                $enriquecido = $this->procesarImagen($message, $meta, $analyzer, $matcher);
+                $enriquecido = $this->procesarImagen($message, $meta, $analyzer, $matcher, $descargadorMedia);
             }
         } catch (GeminiQuotaExceededException $e) {
             Log::warning('ProcessMediaThenRespondJob: cuota Gemini excedida, reintentando', [
@@ -74,7 +76,6 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
                 return;
             }
 
-            // Si se agotaron los reintentos, marcar como fallido y continuar
             $this->marcarAnalisisFallido($message, $type, 'Cuota API agotada después de '.$this->tries.' intentos');
         } catch (\Throwable $e) {
             Log::error('ProcessMediaThenRespondJob error', [
@@ -83,11 +84,36 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
                 'type' => $type,
             ]);
 
-            // Marcar que el análisis falló para que el agente lo sepa
             $this->marcarAnalisisFallido($message, $type, $e->getMessage());
         }
 
         $message = $message->fresh();
+        if ($message === null) {
+            return;
+        }
+
+        if (! $enriquecido && in_array($type, ['audio', 'image'], true)) {
+            if ($this->debeReintentarDescarga($message, $type)) {
+                Log::warning('ProcessMediaThenRespondJob: media no descargada, reintentando', [
+                    'msg' => $message->id,
+                    'type' => $type,
+                    'attempt' => $this->attempts(),
+                ]);
+                $this->release(45);
+
+                return;
+            }
+
+            if ($this->faltaArchivoLocal($message, $type)) {
+                $this->marcarAnalisisFallido(
+                    $message,
+                    $type,
+                    'No se pudo descargar el archivo de WhatsApp. Renueva WHATSAPP_ACCESS_TOKEN en .env.',
+                );
+                $message = $message->fresh();
+            }
+        }
+
         if ($message === null) {
             return;
         }
@@ -112,15 +138,20 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
     /**
      * @param  array<string, mixed>  $meta
      */
-    private function procesarAudio(Message $message, array $meta, AudioTranscriber $transcriber): bool
-    {
-        $audioUrl = $meta['local_url'] ?? $meta['media_url'] ?? null;
-        if (! is_string($audioUrl) || $audioUrl === '') {
+    private function procesarAudio(
+        Message $message,
+        array $meta,
+        AudioTranscriber $transcriber,
+        DescargadorMediaWhatsapp $descargadorMedia,
+    ): bool {
+        $audioUrl = $this->resolverRutaMedia($message, $meta, 'audio', $descargadorMedia);
+        if ($audioUrl === null) {
             return false;
         }
 
         $text = $transcriber->transcribeFromUrl($this->resolveAbsoluteUrl($audioUrl), 'es');
         if (! is_string($text) || $text === '' || $text === '[inaudible]') {
+            $meta = is_array($message->metadata) ? $message->metadata : [];
             $meta['transcript_failed'] = true;
             $message->metadata = $meta;
             $message->save();
@@ -132,9 +163,10 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
             return true;
         }
 
+        $meta = is_array($message->metadata) ? $message->metadata : [];
         $meta['transcript'] = $text;
         $meta['transcript_provider'] = 'gemini';
-        unset($meta['transcript_failed']);
+        unset($meta['transcript_failed'], $meta['transcript_error'], $meta['media_download_failed']);
         $message->metadata = $meta;
         $message->content = $text;
         $message->save();
@@ -150,19 +182,21 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         array $meta,
         ImageAnalyzer $analyzer,
         CatalogoImageMatcher $matcher,
+        DescargadorMediaWhatsapp $descargadorMedia,
     ): bool {
-        $imgUrl = $meta['local_url'] ?? $meta['image_url'] ?? $meta['media_url'] ?? null;
-        if (! is_string($imgUrl) || $imgUrl === '') {
+        $imgUrl = $this->resolverRutaMedia($message, $meta, 'image', $descargadorMedia);
+        if ($imgUrl === null) {
             return false;
         }
 
+        $meta = is_array($message->metadata) ? $message->metadata : [];
         $captionCliente = $this->extraerCaptionWhatsapp($meta);
 
         $res = $analyzer->analyzeUrl($this->resolveAbsoluteUrl($imgUrl), [
             'caption_cliente' => $captionCliente,
         ]);
         if (! is_array($res) || empty($res['caption'])) {
-            Log::warning('ProcessMediaThenRespondJob: análisis de imagen vacío, usando fallback', [
+            Log::warning('ProcessMediaThenRespondJob: análisis de imagen vacío', [
                 'msg' => $message->id,
                 'url' => $imgUrl,
             ]);
@@ -190,6 +224,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
             $meta['vision']['caption_cliente'] = $captionCliente;
         }
         $meta['vision_provider'] = 'gemini';
+        unset($meta['media_download_failed']);
         $message->metadata = $meta;
 
         $contenido = $captionCliente !== ''
@@ -199,6 +234,96 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         $message->save();
 
         return true;
+    }
+
+    /**
+     * @param  array<string, mixed>  $meta
+     */
+    private function resolverRutaMedia(
+        Message $message,
+        array $meta,
+        string $mediaKind,
+        DescargadorMediaWhatsapp $descargadorMedia,
+    ): ?string {
+        $candidatos = match ($mediaKind) {
+            'audio' => [$meta['local_url'] ?? null, $meta['media_url'] ?? null],
+            default => [$meta['local_url'] ?? null, $meta['image_url'] ?? null, $meta['media_url'] ?? null],
+        };
+
+        foreach ($candidatos as $url) {
+            if (is_string($url) && $url !== '') {
+                return $url;
+            }
+        }
+
+        return $this->intentarDescargarDesdeWhatsapp($message, $mediaKind, $descargadorMedia);
+    }
+
+    private function intentarDescargarDesdeWhatsapp(
+        Message $message,
+        string $mediaKind,
+        DescargadorMediaWhatsapp $descargadorMedia,
+    ): ?string {
+        $meta = is_array($message->metadata) ? $message->metadata : [];
+        $raw = $meta['whatsapp_raw'] ?? null;
+        if (! is_array($raw)) {
+            return null;
+        }
+
+        $waId = (string) ($message->message_id ?? 'unknown');
+        $descargado = $descargadorMedia->descargar($waId, $mediaKind, $raw);
+        if ($descargado === null) {
+            $meta['media_download_failed'] = true;
+            $meta['media_download_error'] = 'Descarga Meta fallida (revisa WHATSAPP_ACCESS_TOKEN)';
+            $message->metadata = $meta;
+            $message->save();
+
+            return null;
+        }
+
+        $meta['local_url'] = $descargado['local_url'];
+        $meta['media_url'] = $descargado['url'];
+        if (! empty($descargado['mime'])) {
+            $meta['mime_type'] = $descargado['mime'];
+        }
+        if ($mediaKind === 'image') {
+            $meta['image_url'] = $descargado['local_url'];
+        }
+        unset($meta['media_download_failed'], $meta['media_download_error']);
+        $message->metadata = $meta;
+        $message->save();
+
+        Log::info('ProcessMediaThenRespondJob: media descargada en reintento', [
+            'msg' => $message->id,
+            'type' => $mediaKind,
+            'local_url' => $descargado['local_url'],
+        ]);
+
+        return $descargado['local_url'];
+    }
+
+    private function debeReintentarDescarga(Message $message, string $type): bool
+    {
+        if ($this->attempts() >= $this->tries) {
+            return false;
+        }
+
+        return $this->faltaArchivoLocal($message, $type);
+    }
+
+    private function faltaArchivoLocal(Message $message, string $type): bool
+    {
+        $meta = is_array($message->metadata) ? $message->metadata : [];
+
+        if (is_string($meta['local_url'] ?? null) && $meta['local_url'] !== '') {
+            return false;
+        }
+
+        if ($type === 'audio') {
+            return ! is_string($meta['transcript'] ?? null) || $meta['transcript'] === '';
+        }
+
+        return empty($meta['vision']['caption'] ?? null);
     }
 
     /**

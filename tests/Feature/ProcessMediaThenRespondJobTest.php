@@ -9,6 +9,7 @@ use App\Models\CompanySetting;
 use App\Models\Customer;
 use App\Models\Message;
 use App\Services\Media\AudioTranscriber;
+use App\Services\Media\DescargadorMediaWhatsapp;
 use App\Services\Media\ImageAnalyzer;
 use App\Services\Vision\CatalogoImageMatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -56,6 +57,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
             app(ImageAnalyzer::class),
             app(CatalogoImageMatcher::class),
             app(GenerarRespuestaAgente::class),
+            app(DescargadorMediaWhatsapp::class),
         );
 
         @unlink($fullPath);
@@ -111,6 +113,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
             app(ImageAnalyzer::class),
             app(CatalogoImageMatcher::class),
             app(GenerarRespuestaAgente::class),
+            app(DescargadorMediaWhatsapp::class),
         );
 
         @unlink($fullPath);
@@ -146,8 +149,63 @@ class ProcessMediaThenRespondJobTest extends TestCase
             app(ImageAnalyzer::class),
             app(CatalogoImageMatcher::class),
             app(GenerarRespuestaAgente::class),
+            app(DescargadorMediaWhatsapp::class),
         );
 
         Queue::assertNotPushed(GenerarRespuestaAgenteJob::class);
+    }
+
+    public function test_audio_reintenta_descarga_desde_whatsapp_raw_si_falta_local_url(): void
+    {
+        Queue::fake([GenerarRespuestaAgenteJob::class]);
+
+        CompanySetting::factory()->withIaEnabled()->create([
+            'agente_ia_modelo' => 'gemini-2.5-flash',
+        ]);
+
+        config([
+            'services.whatsapp.access_token' => 'test-token',
+            'services.whatsapp.phone_number_id' => '123456789',
+            'app.url' => 'https://example.test',
+            'app.public_url' => 'https://example.test',
+        ]);
+
+        Http::fake([
+            'graph.facebook.com/*' => Http::response(['url' => 'https://lookaside.fbsbx.com/media/audio.ogg']),
+            'lookaside.fbsbx.com/*' => Http::response('fake-ogg-bytes', 200, ['Content-Type' => 'audio/ogg']),
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [
+                    ['content' => ['parts' => [['text' => 'Quiero el Mariela lila']]]],
+                ],
+            ]),
+        ]);
+
+        $message = Message::factory()->incoming()->create([
+            'message_id' => 'wamid.audio_retry_test',
+            'content' => '🎤 Audio',
+            'metadata' => [
+                'type' => 'audio',
+                'whatsapp_raw' => [
+                    'type' => 'audio',
+                    'audio' => ['id' => 'media-audio-99'],
+                ],
+            ],
+        ]);
+
+        $job = new ProcessMediaThenRespondJob($message->id);
+        $job->handle(
+            app(AudioTranscriber::class),
+            app(ImageAnalyzer::class),
+            app(CatalogoImageMatcher::class),
+            app(GenerarRespuestaAgente::class),
+            app(DescargadorMediaWhatsapp::class),
+        );
+
+        $message->refresh();
+        $this->assertStringStartsWith('/storage/inbound-media/', $message->metadata['local_url'] ?? '');
+        $this->assertSame('Quiero el Mariela lila', $message->content);
+        $this->assertSame('Quiero el Mariela lila', $message->metadata['transcript'] ?? null);
+
+        Queue::assertPushed(GenerarRespuestaAgenteJob::class);
     }
 }
