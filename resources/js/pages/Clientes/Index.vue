@@ -4,7 +4,10 @@ import CrmAlert from '@/components/crm/CrmAlert.vue';
 import CrmListCard from '@/components/crm/CrmListCard.vue';
 import CrmPagination from '@/components/crm/CrmPagination.vue';
 import CrmSearchBar from '@/components/crm/CrmSearchBar.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmEmptyState from '@/components/crm/CrmEmptyState.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,9 +23,13 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { apiJson, ApiError } from '@/composables/useApi';
+import { normalizeLaravelPagination } from '@/lib/pagination';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
 import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+import { getInitials } from '@/composables/useInitials';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { Users, MessageCircle, Edit, Save, X, Loader2, ShoppingBag, Eye } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Clientes', href: '/clientes' }];
@@ -88,9 +95,8 @@ const fetchCustomers = async () => {
             params.set('search', searchQuery.value.trim());
         }
 
-        const response = await apiJson<PaginatedResponse<Customer>>(
-            `/api/customers?${params.toString()}`
-        );
+        const raw = await apiJson<unknown>(`/api/customers?${params.toString()}`);
+        const response = normalizeLaravelPagination<Customer>(raw);
         customers.value = response.data;
         currentPage.value = response.current_page;
         lastPage.value = response.last_page;
@@ -183,13 +189,8 @@ const closeViewSalesModal = () => {
     viewingCustomer.value = null;
 };
 
-const formatDate = (date: string): string => {
-    return new Date(date).toLocaleDateString('es-PE', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-    });
-};
+const formatDate = (date: string): string =>
+    format(new Date(date), 'dd MMM yyyy', { locale: es });
 
 onMounted(() => {
     fetchCustomers();
@@ -201,19 +202,17 @@ onMounted(() => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="crm-page">
-            <PageHeader
+            <CrmPageHero
                 title="Clientes"
                 description="Directorio de contactos de WhatsApp con notas internas para el asesor."
-            >
-                <template #actions>
-                    <Badge variant="secondary" class="font-normal">
-                        {{ totalCustomers }} registrados
-                    </Badge>
-                </template>
-            </PageHeader>
+                :icon="Users"
+                variant="sky"
+                :stats="[{ label: 'Registrados', value: totalCustomers }]"
+            />
 
             <CrmAlert v-if="error" class="mb-0">{{ error }}</CrmAlert>
 
+            <CrmAnimatedSection :delay="80">
             <div class="crm-toolbar">
                 <CrmSearchBar
                     v-model="searchQuery"
@@ -229,20 +228,14 @@ onMounted(() => {
                 </div>
 
                 <!-- Empty -->
-                <div v-else-if="paginatedCustomers.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
-                    <div class="rounded-full bg-muted p-4">
-                        <Users class="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <h3 class="mt-4 text-lg font-semibold">
-                        {{ searchQuery ? 'No se encontraron clientes' : 'Sin clientes registrados' }}
-                    </h3>
-                    <p class="mt-1 max-w-sm text-sm text-muted-foreground">
-                        {{ searchQuery
-                            ? `No hay resultados para "${searchQuery}"`
-                            : 'Los clientes se registran automáticamente cuando interactúan por WhatsApp.'
-                        }}
-                    </p>
-                </div>
+                <CrmEmptyState
+                    v-else-if="paginatedCustomers.length === 0"
+                    :icon="Users"
+                    :title="searchQuery ? 'No se encontraron clientes' : 'Sin clientes registrados'"
+                    :description="searchQuery
+                        ? `No hay resultados para «${searchQuery}»`
+                        : 'Los clientes se registran automáticamente cuando interactúan por WhatsApp.'"
+                />
 
                 <!-- Table -->
                 <template v-else>
@@ -264,8 +257,15 @@ onMounted(() => {
                                     :key="customer.id"
                                     class="crm-table-row-action"
                                 >
-                                    <TableCell class="font-mono text-sm">
-                                        {{ customer.phone_number }}
+                                    <TableCell>
+                                        <div class="flex items-center gap-3">
+                                            <Avatar class="h-9 w-9 border border-border/60">
+                                                <AvatarFallback class="bg-muted text-xs font-semibold">
+                                                    {{ getInitials(customer.name || customer.phone_number) }}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <span class="font-mono text-sm">{{ customer.phone_number }}</span>
+                                        </div>
                                     </TableCell>
                                     <TableCell>
                                         <span v-if="customer.name" class="font-medium">{{ customer.name }}</span>
@@ -345,6 +345,7 @@ onMounted(() => {
                     />
                 </template>
             </CrmListCard>
+            </CrmAnimatedSection>
         </div>
 
         <!-- Edit Notes Modal -->

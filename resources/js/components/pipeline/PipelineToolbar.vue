@@ -26,21 +26,25 @@ const hasSearch = computed(() => props.search.trim().length > 0);
 </script>
 
 <template>
-    <div class="space-y-4 rounded-xl border bg-card p-4 shadow-sm">
+    <div class="space-y-4 rounded-2xl border border-border/50 bg-card p-4 shadow-sm sm:p-5">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div class="flex flex-wrap gap-3">
-                <div class="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2">
-                    <Wallet class="h-4 w-4 text-muted-foreground" />
+                <div class="flex items-center gap-2 rounded-xl border border-border/50 bg-muted/30 px-3 py-2">
+                    <div class="rounded-lg bg-emerald-500/10 p-1.5">
+                        <Wallet class="h-4 w-4 text-emerald-500" />
+                    </div>
                     <div>
                         <p class="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Valor total</p>
-                        <p class="text-sm font-semibold">{{ formatMoney(totalAmount) }}</p>
+                        <p class="text-sm font-semibold tabular-nums">{{ formatMoney(totalAmount) }}</p>
                     </div>
                 </div>
-                <div class="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2">
-                    <Package class="h-4 w-4 text-muted-foreground" />
+                <div class="flex items-center gap-2 rounded-xl border border-border/50 bg-muted/30 px-3 py-2">
+                    <div class="rounded-lg bg-blue-500/10 p-1.5">
+                        <Package class="h-4 w-4 text-blue-500" />
+                    </div>
                     <div>
                         <p class="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Pedidos</p>
-                        <p class="text-sm font-semibold">{{ totalOrders }}</p>
+                        <p class="text-sm font-semibold tabular-nums">{{ totalOrders }}</p>
                     </div>
                 </div>
                 <Button
@@ -64,7 +68,7 @@ const hasSearch = computed(() => props.search.trim().length > 0);
                 <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                     :model-value="search"
-                    class="pl-9 pr-9"
+                    class="border-border/60 bg-background/80 pl-9 pr-9 shadow-sm"
                     placeholder="Buscar por nombre, teléfono o producto…"
                     :disabled="loading"
                     @update:model-value="emit('update:search', String($event))"

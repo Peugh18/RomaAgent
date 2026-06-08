@@ -2,12 +2,13 @@
 
 namespace App\Observers;
 
-use App\Models\CompanySetting;
 use App\Models\ProductVariant;
-use Illuminate\Support\Facades\Cache;
+use App\Support\InvalidatesPromptCache;
 
 class ProductVariantObserver
 {
+    use InvalidatesPromptCache;
+
     public function saved(ProductVariant $variant): void
     {
         $this->sincronizarProducto($variant);
@@ -28,9 +29,6 @@ class ProductVariantObserver
 
         $product->sincronizarEstadoPorStock();
 
-        $settingsId = CompanySetting::query()->value('id');
-        if ($settingsId !== null) {
-            Cache::forget('contexto_prompt_completo_'.$settingsId);
-        }
+        $this->invalidarCachePrompt();
     }
 }

@@ -1,7 +1,10 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
 import CrmPanel from '@/components/crm/CrmPanel.vue';
+import ProductFormStickyBar from '@/components/products/ProductFormStickyBar.vue';
+import ProductSectionHeader from '@/components/products/ProductSectionHeader.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,7 +12,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { ref, onMounted, watch, computed } from 'vue';
-import { Plus, Trash2, Image, Tag, ChevronLeft, Save, Package, X, Sparkles } from 'lucide-vue-next';
+import { Plus, Trash2, Image, Tag, ChevronLeft, Package, X, Sparkles } from 'lucide-vue-next';
+import { normalizeLaravelPagination } from '@/lib/pagination';
 import { useStandardSize } from '@/composables/useStandardSize';
 import {
     addExtraSizeToVariant,
@@ -129,6 +133,16 @@ const estadoVentaLabel = computed(() => {
     }
 
     return stockTotalProducto.value > 0 ? 'Disponible (automático)' : 'Agotado (automático)';
+});
+
+const heroStats = computed(() => [
+    { label: 'Variantes', value: form.value.variants.length },
+    { label: 'Stock', value: stockTotalProducto.value },
+]);
+
+const heroDescription = computed(() => {
+    const category = categoryName.value;
+    return category ? `Editando · ${category}` : 'Modifica precio, variantes, stock y similares.';
 });
 
 const fetchCategories = async () => {
@@ -401,8 +415,8 @@ const submit = async () => {
 const fetchAllProducts = async () => {
     try {
         const list = await fetch('/api/products?per_page=100', { headers: { Accept: 'application/json' } }).then((r) => r.json());
-        const items = Array.isArray(list) ? list : (list.data ?? []);
-        allProducts.value = (items as { id: number; name: string }[]).filter((p) => p.id !== props.product.id);
+        const normalized = normalizeLaravelPagination<{ id: number; name: string }>(list);
+        allProducts.value = normalized.data.filter((p) => p.id !== props.product.id);
     } catch {
         allProducts.value = [];
     }
@@ -463,30 +477,34 @@ onMounted(() => {
     <Head title="Editar Producto" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="crm-page max-w-4xl mx-auto">
-            <PageHeader
-                title="Editar Producto"
-                description="Modifica la información, precio, variantes, stock y similares del artículo."
+        <div class="crm-page mx-auto max-w-6xl pb-20">
+            <CrmPageHero
+                compact
+                :title="form.name || product.name"
+                :description="heroDescription"
+                :icon="Package"
+                variant="violet"
+                :stats="heroStats"
             >
                 <template #actions>
-                    <Button variant="outline" as-child>
+                    <Button variant="outline" as-child class="border-border/70 bg-background/60">
                         <Link href="/productos" class="flex items-center gap-1">
                             <ChevronLeft class="h-4 w-4" />
                             <span>Volver</span>
                         </Link>
                     </Button>
                 </template>
-            </PageHeader>
+            </CrmPageHero>
 
-            <form @submit.prevent="submit" class="mt-8 space-y-6">
-                <!-- Información General -->
+            <CrmAnimatedSection :delay="80">
+            <form id="product-edit-form" @submit.prevent="submit" class="mt-6 space-y-6">
+                <div class="grid gap-6 xl:grid-cols-2">
                 <CrmPanel>
-                    <div class="mb-4 pb-3 border-b border-border">
-                        <h3 class="text-lg font-semibold text-foreground flex items-center gap-2">
-                            <Package class="h-5 w-5 text-primary" />
-                            Información General
-                        </h3>
-                    </div>
+                    <ProductSectionHeader
+                        step="1"
+                        title="Información general"
+                        description="Nombre, categoría y descripción del artículo."
+                    />
 
                     <div class="grid grid-cols-1 gap-y-6 sm:grid-cols-6 sm:gap-x-6">
                         <div class="sm:col-span-4 space-y-1.5">
@@ -527,14 +545,12 @@ onMounted(() => {
                     </div>
                 </CrmPanel>
 
-                <!-- Precios -->
                 <CrmPanel>
-                    <div class="mb-4 pb-3 border-b border-border">
-                        <h3 class="text-lg font-semibold text-foreground">
-                            Precios de venta
-                        </h3>
-                        <p class="text-xs text-muted-foreground mt-0.5">Precio normal y TikTok que verá el bot en Configuración.</p>
-                    </div>
+                    <ProductSectionHeader
+                        step="2"
+                        title="Precios y visibilidad"
+                        description="Precio normal, TikTok y estado de venta del bot."
+                    />
 
                     <div class="mb-4 rounded-lg border border-border bg-muted/15 px-4 py-3 text-sm">
                         <span class="text-muted-foreground">Estado de venta:</span>
@@ -624,16 +640,15 @@ onMounted(() => {
                         </div>
                     </div>
                 </CrmPanel>
+                </div>
 
-                <!-- Tags del Producto -->
                 <CrmPanel>
-                    <div class="mb-4 pb-3 border-b border-border">
-                        <h3 class="text-lg font-semibold text-foreground flex items-center gap-2">
-                            <Tag class="h-5 w-5 text-primary" />
-                            Etiquetas para Inteligencia Artificial (Tags)
-                        </h3>
-                        <p class="text-xs text-muted-foreground mt-0.5">Ayudan al bot a entender mejor de qué tipo de producto se trata para responder consultas.</p>
-                    </div>
+                    <ProductSectionHeader
+                        step="3"
+                        :icon="Tag"
+                        title="Etiquetas para la IA"
+                        description="Ayudan al bot a entender el tipo de producto al responder consultas."
+                    />
 
                     <div class="space-y-4">
                         <div class="flex gap-2">
@@ -670,24 +685,19 @@ onMounted(() => {
                     </div>
                 </CrmPanel>
 
-                <!-- Variantes y Stock -->
                 <CrmPanel>
-                    <div class="mb-4 pb-3 border-b border-border flex items-center justify-between flex-wrap gap-4">
-                        <div>
-                            <h3 class="text-lg font-semibold text-foreground">
-                                Variantes y Control de Stock
-                            </h3>
-                            <p class="text-xs text-muted-foreground mt-0.5">Configura colores, fotos y el stock disponible por cada talla.</p>
-                        </div>
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            @click="addVariant"
-                        >
-                            <Plus class="h-4 w-4 mr-1.5" />
-                            Agregar Variante
-                        </Button>
-                    </div>
+                    <ProductSectionHeader
+                        step="4"
+                        title="Variantes y stock"
+                        description="Colores, fotos y stock disponible por talla."
+                    >
+                        <template #actions>
+                            <Button type="button" variant="secondary" size="sm" @click="addVariant">
+                                <Plus class="h-4 w-4 mr-1.5" />
+                                Agregar variante
+                            </Button>
+                        </template>
+                    </ProductSectionHeader>
 
                     <div v-if="form.variants.length === 0" class="text-center py-8 border border-dashed border-border rounded-xl text-muted-foreground text-sm">
                         No hay variantes configuradas. Agrega al menos una para continuar.
@@ -871,17 +881,13 @@ onMounted(() => {
                     </div>
                 </CrmPanel>
 
-                <!-- Similares para el Bot -->
                 <CrmPanel>
-                    <div class="mb-4 pb-3 border-b border-border">
-                        <h3 class="text-lg font-semibold text-foreground flex items-center gap-2">
-                            <Sparkles class="h-5 w-5 text-primary" />
-                            Productos Similares (Recomendaciones del Bot)
-                        </h3>
-                        <p class="text-xs text-muted-foreground mt-0.5">
-                            Si este modelo se agota, el bot ofrecerá estos productos alternativos (máx. 5). Si no eliges ninguno, el bot recomendará productos de la misma categoría.
-                        </p>
-                    </div>
+                    <ProductSectionHeader
+                        step="5"
+                        :icon="Sparkles"
+                        title="Productos similares"
+                        description="Si este modelo se agota, el bot ofrecerá estas alternativas (máx. 5)."
+                    />
 
                     <div class="space-y-4">
                         <div class="flex flex-wrap gap-2 max-h-40 overflow-y-auto p-1 border border-border rounded-lg bg-muted/10">
@@ -916,24 +922,14 @@ onMounted(() => {
                         </div>
                     </div>
                 </CrmPanel>
-
-                <!-- Acciones del Formulario -->
-                <div class="flex items-center justify-end gap-3 border-t border-border pt-6 mt-8">
-                    <Button variant="outline" as-child>
-                        <Link href="/productos">
-                            Cancelar
-                        </Link>
-                    </Button>
-                    <Button
-                        type="submit"
-                        :disabled="loading"
-                        class="gap-1.5"
-                    >
-                        <Save class="h-4 w-4" />
-                        <span>{{ loading ? 'Guardando...' : 'Guardar cambios' }}</span>
-                    </Button>
-                </div>
             </form>
+
+            <ProductFormStickyBar
+                form-id="product-edit-form"
+                :saving="loading"
+                save-label="Guardar cambios"
+            />
+            </CrmAnimatedSection>
         </div>
     </AppLayout>
 </template>

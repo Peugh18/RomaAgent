@@ -4,6 +4,7 @@ import { createInertiaApp } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
+import { MotionPlugin } from '@vueuse/motion';
 import { ZiggyVue } from '../../vendor/tightenco/ziggy';
 import { initializeTheme } from './composables/useAppearance';
 import Echo from 'laravel-echo';
@@ -43,11 +44,12 @@ createInertiaApp({
     setup({ el, App, props, plugin }) {
         createApp({ render: () => h(App, props) })
             .use(plugin)
+            .use(MotionPlugin)
             .use(ZiggyVue)
             .mount(el);
     },
     progress: {
-        color: '#4B5563',
+        color: '#10b981',
     },
 });
 

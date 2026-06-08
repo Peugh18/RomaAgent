@@ -28,9 +28,6 @@ import { MessageSquare } from 'lucide-vue-next';
                     <Button as-child>
                         <Link :href="route('login')">Iniciar sesión</Link>
                     </Button>
-                    <Button variant="outline" as-child>
-                        <Link :href="route('register')">Registrarse</Link>
-                    </Button>
                 </template>
             </div>
         </div>

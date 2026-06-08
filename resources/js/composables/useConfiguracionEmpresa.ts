@@ -15,7 +15,7 @@ export function useConfiguracionEmpresa() {
     const success = ref<string | null>(null);
     const promptCompleto = ref('');
 
-    const form = useForm<CompanySettingsForm & { prompt_preview?: string; estadisticas?: Record<string, unknown> }>({
+    const form = useForm<CompanySettingsForm & { estadisticas?: Record<string, unknown> }>({
         company_name: '',
         ruc: '',
         razon_social: '',
@@ -64,7 +64,6 @@ export function useConfiguracionEmpresa() {
             api_key_configurada: false,
             modelos_disponibles: {},
         },
-        prompt_preview: '',
         estadisticas: {},
     });
 
@@ -73,7 +72,7 @@ export function useConfiguracionEmpresa() {
             const datos = await apiJson<{ prompt_completo: string }>('/api/company-settings/prompt-completo');
             promptCompleto.value = datos.prompt_completo || '';
         } catch {
-            promptCompleto.value = form.prompt_preview || '';
+            promptCompleto.value = '';
         }
     };
 
@@ -124,7 +123,6 @@ export function useConfiguracionEmpresa() {
             mensaje_pedido_entregado: datos.flujo?.confirmacion_pago?.mensaje_pedido_entregado || '',
             mensaje_espera_link_tarjeta: datos.flujo?.confirmacion_pago?.mensaje_espera_link_tarjeta || '',
             configuracion_agente: mapConfiguracionAgenteDesdeApi(datos.configuracion_agente),
-            prompt_preview: datos.prompt_preview || '',
             estadisticas: datos.estadisticas || {},
         });
 
@@ -262,7 +260,6 @@ export function useConfiguracionEmpresa() {
                 invalidateStandardSizeCache(form.standard_size);
             }
 
-            form.prompt_preview = datos.prompt_preview || form.prompt_preview;
             form.estadisticas = datos.estadisticas || form.estadisticas;
 
             await cargarPromptCompleto();

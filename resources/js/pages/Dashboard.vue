@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import DashboardHero from '@/components/dashboard/DashboardHero.vue';
+import PipelineOverviewChart from '@/components/dashboard/PipelineOverviewChart.vue';
 import RecentOrdersList from '@/components/dashboard/RecentOrdersList.vue';
 import SalesChart from '@/components/dashboard/SalesChart.vue';
 import StatCard from '@/components/dashboard/StatCard.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
 import CrmAlert from '@/components/crm/CrmAlert.vue';
 import { Button } from '@/components/ui/button';
 import { type BreadcrumbItem } from '@/types';
@@ -11,6 +12,7 @@ import { type SaleStatus } from '@/types/sale';
 import { useCurrency } from '@/composables/useCurrency';
 import { Head, Link } from '@inertiajs/vue3';
 import { AlertCircle, MessageSquare, Package, TrendingUp, CreditCard, ArrowRight } from 'lucide-vue-next';
+import { computed } from 'vue';
 
 interface ChartDataPoint {
     date: string;
@@ -31,21 +33,71 @@ interface RecentOrder {
     created_at: string | null;
 }
 
-defineProps<{
+interface PipelineSlice {
+    status: string;
+    label: string;
+    count: number;
+}
+
+const props = defineProps<{
     stats: {
         conversaciones_hoy: number;
         pendientes_pago: number;
         productos_activos: number;
         ventas_hoy: number;
+        ventas_ayer: number;
         ventas_mes: number;
+        pedidos_activos: number;
+        ventas_trend: number | null;
     };
     pedidosRecientes: RecentOrder[];
     chartData: ChartDataPoint[];
+    pipelineOverview: PipelineSlice[];
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: '/dashboard' }];
 
 const { format: formatMoney } = useCurrency();
+
+const salesSparkline = computed(() => props.chartData.map((point) => point.sales));
+
+const statCards = computed(() => [
+    {
+        title: 'Ventas hoy',
+        value: formatMoney(props.stats.ventas_hoy),
+        subtitle: props.stats.ventas_ayer > 0 ? `Ayer: ${formatMoney(props.stats.ventas_ayer)}` : 'Sin ventas ayer',
+        icon: CreditCard,
+        variant: 'success' as const,
+        href: '/pipeline',
+        trend: props.stats.ventas_trend,
+        trendLabel: 'vs ayer',
+        sparkline: salesSparkline.value,
+    },
+    {
+        title: 'Conversaciones',
+        value: props.stats.conversaciones_hoy,
+        subtitle: 'Contactos únicos hoy',
+        icon: MessageSquare,
+        variant: 'default' as const,
+        href: '/chat',
+    },
+    {
+        title: 'Pagos pendientes',
+        value: props.stats.pendientes_pago,
+        subtitle: 'Esperan confirmación',
+        icon: TrendingUp,
+        variant: 'warning' as const,
+        href: '/pipeline',
+    },
+    {
+        title: 'Productos activos',
+        value: props.stats.productos_activos,
+        subtitle: 'Disponibles en catálogo',
+        icon: Package,
+        variant: 'default' as const,
+        href: '/productos',
+    },
+]);
 </script>
 
 <template>
@@ -53,10 +105,7 @@ const { format: formatMoney } = useCurrency();
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="crm-page">
-            <PageHeader
-                title="Dashboard"
-                :description="`Resumen ejecutivo · Ventas del mes: ${formatMoney(stats.ventas_mes)}`"
-            />
+            <DashboardHero :ventas-mes="stats.ventas_mes" :pedidos-activos="stats.pedidos_activos" />
 
             <CrmAlert v-if="stats.pendientes_pago > 0" variant="warning" class="!border-amber-500/30 !bg-amber-500/10">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -80,41 +129,41 @@ const { format: formatMoney } = useCurrency();
                 </div>
             </CrmAlert>
 
-            <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
-                    title="Ventas Hoy"
-                    :value="formatMoney(stats.ventas_hoy)"
-                    :icon="CreditCard"
-                    variant="success"
-                    href="/pipeline"
-                />
-                <StatCard
-                    title="Conversaciones"
-                    :value="stats.conversaciones_hoy"
-                    :icon="MessageSquare"
-                    variant="default"
-                    href="/chat"
-                />
-                <StatCard
-                    title="Pagos Pendientes"
-                    :value="stats.pendientes_pago"
-                    :icon="TrendingUp"
-                    variant="warning"
-                    href="/pipeline"
-                />
-                <StatCard
-                    title="Productos Activos"
-                    :value="stats.productos_activos"
-                    :icon="Package"
-                    variant="default"
-                    href="/productos"
+                    v-for="(card, index) in statCards"
+                    :key="card.title"
+                    v-motion
+                    :initial="{ opacity: 0, y: 16 }"
+                    :enter="{ opacity: 1, y: 0, transition: { delay: 70 * index, duration: 320, ease: 'easeOut' } }"
+                    :title="card.title"
+                    :value="card.value"
+                    :subtitle="card.subtitle"
+                    :icon="card.icon"
+                    :variant="card.variant"
+                    :href="card.href"
+                    :trend="card.trend"
+                    :trend-label="card.trendLabel"
+                    :sparkline="card.sparkline"
                 />
             </div>
 
-            <div class="grid gap-6 lg:grid-cols-5">
-                <SalesChart :data="chartData" class="lg:col-span-3" />
-                <RecentOrdersList :orders="pedidosRecientes" class="lg:col-span-2" />
+            <div
+                v-motion
+                :initial="{ opacity: 0, y: 16 }"
+                :enter="{ opacity: 1, y: 0, transition: { delay: 280, duration: 350, ease: 'easeOut' } }"
+                class="grid gap-6 xl:grid-cols-5"
+            >
+                <SalesChart :data="chartData" class="xl:col-span-3" />
+                <PipelineOverviewChart :data="pipelineOverview" class="xl:col-span-2" />
             </div>
+
+            <RecentOrdersList
+                v-motion
+                :initial="{ opacity: 0, y: 16 }"
+                :enter="{ opacity: 1, y: 0, transition: { delay: 360, duration: 350, ease: 'easeOut' } }"
+                :orders="pedidosRecientes"
+            />
         </div>
     </AppLayout>
 </template>

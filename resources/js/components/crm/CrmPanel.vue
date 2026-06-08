@@ -7,10 +7,10 @@ defineProps<{
 </script>
 
 <template>
-    <div class="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+    <div class="overflow-hidden rounded-2xl border border-border/50 bg-card shadow-sm transition-shadow duration-200">
         <div
             v-if="title || $slots.header"
-            class="flex items-center justify-between border-b border-border bg-muted/30 px-5 py-4"
+            class="flex items-center justify-between border-b border-border/60 bg-muted/20 px-5 py-4"
         >
             <div v-if="title">
                 <h3 class="text-sm font-semibold text-foreground">{{ title }}</h3>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { SidebarGroup, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
+import { cn } from '@/lib/utils';
 import { type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
 import type { Component } from 'vue';
@@ -26,12 +27,25 @@ const isActive = (url: string) => {
 
 <template>
     <SidebarGroup class="px-2 py-0">
-        <SidebarGroupLabel>{{ groupLabel || 'RomaAgent' }}</SidebarGroupLabel>
+        <SidebarGroupLabel class="text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/50">
+            {{ groupLabel }}
+        </SidebarGroupLabel>
         <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">
-                <SidebarMenuButton as-child :is-active="isActive(item.url)">
-                    <Link :href="item.url">
-                        <component :is="item.icon" />
+                <SidebarMenuButton
+                    as-child
+                    :is-active="isActive(item.url)"
+                    :tooltip="item.title"
+                    :class="
+                        cn(
+                            'transition-all duration-200',
+                            isActive(item.url) &&
+                                'bg-sidebar-accent/90 font-medium shadow-[inset_3px_0_0_0_hsl(var(--sidebar-ring))] [&>svg]:text-sidebar-ring',
+                        )
+                    "
+                >
+                    <Link :href="item.url" prefetch>
+                        <component :is="item.icon" class="shrink-0 opacity-80 transition-opacity group-hover/menu-button:opacity-100" />
                         <span>{{ item.title }}</span>
                     </Link>
                 </SidebarMenuButton>

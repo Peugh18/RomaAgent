@@ -4,7 +4,8 @@ import CrmAlert from '@/components/crm/CrmAlert.vue';
 import CrmListCard from '@/components/crm/CrmListCard.vue';
 import CrmPagination from '@/components/crm/CrmPagination.vue';
 import CrmSearchBar from '@/components/crm/CrmSearchBar.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
 import StatCard from '@/components/dashboard/StatCard.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -143,17 +144,20 @@ onMounted(() => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="crm-page">
-            <PageHeader
+            <CrmPageHero
                 title="Embeddings visuales"
                 description="Vectoriza el catálogo para mejorar el reconocimiento de imágenes en WhatsApp."
+                :icon="Sparkles"
+                variant="violet"
+                :stats="[{ label: 'Completado', value: `${stats.completion_percentage}%` }]"
             >
                 <template #actions>
-                    <Button variant="secondary" class="gap-2" :disabled="loading || processing" @click="refresh">
+                    <Button variant="outline" class="gap-2 border-border/70 bg-background/60" :disabled="loading || processing" @click="refresh">
                         <RefreshCw class="h-4 w-4" :class="{ 'animate-spin': loading }" />
                         Actualizar
                     </Button>
                 </template>
-            </PageHeader>
+            </CrmPageHero>
 
             <CrmAlert v-if="error" variant="error">
                 <div class="flex items-center justify-between gap-3">
@@ -188,6 +192,7 @@ onMounted(() => {
                 Procesando embeddings…
             </div>
 
+            <CrmAnimatedSection :delay="80">
             <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard title="Productos" :value="stats.total_products" :icon="Package" :loading="loading" />
                 <StatCard title="Variantes" :value="stats.total_variants" :icon="Layers" :loading="loading" />
@@ -318,6 +323,7 @@ onMounted(() => {
                     />
                 </template>
             </CrmListCard>
+            </CrmAnimatedSection>
         </div>
     </AppLayout>
 </template>

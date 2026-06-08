@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import CrmAlert from '@/components/crm/CrmAlert.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
+import CrmPanel from '@/components/crm/CrmPanel.vue';
+import CrmStickySaveBar from '@/components/crm/CrmStickySaveBar.vue';
+import ConfigSectionHeader from '@/components/configuracion/ConfigSectionHeader.vue';
 import { Head } from '@inertiajs/vue3';
 import { ref, onMounted, provide, computed } from 'vue';
 import { useConfiguracionEmpresa } from '@/composables/useConfiguracionEmpresa';
@@ -12,7 +16,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -30,7 +33,6 @@ import {
     FileText,
     Trash2,
     Plus,
-    CheckCircle,
     Bot,
     Key,
     Sliders,
@@ -271,6 +273,22 @@ const monedas = [
     { code: 'USD', label: 'Dólares ($)' },
     { code: 'EUR', label: 'Euros (€)' },
 ];
+
+const heroStats = computed(() => {
+    const stats = form.estadisticas as {
+        completitud?: number;
+        productos_activos?: number;
+    } | undefined;
+
+    if (!stats) {
+        return [];
+    }
+
+    return [
+        { label: 'Completitud', value: `${stats.completitud ?? 0}%` },
+        { label: 'Productos', value: stats.productos_activos ?? 0 },
+    ];
+});
 </script>
 
 <template>
@@ -280,65 +298,62 @@ const monedas = [
         <div v-if="loading" class="crm-page flex min-h-[40vh] items-center justify-center">
             <p class="text-sm text-muted-foreground">Cargando configuración…</p>
         </div>
-        <div v-else class="crm-page space-y-6">
-            <PageHeader
+        <div v-else class="crm-page space-y-6 pb-20">
+            <CrmPageHero
                 title="Configuración de empresa"
                 description="Datos de tu marca, pagos, IA y mensajes. La IA responde según esta configuración."
-            >
-                <template #actions>
-                    <Button @click="guardarConfiguracion" :disabled="saving" class="gap-2">
-                        <CheckCircle class="h-4 w-4" />
-                        {{ saving ? 'Guardando…' : 'Guardar cambios' }}
-                    </Button>
-                </template>
-            </PageHeader>
+                :icon="Building2"
+                variant="emerald"
+                :stats="heroStats"
+            />
 
             <CrmAlert v-if="error">{{ error }}</CrmAlert>
             <CrmAlert v-if="success" variant="success">{{ success }}</CrmAlert>
 
+            <CrmAnimatedSection :delay="80">
             <!-- Layout Split: Formulario (Izquierda) + Preview (Derecha) -->
             <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <!-- FORMULARIO (Izquierda - 2 columnas) -->
                 <div class="lg:col-span-2 space-y-6">
             <Tabs v-model="pestanaActiva" class="w-full">
-                <TabsList class="grid w-full grid-cols-4 lg:grid-cols-6">
+                <TabsList class="grid h-auto w-full grid-cols-3 gap-1 rounded-xl border border-border/50 bg-muted/30 p-1 sm:grid-cols-6">
                     <!-- 1. Datos Básicos -->
-                    <TabsTrigger value="empresa" class="text-xs">
+                    <TabsTrigger value="empresa" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <Building2 class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Empresa</span>
                         <span class="sm:hidden">Emp</span>
                     </TabsTrigger>
 
                     <!-- 2. Contacto y Redes -->
-                    <TabsTrigger value="contacto" class="text-xs">
+                    <TabsTrigger value="contacto" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <Smartphone class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Contacto</span>
                         <span class="sm:hidden">Con</span>
                     </TabsTrigger>
 
                     <!-- 3. Personalidad IA -->
-                    <TabsTrigger value="personalidad" class="text-xs">
+                    <TabsTrigger value="personalidad" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <MessageSquare class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Personalidad</span>
                         <span class="sm:hidden">Per</span>
                     </TabsTrigger>
 
                     <!-- 4. Flujo de Ventas -->
-                    <TabsTrigger value="flujo" class="text-xs">
+                    <TabsTrigger value="flujo" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <Zap class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Flujo</span>
                         <span class="sm:hidden">Flu</span>
                     </TabsTrigger>
 
                     <!-- 5. Métodos de Pago -->
-                    <TabsTrigger value="pago" class="text-xs">
+                    <TabsTrigger value="pago" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <CreditCard class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Pago</span>
                         <span class="sm:hidden">Pag</span>
                     </TabsTrigger>
 
                     <!-- 6. Entregas -->
-                    <TabsTrigger value="entregas" class="text-xs">
+                    <TabsTrigger value="entregas" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <Truck class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Entregas</span>
                         <span class="sm:hidden">Ent</span>
@@ -347,15 +362,13 @@ const monedas = [
 
                 <!-- TAB 1: DATOS DE EMPRESA -->
                 <TabsContent value="empresa" class="mt-6 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <Building2 class="h-5 w-5" />
-                                Datos de la Empresa
-                            </CardTitle>
-                            <CardDescription>Información básica de tu negocio</CardDescription>
-                        </CardHeader>
-                        <CardContent class="space-y-4">
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="Building2"
+                            title="Datos de la Empresa"
+                            description="Información básica de tu negocio"
+                        />
+                        <div class="space-y-4">
                             <div class="grid gap-4 md:grid-cols-2">
                                 <div class="space-y-2">
                                     <Label for="company_name">Nombre de la Empresa *</Label>
@@ -388,7 +401,7 @@ const monedas = [
                             <div class="space-y-2">
                                 <Label for="logo">Logo de la Empresa</Label>
                                 <div class="flex items-center gap-4">
-                                    <div v-if="form.logo_path" class="h-20 w-20 rounded-lg border border-gray-200 overflow-hidden">
+                                    <div v-if="form.logo_path" class="h-20 w-20 overflow-hidden rounded-xl border border-border/60">
                                         <img :src="form.logo_path" :alt="form.company_name" class="h-full w-full object-cover" />
                                     </div>
                                     <div class="flex-1">
@@ -397,21 +410,19 @@ const monedas = [
                                     </div>
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
                 </TabsContent>
 
                 <!-- TAB 2: CONTACTO Y REDES SOCIALES -->
                 <TabsContent value="contacto" class="mt-6 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <Smartphone class="h-5 w-5" />
-                                Información de Contacto
-                            </CardTitle>
-                            <CardDescription>Cómo pueden comunicarse contigo</CardDescription>
-                        </CardHeader>
-                        <CardContent class="space-y-4">
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="Smartphone"
+                            title="Información de Contacto"
+                            description="Cómo pueden comunicarse contigo"
+                        />
+                        <div class="space-y-4">
                             <div class="grid gap-4 md:grid-cols-2">
                                 <div class="space-y-2">
                                     <Label for="celular">Celular *</Label>
@@ -426,18 +437,16 @@ const monedas = [
                                 <Label for="website">Sitio Web (Opcional)</Label>
                                 <Input id="website" v-model="form.website" placeholder="https://miempresa.com" />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <Share2 class="h-5 w-5" />
-                                Redes Sociales (Opcional)
-                            </CardTitle>
-                            <CardDescription>Tus perfiles en redes sociales</CardDescription>
-                        </CardHeader>
-                        <CardContent class="grid gap-4 md:grid-cols-3">
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="Share2"
+                            title="Redes Sociales"
+                            description="Tus perfiles en redes sociales (opcional)"
+                        />
+                        <div class="grid gap-4 md:grid-cols-3">
                             <div class="space-y-2">
                                 <Label for="instagram">Instagram</Label>
                                 <Input id="instagram" v-model="form.social_networks.instagram" placeholder="@tuempresa" />
@@ -450,23 +459,19 @@ const monedas = [
                                 <Label for="tiktok">TikTok</Label>
                                 <Input id="tiktok" v-model="form.social_networks.tiktok" placeholder="@tuempresa" />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
                 </TabsContent>
 
                 <!-- TAB 3: PERSONALIDAD DEL BOT -->
                 <TabsContent value="personalidad" class="mt-6 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <MessageSquare class="h-5 w-5" />
-                                Identidad y Personalidad
-                            </CardTitle>
-                            <CardDescription>
-                                Describe quién es el bot, cómo habla y cómo debe tratar al cliente. Esto va directo al prompt de la IA.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent class="space-y-4">
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="MessageSquare"
+                            title="Identidad y personalidad"
+                            description="Quién es el bot, cómo habla y cómo trata al cliente. Va directo al prompt de la IA."
+                        />
+                        <div class="space-y-4">
                             <div class="space-y-2">
                                 <Label for="personalidad_bot">Personalidad del bot *</Label>
                                 <Textarea
@@ -489,18 +494,16 @@ const monedas = [
                                     :rows="3"
                                 />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <Bot class="h-5 w-5 text-purple-500" />
-                                Agente de Ventas IA
-                            </CardTitle>
-                            <CardDescription>Configura Gemini para respuestas automáticas en WhatsApp</CardDescription>
-                        </CardHeader>
-                        <CardContent class="space-y-6">
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="Bot"
+                            title="Agente de ventas IA"
+                            description="Configura Gemini para respuestas automáticas en WhatsApp"
+                        />
+                        <div class="space-y-6">
                             <div class="flex items-start gap-3">
                                 <Checkbox
                                     id="agente-activado"
@@ -563,20 +566,19 @@ const monedas = [
                                     />
                                 </div>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
                 </TabsContent>
 
                 <!-- TAB 4: MÉTODOS DE PAGO -->
                 <TabsContent value="pago" class="mt-6 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <DollarSign class="h-5 w-5" />
-                                Moneda
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="DollarSign"
+                            title="Moneda"
+                            description="Moneda de operación de la tienda"
+                        />
+                        <div>
                             <div class="space-y-2">
                                 <Label for="moneda">Moneda de Operación</Label>
                                 <select
@@ -589,24 +591,23 @@ const monedas = [
                                     </option>
                                 </select>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
 
-                    <Card>
-                        <CardHeader class="flex flex-row items-center justify-between">
-                            <div>
-                                <CardTitle class="flex items-center gap-2">
-                                    <CreditCard class="h-5 w-5" />
-                                    Métodos de Pago
-                                </CardTitle>
-                                <CardDescription>Configura las formas de pago aceptadas</CardDescription>
-                            </div>
-                            <Button @click="abrirModalMetodos" variant="outline" size="sm" class="gap-1">
-                                <Plus class="h-4 w-4" />
-                                Agregar
-                            </Button>
-                        </CardHeader>
-                        <CardContent class="space-y-4">
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="CreditCard"
+                            title="Métodos de pago"
+                            description="Configura las formas de pago aceptadas"
+                        >
+                            <template #actions>
+                                <Button @click="abrirModalMetodos" variant="outline" size="sm" class="gap-1">
+                                    <Plus class="h-4 w-4" />
+                                    Agregar
+                                </Button>
+                            </template>
+                        </ConfigSectionHeader>
+                        <div class="space-y-4">
                             <!-- Lista de métodos agregados -->
                             <div v-if="form.metodos_pago && form.metodos_pago.length > 0" class="grid gap-3">
                                 <div
@@ -656,8 +657,8 @@ const monedas = [
                                     Agregar método
                                 </Button>
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
 
                     <!-- Modal de Métodos de Pago -->
                     <Dialog :open="modalMetodosAbierto" @update:open="modalMetodosAbierto = $event">
@@ -810,15 +811,13 @@ const monedas = [
                         </DialogContent>
                     </Dialog>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <CreditCard class="h-5 w-5" />
-                                Comisión por Tarjeta
-                            </CardTitle>
-                            <CardDescription>Porcentaje adicional si el cliente paga con tarjeta</CardDescription>
-                        </CardHeader>
-                        <CardContent>
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="CreditCard"
+                            title="Comisión por tarjeta"
+                            description="Porcentaje adicional si el cliente paga con tarjeta"
+                        />
+                        <div>
                             <div class="space-y-2">
                                 <Label for="comision-tarjeta">Comisión (%)</Label>
                                 <Input
@@ -831,20 +830,16 @@ const monedas = [
                                     step="0.01"
                                 />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <Link2 class="h-5 w-5" />
-                                Link de pago tarjeta
-                            </CardTitle>
-                            <CardDescription>
-                                URL que envías desde el chat con un clic. El mensaje al cliente es solo el link.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent class="space-y-3">
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="Link2"
+                            title="Link de pago tarjeta"
+                            description="URL que envías desde el chat. El mensaje al cliente es solo el link."
+                        />
+                        <div class="space-y-3">
                             <div class="space-y-2">
                                 <Label for="link-pago-tarjeta">URL de pago</Label>
                                 <Input
@@ -860,20 +855,16 @@ const monedas = [
                                 <code class="rounded bg-muted px-1">{sale_id}</code>,
                                 <code class="rounded bg-muted px-1">{telefono}</code>
                             </p>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2">
-                                <FileText class="h-5 w-5" />
-                                Información Adicional
-                            </CardTitle>
-                            <CardDescription>
-                                Políticas generales de la tienda. Los métodos de pago concretos (Yape, tarjeta, etc.) se configuran arriba — no los repitas aquí.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent class="space-y-4">
+                    <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="FileText"
+                            title="Información adicional"
+                            description="Políticas generales. Los métodos concretos (Yape, tarjeta) se configuran arriba."
+                        />
+                        <div class="space-y-4">
                             <div class="space-y-2">
                                 <Label for="horario">Horario de Atención</Label>
                                 <Textarea id="horario" v-model="form.horario_atencion" placeholder="Lunes a Viernes: 9am - 8pm&#10;Sábado: 10am - 6pm&#10;Domingo: Cerrado" :rows="3" />
@@ -893,8 +884,8 @@ const monedas = [
                                 <Label for="info_extra">Información Adicional</Label>
                                 <Textarea id="info_extra" v-model="form.informacion_adicional" placeholder="Cualquier otra información que la IA deba saber..." :rows="3" />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </div>
+                    </CrmPanel>
                 </TabsContent>
 
                 <!-- TAB 5: FLUJO DE VENTAS -->
@@ -909,37 +900,30 @@ const monedas = [
 
             </Tabs>
 
-                    <!-- Botón guardar al final del formulario -->
-                    <div class="flex gap-2">
-                        <Button @click="guardarConfiguracion" :disabled="saving" class="gap-2 flex-1">
-                            <CheckCircle class="h-4 w-4" />
-                            {{ saving ? 'Guardando...' : 'Guardar Configuración' }}
-                        </Button>
-                    </div>
+                    <CrmStickySaveBar
+                        :saving="saving"
+                        hint="Los cambios actualizan el prompt de la IA al guardar."
+                        @save="guardarConfiguracion"
+                    />
 
-                    <Card class="border-red-200 dark:border-red-900">
-                        <CardHeader>
-                            <CardTitle class="flex items-center gap-2 text-red-700 dark:text-red-400">
-                                <AlertTriangle class="h-5 w-5" />
-                                Zona peligrosa
-                            </CardTitle>
-                            <CardDescription>
-                                Borra empresa, personalidad, pagos, flujo de ventas, zonas de delivery, API key de IA e historial de logs IA.
-                                No elimina productos, categorías ni conversaciones de WhatsApp.
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <Button
-                                variant="destructive"
-                                class="gap-2"
-                                :disabled="resetting"
-                                @click="modalResetAbierto = true"
-                            >
-                                <Trash2 class="h-4 w-4" />
-                                {{ resetting ? 'Restableciendo...' : 'Eliminar toda la configuración' }}
-                            </Button>
-                        </CardContent>
-                    </Card>
+                    <div class="mt-8 overflow-hidden rounded-2xl border border-red-500/30">
+                        <CrmPanel>
+                        <ConfigSectionHeader
+                            :icon="AlertTriangle"
+                            title="Zona peligrosa"
+                            description="Borra empresa, personalidad, pagos, flujo de ventas, zonas de delivery, API key de IA e historial de logs IA. No elimina productos, categorías ni conversaciones de WhatsApp."
+                        />
+                        <Button
+                            variant="destructive"
+                            class="gap-2"
+                            :disabled="resetting"
+                            @click="modalResetAbierto = true"
+                        >
+                            <Trash2 class="h-4 w-4" />
+                            {{ resetting ? 'Restableciendo...' : 'Eliminar toda la configuración' }}
+                        </Button>
+                        </CrmPanel>
+                    </div>
 
                     <Dialog v-model:open="modalResetAbierto">
                         <DialogContent>
@@ -978,8 +962,7 @@ const monedas = [
                 <!-- PREVIEW (Derecha - 1 columna) -->
                 <div class="lg:col-span-1">
                     <PreviewPrompt
-                        :prompt-completo="promptCompleto || form.prompt_preview || ''"
-                        :prompt-preview="form.prompt_preview || ''"
+                        :prompt-completo="promptCompleto"
                         :estadisticas="form.estadisticas || {}"
                         :probando="probandoIA"
                         :resultado-prueba="resultadoPruebaIA"
@@ -988,6 +971,7 @@ const monedas = [
                     />
                 </div>
             </div>
+            </CrmAnimatedSection>
         </div>
     </AppLayout>
 </template>

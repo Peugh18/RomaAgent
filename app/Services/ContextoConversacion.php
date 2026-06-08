@@ -13,6 +13,9 @@ use App\Support\NormalizadorStockTallas;
 use App\Support\PlantillasDatosEmpresa;
 use Illuminate\Support\Facades\Cache;
 
+/**
+ * Única fuente de verdad del prompt maestro para Gemini (runtime y preview admin).
+ */
 class ContextoConversacion
 {
     public function __construct(

@@ -9,7 +9,6 @@ use App\Models\Message;
 use App\Services\Agente\AgenteVendedor;
 use App\Services\ConfiguracionAgente;
 use App\Services\ConfiguracionEmpresa;
-use App\Services\ContextoConversacion;
 use App\Support\NormalizadorRespuestaAgente;
 use Illuminate\Support\Facades\Log;
 
@@ -17,7 +16,6 @@ class GenerarRespuestaAgente
 {
     public function __construct(
         private ConfiguracionAgente $configuracion,
-        private ContextoConversacion $contexto,
         private AgenteVendedor $agenteVendedor,
         private EnviarMensajeWhatsappSaliente $enviarMensaje,
         private NormalizadorRespuestaAgente $normalizadorRespuesta,

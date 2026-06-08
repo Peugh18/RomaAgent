@@ -1,10 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import CrmAlert from '@/components/crm/CrmAlert.vue';
 import CrmListCard from '@/components/crm/CrmListCard.vue';
 import CrmPagination from '@/components/crm/CrmPagination.vue';
 import CrmSearchBar from '@/components/crm/CrmSearchBar.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
 import CategoryEmptyState from '@/components/categories/CategoryEmptyState.vue';
 import CategoryTableSkeleton from '@/components/categories/CategoryTableSkeleton.vue';
 import { Badge } from '@/components/ui/badge';
@@ -140,17 +141,24 @@ onMounted(() => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="crm-page">
-            <PageHeader title="Categorías" description="Organiza el catálogo de productos.">
+            <CrmPageHero
+                title="Categorías"
+                description="Organiza el catálogo de productos."
+                :icon="FolderOpen"
+                variant="amber"
+                :stats="[{ label: 'Total', value: categories.length }]"
+            >
                 <template #actions>
-                    <Button class="gap-2" @click="showCreateModal = true">
+                    <Button class="gap-2 bg-emerald-600 hover:bg-emerald-700" @click="showCreateModal = true">
                         <Plus class="h-4 w-4" />
                         Nueva categoría
                     </Button>
                 </template>
-            </PageHeader>
+            </CrmPageHero>
 
             <CrmAlert v-if="error">{{ error }}</CrmAlert>
 
+            <CrmAnimatedSection :delay="80">
             <div class="crm-toolbar">
                 <CrmSearchBar v-model="searchQuery" placeholder="Buscar categoría…" :disabled="loading" />
             </div>
@@ -216,6 +224,7 @@ onMounted(() => {
                     />
                 </template>
             </CrmListCard>
+            </CrmAnimatedSection>
         </div>
 
         <!-- Modal para crear categoría -->

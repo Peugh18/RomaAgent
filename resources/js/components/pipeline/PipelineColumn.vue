@@ -78,7 +78,7 @@ const onColumnAdd = (event: SortableEvent) => {
     <Card
         :data-pipeline-status="status"
         :class="[
-            'min-w-[280px] flex-1 shrink-0 snap-center border-0 shadow-sm',
+            'min-w-[280px] flex-1 shrink-0 snap-center rounded-2xl border border-border/40 shadow-sm transition-shadow hover:shadow-md',
             statusConfig[status].bg,
             highlightAttention && sales.length > 0 ? 'ring-2 ring-amber-500/50 ring-offset-2 ring-offset-background' : '',
         ]"

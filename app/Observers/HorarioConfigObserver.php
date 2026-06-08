@@ -3,40 +3,29 @@
 namespace App\Observers;
 
 use App\Models\HorarioConfig;
-use Illuminate\Support\Facades\Cache;
+use App\Support\InvalidatesPromptCache;
+use Illuminate\Support\Facades\Log;
 
-/**
- * Observer que invalida caché del prompt cuando cambian horarios/políticas
- *
- * NOTA: Usa Cache::forget() simple para compatibilidad sin Redis
- */
 class HorarioConfigObserver
 {
+    use InvalidatesPromptCache;
+
     public function updated(HorarioConfig $horarioConfig): void
     {
-        $this->invalidarCache($horarioConfig);
+        $this->invalidar($horarioConfig);
     }
 
     public function created(HorarioConfig $horarioConfig): void
     {
-        $this->invalidarCache($horarioConfig);
+        $this->invalidar($horarioConfig);
     }
 
-    /**
-     * Invalida solo la sección de horarios y el prompt completo
-     */
-    private function invalidarCache(HorarioConfig $horarioConfig): void
+    private function invalidar(HorarioConfig $horarioConfig): void
     {
-        $configId = $horarioConfig->company_setting_id;
+        $this->invalidarCachePrompt($horarioConfig->company_setting_id);
 
-        // Invalidar solo la sección de horarios (sin tags, compatible con cualquier driver)
-        Cache::forget("seccion_horarios_{$configId}");
-
-        // Invalidar prompt completo
-        Cache::forget("prompt_unificado_v2_{$configId}");
-
-        \Log::info('Cache de horarios invalidada', [
-            'company_setting_id' => $configId,
+        Log::info('Cache de horarios invalidada', [
+            'company_setting_id' => $horarioConfig->company_setting_id,
         ]);
     }
 }

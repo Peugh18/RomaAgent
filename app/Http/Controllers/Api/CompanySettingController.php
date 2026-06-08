@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreCompanySettingRequest;
 use App\Models\CompanySetting;
 use App\Services\ConfiguracionEmpresa;
-use App\Services\Prompt\PromptBuilderService;
 use App\Support\NormalizadorStockTallas;
 use App\Support\PlantillasDatosEmpresa;
 use App\Support\SanitizadorMetodosPago;
@@ -83,11 +82,7 @@ class CompanySettingController extends Controller
         // 5. ACTUALIZAR HORARIOS (horario_configs)
         $this->actualizarHorarioConfig($companySetting, $validated);
 
-        // Invalidar caché legacy (para compatibilidad con código viejo)
         Cache::forget('contexto_prompt_completo_'.$configId);
-
-        // Invalidar caché nuevo (PromptBuilderService)
-        (new PromptBuilderService(new ConfiguracionEmpresa))->invalidarTodo($configId);
 
         return response()->json($this->buildSettingsResponse(new ConfiguracionEmpresa));
     }
@@ -293,8 +288,6 @@ class CompanySettingController extends Controller
             'configuracion_agente' => $datos['ia'],
 
             'estadisticas' => $datos['estadisticas'],
-
-            'prompt_preview' => $datos['prompt_preview'],
 
         ];
 

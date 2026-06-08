@@ -7,7 +7,7 @@ import AppSidebarHeader from '@/components/AppSidebarHeader.vue';
 import { setGlobalCurrency, type CurrencyCode } from '@/composables/useCurrency';
 import type { BreadcrumbItemType } from '@/types';
 import { usePage } from '@inertiajs/vue3';
-import { watch } from 'vue';
+import { computed, watch } from 'vue';
 
 interface Props {
     breadcrumbs?: BreadcrumbItemType[];
@@ -18,6 +18,7 @@ withDefaults(defineProps<Props>(), {
 });
 
 const page = usePage();
+const pageKey = computed(() => page.url.split('?')[0]);
 
 watch(
     () => page.props.company as { moneda?: CurrencyCode } | undefined,
@@ -36,7 +37,15 @@ watch(
         <AppContent variant="sidebar">
             <AlertaCuotaGeminiBanner />
             <AppSidebarHeader :breadcrumbs="breadcrumbs" />
-            <slot />
+            <div
+                :key="pageKey"
+                v-motion
+                :initial="{ opacity: 0, y: 10 }"
+                :enter="{ opacity: 1, y: 0, transition: { duration: 280, ease: 'easeOut' } }"
+                class="flex flex-1 flex-col"
+            >
+                <slot />
+            </div>
         </AppContent>
     </AppShell>
 </template>

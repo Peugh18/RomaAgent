@@ -1,10 +1,11 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import CrmAlert from '@/components/crm/CrmAlert.vue';
 import CrmListCard from '@/components/crm/CrmListCard.vue';
 import CrmPagination from '@/components/crm/CrmPagination.vue';
 import CrmSearchBar from '@/components/crm/CrmSearchBar.vue';
-import PageHeader from '@/components/crm/PageHeader.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
 import ProductEmptyState from '@/components/products/ProductEmptyState.vue';
 import ProductTableSkeleton from '@/components/products/ProductTableSkeleton.vue';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
 import { Plus, Edit, Trash2, Package, ImageOff } from 'lucide-vue-next';
 import { useCurrency } from '@/composables/useCurrency';
+import { normalizeLaravelPagination, type PaginatedResponse } from '@/lib/pagination';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Productos', href: '/productos' }];
@@ -40,16 +42,7 @@ interface ProductVariant {
     sizes_stock: Record<string, number>;
 }
 
-// Server-side Pagination State
-interface PaginatedProducts {
-    data: Product[];
-    current_page: number;
-    last_page: number;
-    per_page: number;
-    total: number;
-}
-
-const productsData = ref<PaginatedProducts | null>(null);
+const productsData = ref<PaginatedResponse<Product> | null>(null);
 const loading = ref(true);
 const loadError = ref<string | null>(null);
 const searchQuery = ref('');
@@ -73,7 +66,7 @@ const fetchProducts = async () => {
         });
 
         if (!response.ok) throw new Error('Error loading products');
-        productsData.value = await response.json();
+        productsData.value = normalizeLaravelPagination<Product>(await response.json());
     } catch (error) {
         loadError.value = error instanceof Error ? error.message : 'No se pudieron cargar los productos.';
         productsData.value = null;
@@ -93,6 +86,22 @@ const fromItem = computed(() => {
 const toItem = computed(() => {
     if (!productsData.value) return 0;
     return Math.min(fromItem.value + paginatedProducts.value.length - 1, totalItems.value);
+});
+
+const pageVariantsCount = computed(() =>
+    paginatedProducts.value.reduce((sum, product) => sum + product.variants.length, 0),
+);
+
+const heroStats = computed(() => {
+    const stats = [{ label: 'Total', value: totalItems.value }];
+
+    if (searchQuery.value.trim()) {
+        stats.push({ label: 'Filtrados', value: paginatedProducts.value.length });
+    } else if (pageVariantsCount.value > 0) {
+        stats.push({ label: 'Variantes', value: pageVariantsCount.value });
+    }
+
+    return stats;
 });
 
 // Debounced search: reset page to 1 and fetch
@@ -163,19 +172,26 @@ onMounted(() => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="crm-page">
-            <PageHeader title="Productos" description="Inventario, variantes por color y precios del catálogo.">
+            <CrmPageHero
+                title="Productos"
+                description="Inventario, variantes por color y precios del catálogo."
+                :icon="Package"
+                variant="violet"
+                :stats="heroStats"
+            >
                 <template #actions>
-                    <Button as-child>
+                    <Button as-child class="gap-2 bg-emerald-600 hover:bg-emerald-700">
                         <Link href="/productos/create" class="gap-2">
                             <Plus class="h-4 w-4" />
                             Nuevo producto
                         </Link>
                     </Button>
                 </template>
-            </PageHeader>
+            </CrmPageHero>
 
             <CrmAlert v-if="loadError">{{ loadError }}</CrmAlert>
 
+            <CrmAnimatedSection :delay="80">
             <div class="crm-toolbar">
                 <CrmSearchBar v-model="searchQuery" placeholder="Buscar producto…" :disabled="loading" />
             </div>
@@ -205,12 +221,12 @@ onMounted(() => {
                                 <TableRow v-for="product in paginatedProducts" :key="product.id" class="crm-table-row-action">
                                     <TableCell>
                                         <div class="flex items-center gap-3">
-                                            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-muted">
+                                            <div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border/50 bg-muted">
                                                 <img
                                                     v-if="getFirstVariantImage(product)"
                                                     :src="getFirstVariantImage(product)!"
                                                     :alt="product.name"
-                                                    class="h-full w-full rounded-md object-cover"
+                                                    class="h-full w-full object-cover"
                                                 />
                                                 <ImageOff v-else class="h-4 w-4 text-muted-foreground" />
                                             </div>
@@ -292,6 +308,7 @@ onMounted(() => {
                     />
                 </template>
             </CrmListCard>
+            </CrmAnimatedSection>
         </div>
     </AppLayout>
 </template>

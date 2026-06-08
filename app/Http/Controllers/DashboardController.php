@@ -15,11 +15,18 @@ class DashboardController extends Controller
     public function index(): Response
     {
         $hoy = now()->startOfDay();
+        $ayer = now()->subDay()->startOfDay();
+        $finAyer = now()->subDay()->endOfDay();
         $inicioMes = now()->startOfMonth();
 
         $ventasHoy = (float) Sale::query()
             ->where('status', '!=', SaleStatus::Cancelado)
             ->where('confirmed_at', '>=', $hoy)
+            ->sum('total_amount');
+
+        $ventasAyer = (float) Sale::query()
+            ->where('status', '!=', SaleStatus::Cancelado)
+            ->whereBetween('confirmed_at', [$ayer, $finAyer])
             ->sum('total_amount');
 
         $ventasMes = (float) Sale::query()
@@ -31,7 +38,6 @@ class DashboardController extends Controller
             ->whereIn('status', [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido])
             ->count();
 
-        // Queries individuales para métricas de otras entidades
         $conversacionesHoy = Message::query()
             ->where('created_at', '>=', $hoy)
             ->distinct('phone_number')
@@ -39,6 +45,10 @@ class DashboardController extends Controller
 
         $productosActivos = Product::query()
             ->where('status', Product::ESTADO_DISPONIBLE)
+            ->count();
+
+        $pedidosActivos = Sale::query()
+            ->whereNotIn('status', [SaleStatus::Cancelado, SaleStatus::Entregado])
             ->count();
 
         $pedidosRecientes = Sale::query()
@@ -59,7 +69,6 @@ class DashboardController extends Controller
                 'created_at' => $sale->created_at?->toIso8601String(),
             ]);
 
-        // Chart data: sales last 7 days
         $hace7Dias = now()->subDays(6)->startOfDay();
         $chartData = Sale::query()
             ->select([
@@ -75,7 +84,6 @@ class DashboardController extends Controller
             ->get()
             ->keyBy('date');
 
-        // Fill missing days with zeros
         $chart = collect(range(0, 6))->map(function (int $daysAgo) use ($chartData): array {
             $date = now()->subDays($daysAgo)->startOfDay();
             $dateStr = $date->toDateString();
@@ -83,11 +91,25 @@ class DashboardController extends Controller
 
             return [
                 'date' => $dateStr,
-                'label' => $date->format('D j'),
+                'label' => $date->locale('es')->isoFormat('ddd D'),
                 'sales' => (float) ($data->total ?? 0),
                 'orders' => (int) ($data->orders ?? 0),
             ];
         })->reverse()->values();
+
+        $pipelineOverview = Sale::query()
+            ->where('status', '!=', SaleStatus::Cancelado)
+            ->select('status', DB::raw('COUNT(*) as count'))
+            ->groupBy('status')
+            ->get()
+            ->map(fn ($row): array => [
+                'status' => $row->status->value,
+                'label' => $row->status->label(),
+                'count' => (int) $row->count,
+            ])
+            ->sortByDesc('count')
+            ->values()
+            ->all();
 
         return Inertia::render('Dashboard', [
             'stats' => [
@@ -95,10 +117,23 @@ class DashboardController extends Controller
                 'pendientes_pago' => $pendientesPago,
                 'productos_activos' => $productosActivos,
                 'ventas_hoy' => $ventasHoy,
+                'ventas_ayer' => $ventasAyer,
                 'ventas_mes' => $ventasMes,
+                'pedidos_activos' => $pedidosActivos,
+                'ventas_trend' => $this->calcularTendenciaPorcentual($ventasHoy, $ventasAyer),
             ],
             'pedidosRecientes' => $pedidosRecientes,
             'chartData' => $chart,
+            'pipelineOverview' => $pipelineOverview,
         ]);
+    }
+
+    private function calcularTendenciaPorcentual(float $actual, float $anterior): ?float
+    {
+        if ($anterior <= 0) {
+            return $actual > 0 ? 100.0 : null;
+        }
+
+        return round((($actual - $anterior) / $anterior) * 100, 1);
     }
 }

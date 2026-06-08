@@ -182,13 +182,3 @@ export function usePipelineArchive() {
         loadArchive,
     };
 }
-
-/** @deprecated Usar usePipelineArchive */
-export function usePipelineHistory() {
-    const { loadArchive, ...rest } = usePipelineArchive();
-
-    return {
-        ...rest,
-        loadHistory: loadArchive,
-    };
-}

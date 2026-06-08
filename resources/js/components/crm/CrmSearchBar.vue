@@ -34,7 +34,7 @@ const clear = () => {
             :model-value="modelValue"
             :placeholder="placeholder"
             :disabled="disabled"
-            class="h-10 pl-9 pr-9"
+            class="h-10 border-border/60 bg-background/80 pl-9 pr-9 shadow-sm backdrop-blur-sm transition focus-visible:ring-emerald-500/30"
             @update:model-value="emit('update:modelValue', String($event))"
         />
         <button

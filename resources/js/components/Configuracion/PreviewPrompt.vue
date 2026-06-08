@@ -1,12 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import CrmPanel from '@/components/crm/CrmPanel.vue';
 import { Button } from '@/components/ui/button';
 import { Copy, Download, Zap, CheckCircle, AlertCircle } from 'lucide-vue-next';
 
 interface Props {
     promptCompleto: string;
-    promptPreview: string;
     probando?: boolean;
     resultadoPrueba?: string | null;
     errorPrueba?: string | null;
@@ -28,7 +27,7 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const promptVisible = computed(() => props.promptCompleto || props.promptPreview || '');
+const promptVisible = computed(() => props.promptCompleto || 'Cargando prompt...');
 
 const est = computed(() => {
     return {
@@ -68,12 +67,8 @@ const descargarPrompt = () => {
 
 <template>
     <div class="sticky top-6 space-y-4">
-        <!-- Estadísticas -->
-        <Card>
-            <CardHeader class="pb-3">
-                <CardTitle class="text-lg">Estadísticas</CardTitle>
-            </CardHeader>
-            <CardContent class="space-y-4">
+        <CrmPanel title="Estadísticas">
+            <div class="space-y-4">
                 <!-- Completitud -->
                 <div>
                     <div class="flex items-center justify-between mb-2">
@@ -82,7 +77,7 @@ const descargarPrompt = () => {
                             {{ est.completitud }}%
                         </span>
                     </div>
-                    <div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+                    <div class="h-2 w-full rounded-full bg-muted">
                         <div
                             class="h-2 rounded-full transition-all duration-300"
                             :class="
@@ -151,21 +146,13 @@ const descargarPrompt = () => {
                         </li>
                     </ul>
                 </div>
-            </CardContent>
-        </Card>
+            </div>
+        </CrmPanel>
 
-        <!-- Preview del Prompt -->
-        <Card>
-            <CardHeader class="pb-3">
-                <CardTitle class="text-lg flex items-center gap-2">
-                    <Zap class="h-5 w-5" />
-                    Preview del Prompt
-                </CardTitle>
-                <CardDescription>Prompt completo que usa la IA. Se actualiza al guardar.</CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-3">
-                <div class="max-h-96 overflow-y-auto rounded-lg border border-gray-200 bg-gray-900 p-3 dark:border-gray-700">
-                    <pre class="text-xs text-gray-100 font-mono whitespace-pre-wrap break-words">{{ promptVisible }}</pre>
+        <CrmPanel title="Preview del Prompt" description="Prompt completo que usa la IA. Se actualiza al guardar.">
+            <div class="space-y-3">
+                <div class="max-h-96 overflow-y-auto rounded-xl border border-border/60 bg-zinc-950 p-3">
+                    <pre class="whitespace-pre-wrap break-words font-mono text-xs text-zinc-100">{{ promptVisible }}</pre>
                 </div>
 
                 <div class="flex gap-2">
@@ -179,7 +166,11 @@ const descargarPrompt = () => {
                     </Button>
                 </div>
 
-                <Button @click="emit('probarIA')" :disabled="!est.esta_lista || props.probando" class="w-full gap-2">
+                <Button
+                    @click="emit('probarIA')"
+                    :disabled="!est.esta_lista || props.probando"
+                    class="w-full gap-2 bg-emerald-600 hover:bg-emerald-700"
+                >
                     <Zap class="h-4 w-4" />
                     {{ props.probando ? 'Probando...' : 'Probar IA' }}
                 </Button>
@@ -190,7 +181,7 @@ const descargarPrompt = () => {
                 <p v-if="props.errorPrueba" class="rounded-md bg-red-50 p-2 text-xs text-red-800 dark:bg-red-950 dark:text-red-200">
                     {{ props.errorPrueba }}
                 </p>
-            </CardContent>
-        </Card>
+            </div>
+        </CrmPanel>
     </div>
 </template>

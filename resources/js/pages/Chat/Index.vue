@@ -6,6 +6,8 @@ import ChatMessageBubble from '@/components/chat/ChatMessageBubble.vue';
 import ChatSalePanel from '@/components/chat/ChatSalePanel.vue';
 import ChatThreadHeader from '@/components/chat/ChatThreadHeader.vue';
 import SaleTransitionModal from '@/components/sales/SaleTransitionModal.vue';
+import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
+import CrmPageHero from '@/components/crm/CrmPageHero.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useChat } from '@/composables/useChat';
 import { useHumanAttentionAlert } from '@/composables/useHumanAttentionAlert';
@@ -14,7 +16,7 @@ import { type BreadcrumbItem } from '@/types';
 import type { Sale, SaleTransition } from '@/types/sale';
 import { Head } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
-import { Bot, Loader2 } from 'lucide-vue-next';
+import { Bot, Loader2, MessageSquare } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Chat WhatsApp', href: '/chat' }];
 
@@ -89,8 +91,18 @@ const openTransition = (transition: SaleTransition) => {
         />
 
         <div class="crm-page !gap-4 pb-4 pt-2">
+            <CrmPageHero
+                compact
+                title="Chat WhatsApp"
+                description="Conversaciones en tiempo real. Cambia a modo humano para responder manualmente."
+                :icon="MessageSquare"
+                variant="emerald"
+                :stats="[{ label: 'Conversaciones', value: conversations.length }]"
+            />
+
+            <CrmAnimatedSection :delay="60">
             <div
-                class="flex h-[calc(100vh-7.5rem)] min-h-[32rem] flex-col gap-4 overflow-hidden lg:flex-row lg:gap-0 lg:rounded-xl lg:border lg:border-border lg:shadow-sm"
+                class="flex h-[calc(100vh-11rem)] min-h-[32rem] flex-col gap-4 overflow-hidden lg:flex-row lg:gap-0 lg:rounded-2xl lg:border lg:border-border/50 lg:shadow-md"
             >
             <ChatConversationList
                 :conversations="conversations"
@@ -173,6 +185,7 @@ const openTransition = (transition: SaleTransition) => {
                 @completed="onTransitionCompleted"
             />
         </div>
+            </CrmAnimatedSection>
         </div>
     </AppLayout>
 </template>
