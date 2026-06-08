@@ -12,6 +12,7 @@ interface NavItem {
 
 defineProps<{
     items: NavItem[];
+    groupLabel?: string;
 }>();
 
 const page = usePage<SharedData>();
@@ -25,7 +26,7 @@ const isActive = (url: string) => {
 
 <template>
     <SidebarGroup class="px-2 py-0">
-        <SidebarGroupLabel>RomaAgent</SidebarGroupLabel>
+        <SidebarGroupLabel>{{ groupLabel || 'RomaAgent' }}</SidebarGroupLabel>
         <SidebarMenu>
             <SidebarMenuItem v-for="item in items" :key="item.title">
                 <SidebarMenuButton as-child :is-active="isActive(item.url)">

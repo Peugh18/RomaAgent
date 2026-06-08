@@ -9,3 +9,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('pedidos:recordatorios')->everyMinute();
+
+Schedule::command('vision:diagnostics')->weekly();

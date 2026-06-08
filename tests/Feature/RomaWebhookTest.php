@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\EsperarRespuestaAgenteJob;
 use App\Jobs\GenerarRespuestaAgenteJob;
 use App\Jobs\ProcessMediaThenRespondJob;
 use App\Models\CompanySetting;
@@ -73,9 +74,10 @@ class RomaWebhookTest extends TestCase
             'X-Roma-Sync-Token' => 'test-sync-token',
         ])->assertOk();
 
-        Queue::assertPushed(GenerarRespuestaAgenteJob::class, function (GenerarRespuestaAgenteJob $job): bool {
-            return $job->mensajeEntrante->phone_number === '51988887777';
+        Queue::assertPushed(EsperarRespuestaAgenteJob::class, function (EsperarRespuestaAgenteJob $job): bool {
+            return $job->phoneNumber === '51988887777';
         });
+        Queue::assertNotPushed(GenerarRespuestaAgenteJob::class);
     }
 
     public function test_does_not_dispatch_ia_job_when_agent_is_disabled(): void
@@ -93,6 +95,7 @@ class RomaWebhookTest extends TestCase
             'X-Roma-Sync-Token' => 'test-sync-token',
         ])->assertOk();
 
+        Queue::assertNotPushed(EsperarRespuestaAgenteJob::class);
         Queue::assertNotPushed(GenerarRespuestaAgenteJob::class);
     }
 
@@ -142,7 +145,7 @@ class RomaWebhookTest extends TestCase
         $this->assertSame(-77.042793, $message->metadata['longitude'] ?? null);
         $this->assertStringContainsString('google.com/maps', (string) ($message->metadata['maps_url'] ?? ''));
 
-        Queue::assertPushed(GenerarRespuestaAgenteJob::class);
+        Queue::assertPushed(EsperarRespuestaAgenteJob::class);
     }
 
     public function test_dispatches_media_job_for_inbound_audio(): void

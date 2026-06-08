@@ -17,6 +17,8 @@ class GenerarRespuestaAgenteJob implements ShouldBeUnique, ShouldQueue
 
     public int $tries = 4;
 
+    public int $timeout = 240;
+
     public int $uniqueFor = 30;
 
     public function __construct(public Message $mensajeEntrante) {}

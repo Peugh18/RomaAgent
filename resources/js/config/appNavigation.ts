@@ -1,10 +1,12 @@
 import {
+    Brain,
     FolderTree,
     Kanban,
     LayoutGrid,
     MapPin,
     MessageSquare,
     Package,
+    Sparkles,
     Settings2,
     Users,
 } from 'lucide-vue-next';
@@ -25,4 +27,9 @@ export const mainNavItems: AppNavItem[] = [
     { title: 'Categorías', href: '/categorias', icon: FolderTree },
     { title: 'Zonas de delivery', href: '/zonas-delivery', icon: MapPin },
     { title: 'Configuración', href: '/configuracion', icon: Settings2 },
+];
+
+export const trainingNavItems: AppNavItem[] = [
+    { title: 'Entrenamiento visión', href: '/admin/vision/training', icon: Brain },
+    { title: 'Embeddings', href: '/admin/vision/embeddings', icon: Sparkles },
 ];

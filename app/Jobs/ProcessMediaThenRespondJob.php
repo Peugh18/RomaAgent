@@ -5,10 +5,14 @@ namespace App\Jobs;
 use App\Actions\GenerarRespuestaAgente;
 use App\Exceptions\GeminiQuotaExceededException;
 use App\Models\Message;
+use App\Models\ProductVariant;
+use App\Services\EncolarRespuestaAgente;
 use App\Services\Media\AudioTranscriber;
 use App\Services\Media\DescargadorMediaWhatsapp;
 use App\Services\Media\ImageAnalyzer;
 use App\Services\Vision\CatalogoImageMatcher;
+use App\Services\Vision\HybridImageMatcher;
+use App\Services\Vision\VisionLearningService;
 use App\Support\MessageBroadcaster;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -23,6 +27,8 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public int $tries = 5;
+
+    public int $timeout = 300;
 
     public int $uniqueFor = 300;
 
@@ -45,6 +51,8 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         AudioTranscriber $transcriber,
         ImageAnalyzer $analyzer,
         CatalogoImageMatcher $matcher,
+        HybridImageMatcher $hybridMatcher,
+        VisionLearningService $learningService,
         GenerarRespuestaAgente $agente,
         DescargadorMediaWhatsapp $descargadorMedia,
     ): void {
@@ -61,7 +69,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
             if ($type === 'audio') {
                 $enriquecido = $this->procesarAudio($message, $meta, $transcriber, $descargadorMedia);
             } elseif ($type === 'image') {
-                $enriquecido = $this->procesarImagen($message, $meta, $analyzer, $matcher, $descargadorMedia);
+                $enriquecido = $this->procesarImagen($message, $meta, $analyzer, $matcher, $hybridMatcher, $learningService, $descargadorMedia);
             }
         } catch (GeminiQuotaExceededException $e) {
             Log::warning('ProcessMediaThenRespondJob: cuota Gemini excedida, reintentando', [
@@ -104,11 +112,31 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
                 return;
             }
 
+            if ($type === 'audio' && $this->debeReintentarTranscripcion($message)) {
+                $reintentoEn = $this->backoff()[$this->attempts() - 1] ?? 60;
+
+                Log::warning('ProcessMediaThenRespondJob: transcripción fallida, reintentando', [
+                    'msg' => $message->id,
+                    'attempt' => $this->attempts(),
+                    'retry_in' => $reintentoEn,
+                ]);
+                $this->release($reintentoEn);
+
+                return;
+            }
+
             if ($this->faltaArchivoLocal($message, $type)) {
                 $this->marcarAnalisisFallido(
                     $message,
                     $type,
                     'No se pudo descargar el archivo de WhatsApp. Renueva WHATSAPP_ACCESS_TOKEN en .env.',
+                );
+                $message = $message->fresh();
+            } elseif ($type === 'audio' && $this->faltaTranscripcion($message)) {
+                $this->marcarAnalisisFallido(
+                    $message,
+                    $type,
+                    'No se pudo transcribir el audio después de varios intentos.',
                 );
                 $message = $message->fresh();
             }
@@ -132,7 +160,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        GenerarRespuestaAgenteJob::dispatch($message);
+        app(EncolarRespuestaAgente::class)->despachar($message);
     }
 
     /**
@@ -150,7 +178,16 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         }
 
         $text = $transcriber->transcribeFromUrl($this->resolveAbsoluteUrl($audioUrl), 'es');
-        if (! is_string($text) || $text === '' || $text === '[inaudible]') {
+
+        if ($text === null) {
+            Log::warning('ProcessMediaThenRespondJob: API de transcripción no respondió', [
+                'msg' => $message->id,
+            ]);
+
+            return false;
+        }
+
+        if ($text === '' || $text === '[inaudible]') {
             $meta = is_array($message->metadata) ? $message->metadata : [];
             $meta['transcript_failed'] = true;
             $message->metadata = $meta;
@@ -182,6 +219,8 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         array $meta,
         ImageAnalyzer $analyzer,
         CatalogoImageMatcher $matcher,
+        HybridImageMatcher $hybridMatcher,
+        VisionLearningService $learningService,
         DescargadorMediaWhatsapp $descargadorMedia,
     ): bool {
         $imgUrl = $this->resolverRutaMedia($message, $meta, 'image', $descargadorMedia);
@@ -210,7 +249,18 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         }
 
         $inboundProfile = is_array($res['inbound_profile'] ?? null) ? $res['inbound_profile'] : [];
-        $matchResult = $matcher->match($inboundProfile);
+        $visionAnterior = is_array($meta['vision'] ?? null) ? $meta['vision'] : [];
+
+        if ($this->debePreservarPerfilVisionAnterior($inboundProfile, $visionAnterior)) {
+            $inboundProfile = is_array($visionAnterior['inbound_profile'] ?? null)
+                ? $visionAnterior['inbound_profile']
+                : $inboundProfile;
+            $res['caption'] = is_string($visionAnterior['caption'] ?? null) && trim($visionAnterior['caption']) !== ''
+                ? trim($visionAnterior['caption'])
+                : $res['caption'];
+        }
+
+        $matchResult = $this->resolverMatchCatalogo($matcher, $hybridMatcher, $inboundProfile, $captionCliente);
 
         $meta['vision'] = [
             'caption' => $res['caption'],
@@ -219,13 +269,23 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
             'mejor_match' => $matchResult['mejor_match'],
             'confianza_final' => $matchResult['confianza_final'],
             'nivel' => $matchResult['nivel'],
+            'estrategia' => $matchResult['estrategia'] ?? 'textual',
+            'recomendaciones' => $matchResult['recomendaciones'] ?? [],
         ];
         if ($captionCliente !== '') {
             $meta['vision']['caption_cliente'] = $captionCliente;
         }
         $meta['vision_provider'] = 'gemini';
-        unset($meta['media_download_failed']);
+        unset($meta['media_download_failed'], $meta['vision_failed'], $meta['vision_error']);
         $message->metadata = $meta;
+
+        $this->registrarMatchParaEntrenamiento(
+            $learningService,
+            $inboundProfile,
+            $matchResult,
+            $imgUrl,
+            $message->id,
+        );
 
         $contenido = $captionCliente !== ''
             ? '[Imagen — clienta: '.$captionCliente.'] '.$res['caption']
@@ -326,6 +386,36 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         return empty($meta['vision']['caption'] ?? null);
     }
 
+    private function debeReintentarTranscripcion(Message $message): bool
+    {
+        if ($this->attempts() >= $this->tries) {
+            return false;
+        }
+
+        $meta = is_array($message->metadata) ? $message->metadata : [];
+
+        if (! is_string($meta['local_url'] ?? null) || $meta['local_url'] === '') {
+            return false;
+        }
+
+        if (is_string($meta['transcript'] ?? null) && trim($meta['transcript']) !== '') {
+            return false;
+        }
+
+        return ! ($meta['transcript_failed'] ?? false);
+    }
+
+    private function faltaTranscripcion(Message $message): bool
+    {
+        $meta = is_array($message->metadata) ? $message->metadata : [];
+
+        if (! is_string($meta['local_url'] ?? null) || $meta['local_url'] === '') {
+            return false;
+        }
+
+        return ! is_string($meta['transcript'] ?? null) || trim($meta['transcript']) === '';
+    }
+
     /**
      * @param  array<string, mixed>  $meta
      */
@@ -347,6 +437,123 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         }
 
         return '';
+    }
+
+    /**
+     * @param  array<string, mixed>  $inboundProfile
+     * @return array<string, mixed>
+     */
+    private function resolverMatchCatalogo(
+        CatalogoImageMatcher $matcher,
+        HybridImageMatcher $hybridMatcher,
+        array $inboundProfile,
+        string $captionCliente,
+    ): array {
+        $hayEmbeddings = ProductVariant::query()->whereNotNull('image_embedding')->exists();
+
+        $resultadoTextual = $matcher->match($inboundProfile);
+
+        if ($hayEmbeddings) {
+            try {
+                $resultadoHibrido = $hybridMatcher->matchHibrido($inboundProfile, $captionCliente !== '' ? $captionCliente : null);
+
+                if (($resultadoHibrido['confianza_final'] ?? 0.0) > 0.0) {
+                    return $resultadoHibrido;
+                }
+
+                if (($resultadoTextual['confianza_final'] ?? 0.0) >= 0.50) {
+                    Log::info('ProcessMediaThenRespondJob: híbrido sin umbral, fallback textual', [
+                        'confianza_textual' => $resultadoTextual['confianza_final'],
+                        'mejor_match' => $resultadoTextual['mejor_match']['product_name'] ?? null,
+                    ]);
+
+                    return array_merge($resultadoTextual, [
+                        'estrategia' => 'textual_fallback',
+                        'recomendaciones' => ['confirmar_gentimente_producto'],
+                    ]);
+                }
+
+                return $resultadoHibrido;
+            } catch (\Throwable $e) {
+                Log::warning('ProcessMediaThenRespondJob: matcher híbrido falló, usando textual', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $resultadoTextual;
+    }
+
+    /**
+     * @param  array<string, mixed>  $inboundProfile
+     * @param  array<string, mixed>  $matchResult
+     */
+    private function registrarMatchParaEntrenamiento(
+        VisionLearningService $learningService,
+        array $inboundProfile,
+        array $matchResult,
+        string $imageUrl,
+        int $messageId,
+    ): void {
+        if (($inboundProfile['tipo'] ?? '') === 'comprobante' || ($inboundProfile['es_comprobante'] ?? false) === true) {
+            return;
+        }
+
+        $mejorMatch = is_array($matchResult['mejor_match'] ?? null) ? $matchResult['mejor_match'] : null;
+        $variantId = (int) ($mejorMatch['variant_id'] ?? 0);
+        if ($variantId <= 0) {
+            return;
+        }
+
+        try {
+            $learningService->registrarMatchDetectado($variantId, [
+                'message_id' => $messageId,
+                'image_url' => $imageUrl,
+                'predicted_product' => $mejorMatch['product_name'] ?? null,
+                'predicted_color' => $mejorMatch['color'] ?? null,
+                'confianza_analisis' => (float) ($matchResult['confianza_final'] ?? 0),
+                'estrategia' => $matchResult['estrategia'] ?? 'textual',
+                'tipo_prenda' => $inboundProfile['tipo_prenda'] ?? null,
+                'nivel' => $matchResult['nivel'] ?? null,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('ProcessMediaThenRespondJob: no se pudo registrar match para entrenamiento', [
+                'message_id' => $messageId,
+                'variant_id' => $variantId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $inboundProfile
+     * @param  array<string, mixed>  $visionAnterior
+     */
+    private function debePreservarPerfilVisionAnterior(array $inboundProfile, array $visionAnterior): bool
+    {
+        $perfilAnterior = is_array($visionAnterior['inbound_profile'] ?? null)
+            ? $visionAnterior['inbound_profile']
+            : [];
+
+        return $this->esPerfilVisionCompleto($perfilAnterior)
+            && ! $this->esPerfilVisionCompleto($inboundProfile);
+    }
+
+    /**
+     * @param  array<string, mixed>  $perfil
+     */
+    private function esPerfilVisionCompleto(array $perfil): bool
+    {
+        if (($perfil['tipo'] ?? '') === 'comprobante' || ($perfil['es_comprobante'] ?? false) === true) {
+            return true;
+        }
+
+        $tienePrenda = is_string($perfil['tipo_prenda'] ?? null) && trim($perfil['tipo_prenda']) !== '';
+        $tieneColor = is_string($perfil['color_dominante'] ?? null) && trim($perfil['color_dominante']) !== ''
+            || (is_array($perfil['colores_dominantes'] ?? null) && $perfil['colores_dominantes'] !== []);
+        $tieneDescripcion = is_string($perfil['descripcion_prenda'] ?? null) && trim($perfil['descripcion_prenda']) !== '';
+
+        return $tienePrenda && $tieneColor && $tieneDescripcion;
     }
 
     private function marcarAnalisisFallido(Message $message, string $type, string $error): void

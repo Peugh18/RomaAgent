@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -42,5 +43,34 @@ class MediaProxyControllerTest extends TestCase
         $this->actingAs($user)
             ->get('/media/proxy?url='.urlencode('https://evil.example.com/media.jpg'))
             ->assertForbidden();
+    }
+
+    public function test_proxies_whatsapp_cdn_with_access_token(): void
+    {
+        config([
+            'services.whatsapp.access_token' => 'test-wa-token',
+        ]);
+
+        $metaUrl = 'https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=123';
+
+        Http::fake([
+            $metaUrl => Http::response('jpeg-bytes', 200, [
+                'Content-Type' => 'image/jpeg',
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(
+            '/media/proxy?url='.urlencode($metaUrl),
+        );
+
+        $response->assertOk();
+        $response->assertHeader('Content-Type', 'image/jpeg');
+
+        Http::assertSent(function ($request) use ($metaUrl) {
+            return $request->url() === $metaUrl
+                && $request->header('Authorization')[0] === 'Bearer test-wa-token';
+        });
     }
 }

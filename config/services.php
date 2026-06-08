@@ -44,4 +44,8 @@ return [
         'webhook_secret' => env('ROMA_WEBHOOK_SECRET'),
     ],
 
+    'agente' => [
+        'debounce_seconds' => (int) env('AGENTE_DEBOUNCE_SECONDS', 8),
+    ],
+
 ];

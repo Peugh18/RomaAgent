@@ -2,7 +2,7 @@
 
 namespace Tests\Feature;
 
-use App\Jobs\GenerarRespuestaAgenteJob;
+use App\Jobs\EsperarRespuestaAgenteJob;
 use App\Jobs\ProcessMediaThenRespondJob;
 use App\Models\CompanySetting;
 use App\Models\Message;
@@ -42,7 +42,7 @@ class RomaWebhookIdempotencyTest extends TestCase
         $this->postJson('/api/roma/messages', $payload, $headers)->assertOk();
         $this->postJson('/api/roma/messages', $payload, $headers)->assertOk();
 
-        Queue::assertPushed(GenerarRespuestaAgenteJob::class, 1);
+        Queue::assertPushed(EsperarRespuestaAgenteJob::class, 1);
         $this->assertSame(1, Message::query()->where('message_id', 'wamid.duplicate123')->count());
     }
 

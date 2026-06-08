@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Actions\GenerarRespuestaAgente;
-use App\Jobs\GenerarRespuestaAgenteJob;
+use App\Jobs\EsperarRespuestaAgenteJob;
 use App\Jobs\ProcessMediaThenRespondJob;
 use App\Models\CompanySetting;
 use App\Models\Customer;
@@ -12,6 +12,8 @@ use App\Services\Media\AudioTranscriber;
 use App\Services\Media\DescargadorMediaWhatsapp;
 use App\Services\Media\ImageAnalyzer;
 use App\Services\Vision\CatalogoImageMatcher;
+use App\Services\Vision\HybridImageMatcher;
+use App\Services\Vision\VisionLearningService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -23,7 +25,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
 
     public function test_audio_message_dispatches_ia_job_after_transcription(): void
     {
-        Queue::fake([GenerarRespuestaAgenteJob::class]);
+        Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
             'agente_ia_modelo' => 'gemini-2.5-flash',
@@ -56,6 +58,8 @@ class ProcessMediaThenRespondJobTest extends TestCase
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
             app(CatalogoImageMatcher::class),
+            app(HybridImageMatcher::class),
+            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -66,14 +70,14 @@ class ProcessMediaThenRespondJobTest extends TestCase
         $this->assertSame('Quiero el Aurora naranja', $message->content);
         $this->assertSame('Quiero el Aurora naranja', $message->metadata['transcript'] ?? null);
 
-        Queue::assertPushed(GenerarRespuestaAgenteJob::class, function (GenerarRespuestaAgenteJob $job) use ($message): bool {
-            return $job->mensajeEntrante->id === $message->id;
+        Queue::assertPushed(EsperarRespuestaAgenteJob::class, function (EsperarRespuestaAgenteJob $job) use ($message): bool {
+            return $job->phoneNumber === $message->phone_number;
         });
     }
 
     public function test_image_message_dispatches_ia_job_after_vision_analysis(): void
     {
-        Queue::fake([GenerarRespuestaAgenteJob::class]);
+        Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
             'agente_ia_modelo' => 'gemini-2.5-flash',
@@ -112,6 +116,8 @@ class ProcessMediaThenRespondJobTest extends TestCase
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
             app(CatalogoImageMatcher::class),
+            app(HybridImageMatcher::class),
+            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -122,12 +128,72 @@ class ProcessMediaThenRespondJobTest extends TestCase
         $this->assertStringContainsString('Captura de Yape', $message->content);
         $this->assertSame('comprobante', $message->metadata['vision']['inbound_profile']['tipo'] ?? null);
 
-        Queue::assertPushed(GenerarRespuestaAgenteJob::class);
+        Queue::assertPushed(EsperarRespuestaAgenteJob::class);
+    }
+
+    public function test_successful_image_analysis_clears_previous_vision_failed_flag(): void
+    {
+        Queue::fake([EsperarRespuestaAgenteJob::class]);
+
+        CompanySetting::factory()->withIaEnabled()->create([
+            'agente_ia_modelo' => 'gemini-2.5-flash',
+        ]);
+
+        $relativePath = 'inbound-media/vestido-retry.jpg';
+        $fullPath = storage_path('app/public/'.$relativePath);
+        if (! is_dir(dirname($fullPath))) {
+            mkdir(dirname($fullPath), 0777, true);
+        }
+        file_put_contents($fullPath, 'fake-jpeg');
+
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [
+                    ['content' => ['parts' => [[
+                        'text' => json_encode([
+                            'tipo' => 'producto',
+                            'tipo_prenda' => 'vestido',
+                            'color_dominante' => 'rojo',
+                            'descripcion_prenda' => 'Vestido largo rojo con patrón zigzag',
+                        ]),
+                    ]]]],
+                ],
+            ]),
+        ]);
+
+        $message = Message::factory()->incoming()->create([
+            'content' => '📷 Imagen',
+            'metadata' => [
+                'type' => 'image',
+                'local_url' => '/storage/'.$relativePath,
+                'vision_failed' => true,
+                'vision_error' => 'No se pudo analizar',
+            ],
+        ]);
+
+        (new ProcessMediaThenRespondJob($message->id))->handle(
+            app(AudioTranscriber::class),
+            app(ImageAnalyzer::class),
+            app(CatalogoImageMatcher::class),
+            app(HybridImageMatcher::class),
+            app(VisionLearningService::class),
+            app(GenerarRespuestaAgente::class),
+            app(DescargadorMediaWhatsapp::class),
+        );
+
+        @unlink($fullPath);
+
+        $message->refresh();
+        $this->assertArrayNotHasKey('vision_failed', $message->metadata);
+        $this->assertArrayNotHasKey('vision_error', $message->metadata);
+        $this->assertSame('vestido', $message->metadata['vision']['inbound_profile']['tipo_prenda'] ?? null);
+
+        Queue::assertPushed(EsperarRespuestaAgenteJob::class);
     }
 
     public function test_does_not_dispatch_ia_job_when_customer_is_paused(): void
     {
-        Queue::fake([GenerarRespuestaAgenteJob::class]);
+        Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create();
 
@@ -148,16 +214,18 @@ class ProcessMediaThenRespondJobTest extends TestCase
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
             app(CatalogoImageMatcher::class),
+            app(HybridImageMatcher::class),
+            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
 
-        Queue::assertNotPushed(GenerarRespuestaAgenteJob::class);
+        Queue::assertNotPushed(EsperarRespuestaAgenteJob::class);
     }
 
     public function test_audio_reintenta_descarga_desde_whatsapp_raw_si_falta_local_url(): void
     {
-        Queue::fake([GenerarRespuestaAgenteJob::class]);
+        Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
             'agente_ia_modelo' => 'gemini-2.5-flash',
@@ -197,6 +265,8 @@ class ProcessMediaThenRespondJobTest extends TestCase
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
             app(CatalogoImageMatcher::class),
+            app(HybridImageMatcher::class),
+            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -206,6 +276,66 @@ class ProcessMediaThenRespondJobTest extends TestCase
         $this->assertSame('Quiero el Mariela lila', $message->content);
         $this->assertSame('Quiero el Mariela lila', $message->metadata['transcript'] ?? null);
 
-        Queue::assertPushed(GenerarRespuestaAgenteJob::class);
+        Queue::assertPushed(EsperarRespuestaAgenteJob::class);
+    }
+
+    public function test_audio_reintenta_tras_error_503_de_gemini(): void
+    {
+        Queue::fake([EsperarRespuestaAgenteJob::class]);
+
+        CompanySetting::factory()->withIaEnabled()->create([
+            'agente_ia_modelo' => 'gemini-2.5-flash',
+        ]);
+
+        $relativePath = 'inbound-media/audio-503.ogg';
+        $fullPath = storage_path('app/public/'.$relativePath);
+        if (! is_dir(dirname($fullPath))) {
+            mkdir(dirname($fullPath), 0777, true);
+        }
+        file_put_contents($fullPath, 'fake-ogg');
+
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'error' => [
+                    'code' => 503,
+                    'message' => 'This model is currently experiencing high demand.',
+                    'status' => 'UNAVAILABLE',
+                ],
+            ], 503),
+        ]);
+
+        $message = Message::factory()->incoming()->create([
+            'content' => '🎤 Audio',
+            'metadata' => [
+                'type' => 'audio',
+                'local_url' => '/storage/'.$relativePath,
+            ],
+        ]);
+
+        $job = new class($message->id) extends ProcessMediaThenRespondJob
+        {
+            public ?int $releasedFor = null;
+
+            public function release($delay = 0, $attempts = null): void
+            {
+                $this->releasedFor = (int) $delay;
+            }
+        };
+
+        $job->handle(
+            app(AudioTranscriber::class),
+            app(ImageAnalyzer::class),
+            app(CatalogoImageMatcher::class),
+            app(HybridImageMatcher::class),
+            app(VisionLearningService::class),
+            app(GenerarRespuestaAgente::class),
+            app(DescargadorMediaWhatsapp::class),
+        );
+
+        @unlink($fullPath);
+
+        $this->assertNotNull($job->releasedFor);
+        $this->assertGreaterThanOrEqual(30, $job->releasedFor);
+        Queue::assertNotPushed(EsperarRespuestaAgenteJob::class);
     }
 }

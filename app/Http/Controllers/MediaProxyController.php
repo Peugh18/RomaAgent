@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Infrastructure\Whatsapp\MetaWhatsAppSettings;
 use App\Services\ServicioMediaProducto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -12,6 +13,12 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class MediaProxyController extends Controller
 {
+    /** @var list<string> */
+    private const META_MEDIA_HOSTS = [
+        'lookaside.fbsbx.com',
+        'graph.facebook.com',
+    ];
+
     public function __construct(
         private ServicioMediaProducto $mediaProducto,
     ) {}
@@ -39,10 +46,21 @@ class MediaProxyController extends Controller
             ]);
         }
 
-        $response = Http::withHeaders([
+        $headers = [
             'ngrok-skip-browser-warning' => 'true',
             'User-Agent' => 'RomaAgent/1.0',
-        ])->timeout(30)->get($url);
+        ];
+
+        if ($this->requiereTokenMeta($url)) {
+            $token = MetaWhatsAppSettings::accessToken();
+            if ($token === '') {
+                abort(503, 'Token de WhatsApp no configurado');
+            }
+
+            $headers['Authorization'] = 'Bearer '.$token;
+        }
+
+        $response = Http::withHeaders($headers)->timeout(30)->get($url);
 
         if (! $response->successful()) {
             abort($response->status(), 'No se pudo obtener el archivo');
@@ -72,6 +90,21 @@ class MediaProxyController extends Controller
             }
         }
 
+        if (str_ends_with($urlHost, '.fbcdn.net')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private function requiereTokenMeta(string $url): bool
+    {
+        if (str_contains($url, 'lookaside.fbsbx.com')
+            || str_contains($url, 'graph.facebook.com')
+            || str_contains($url, 'fbcdn.net')) {
+            return true;
+        }
+
         return false;
     }
 
@@ -83,6 +116,7 @@ class MediaProxyController extends Controller
         return array_values(array_unique(array_filter([
             parse_url((string) config('app.public_url', config('app.url')), PHP_URL_HOST),
             parse_url((string) config('app.url'), PHP_URL_HOST),
+            ...self::META_MEDIA_HOSTS,
         ])));
     }
 }
