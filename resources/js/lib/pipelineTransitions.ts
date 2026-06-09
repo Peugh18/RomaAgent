@@ -8,10 +8,10 @@ export type PipelineMoveAction =
     | { type: 'revert'; endpoint: PipelineRevertEndpoint; message: string }
     | { type: 'invalid' };
 
-const LOGISTICS_COLUMNS: SaleStatus[] = ['confirmado', 'enviado', 'entregado'];
+const LOGISTICS_COLUMNS: SaleStatus[] = ['confirmado', 'enviado', 'entregado', 'cancelado'];
 
 export function isDraggablePipelineColumn(status: SaleStatus): boolean {
-    return LOGISTICS_COLUMNS.includes(status);
+    return ['confirmado', 'enviado', 'entregado'].includes(status);
 }
 
 export function resolvePipelineMove(from: SaleStatus, to: SaleStatus): PipelineMoveAction {

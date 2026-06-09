@@ -59,7 +59,7 @@ class ConfiguracionEmpresa
     public function obtenerTodos(): array
     {
         $contexto = new ContextoConversacion($this);
-        $promptCompleto = $contexto->construirPromptParaAgente();
+        $promptSecciones = $contexto->construirPromptSecciones();
 
         return [
             'empresa' => $this->obtenerDatosEmpresa(),
@@ -69,8 +69,13 @@ class ConfiguracionEmpresa
             'metodos_pago' => $this->obtenerMetodosPago(),
             'informacion_extra' => $this->obtenerInformacionExtra(),
             'ia' => (new ConfiguracionAgente)->obtenerDatosCompletos(),
-            'estadisticas' => $this->obtenerEstadisticas($promptCompleto),
-            'prompt_completo' => $promptCompleto,
+            'estadisticas' => $this->obtenerEstadisticas($promptSecciones['completo']),
+            'prompt_completo' => $promptSecciones['completo'],
+            'prompt_secciones' => [
+                'sistema' => $promptSecciones['sistema'],
+                'configuracion' => $promptSecciones['configuracion'],
+                'completo' => $promptSecciones['completo'],
+            ],
         ];
     }
 

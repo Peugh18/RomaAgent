@@ -30,9 +30,30 @@ class VerificarStockTool
      * @param  array<string, mixed>  $args
      * @return array<string, mixed>
      */
+    /**
+     * Mapea input de talla (puede ser "estándar", "talla estándar", etc.) a la clave interna de BD.
+     */
+    private static function mapearTallaInput(?string $size): string
+    {
+        $raw = strtolower(trim((string) $size));
+
+        // Si la IA dice "estándar", "estandar", "talla estándar", etc. → mapear a clave interna
+        if (in_array($raw, ['estándar', 'estandar', 'standar', 'estandar', 'talla estándar', 'talla estandar', 'talla standar'], true)) {
+            return NormalizadorStockTallas::defaultSizeKey();
+        }
+
+        // Si está vacío, usar default
+        if ($raw === '') {
+            return NormalizadorStockTallas::defaultSizeKey();
+        }
+
+        // De lo contrario, normalizar a mayúsculas
+        return strtoupper(trim((string) $size));
+    }
+
     public static function execute(array $args): array
     {
-        $size = strtoupper(trim((string) ($args['size'] ?? NormalizadorStockTallas::defaultSizeKey())));
+        $size = self::mapearTallaInput($args['size'] ?? null);
 
         $product = null;
         if (! empty($args['product_id'])) {

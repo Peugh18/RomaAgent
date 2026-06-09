@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Pedidos\CancelarPedido;
 use App\Actions\Pedidos\ConfirmarPagoPedido;
 use App\Actions\Pedidos\EnviarLinkPagoTarjeta;
 use App\Actions\Pedidos\MarcarPedidoEntregado;
@@ -74,12 +75,13 @@ class SaleController extends Controller
 
         $sales = Sale::query()
             ->with(['customer', 'product', 'productVariant'])
-            ->where('status', '!=', SaleStatus::Cancelado)
             ->where(function ($query) use ($recentEntregadoIds): void {
                 $query->where('status', '!=', SaleStatus::Entregado)
-                    ->orWhereIn('id', $recentEntregadoIds);
+                    ->where('status', '!=', SaleStatus::Cancelado)
+                    ->orWhereIn('id', $recentEntregadoIds)
+                    ->orWhere('status', SaleStatus::Cancelado);
             })
-            ->latest()
+            ->oldest()
             ->get();
 
         return response()->json([
@@ -293,6 +295,25 @@ class SaleController extends Controller
         return response()->json($sale);
     }
 
+    public function cancel(Sale $sale, CancelarPedido $cancelar): JsonResponse
+    {
+        $this->authorize('update', $sale);
+
+        if (! $sale->puedeCancelar()) {
+            return response()->json([
+                'message' => 'Este pedido no puede cancelarse en su estado actual.',
+            ], 422);
+        }
+
+        try {
+            $sale = $cancelar->handle($sale);
+        } catch (RuntimeException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
+
+        return response()->json($sale);
+    }
+
     /**
      * Enrich a single sale for pipeline view (used with pagination).
      *
@@ -389,6 +410,7 @@ class SaleController extends Controller
                 'can_confirm_payment' => $sale->puedeVerificarPago(),
                 'can_mark_shipped' => $sale->puedeMarcarEnviado(),
                 'can_mark_delivered' => $sale->puedeMarcarEntregado(),
+                'can_cancel' => $sale->puedeCancelar(),
             ]);
         })->all();
     }

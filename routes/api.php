@@ -67,6 +67,7 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
     Route::post('sales/{sale}/mark-delivered', [SaleController::class, 'markDelivered']);
     Route::post('sales/{sale}/revert-delivered', [SaleController::class, 'revertDelivered']);
     Route::post('sales/{sale}/revert-shipped', [SaleController::class, 'revertShipped']);
+    Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel']);
 
     Route::get('customers', [CustomerController::class, 'index']);
     Route::get('customers/{phoneNumber}', [CustomerController::class, 'show'])

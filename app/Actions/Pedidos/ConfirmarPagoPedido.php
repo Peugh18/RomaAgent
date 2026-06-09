@@ -47,6 +47,11 @@ class ConfirmarPagoPedido
                 metadataExtra: ['generated_by' => 'system_confirmacion_pago', 'sale_id' => $sale->id],
             );
 
+            $customer = $sale->customer;
+            if ($customer !== null) {
+                $customer->pausarIa('Pedido confirmado: modo humano activo');
+            }
+
             return $sale;
         });
     }

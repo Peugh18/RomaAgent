@@ -68,12 +68,87 @@ class ContextoConversacion
 
     /**
      * Prompt exacto que recibe Gemini (maestro + catálogo + instrucciones del agente).
+     * Orden: Sistema → Configuracion → Flujo → Catalogo → Reglas → Checklist
      */
     public function construirPromptParaAgente(): string
     {
-        return $this->construirPromptCompleto()
-            ."\n\n---\n\n"
-            .$this->construirInstruccionesAgente();
+        $secciones = $this->construirPromptSecciones();
+
+        return implode("\n\n", array_filter([
+            $secciones['sistema'],
+            $secciones['configuracion'],
+            $secciones['flujo_ventas'],
+            $secciones['catalogo'],
+            $secciones['reglas'],
+            $secciones['checklist'],
+        ]));
+    }
+
+    /**
+     * Devuelve las secciones del prompt separadas para preview admin.
+     *
+     * @return array{sistema: string, configuracion: string, flujo_ventas: string, catalogo: string, reglas: string, checklist: string, completo: string}
+     */
+    public function construirPromptSecciones(): array
+    {
+        $settingsId = CompanySetting::query()->value('id') ?? 0;
+
+        return Cache::remember(
+            "contexto_prompt_secciones_{$settingsId}",
+            300,
+            fn (): array => $this->buildPromptSecciones()
+        );
+    }
+
+    /**
+     * @return array{sistema: string, configuracion: string, flujo_ventas: string, catalogo: string, reglas: string, checklist: string, completo: string}
+     */
+    private function buildPromptSecciones(): array
+    {
+        $empresa = $this->configuracion->obtenerDatosEmpresa();
+        $personalidad = $this->configuracion->obtenerPersonalidad();
+        $metodos = $this->configuracion->obtenerMetodosPago();
+        $contexto = $this->configuracion->obtenerContextoParaPrompt();
+        $romaStore = $this->configuracion->obtenerConfiguracionRomaStore();
+
+        $promptMaestro = $this->construirPromptMaestroUnico($empresa, $personalidad, $metodos, $contexto, $romaStore);
+        $catalogo = $this->construirContextoCatalogo();
+        $reglas = $this->construirInstruccionesAgente();
+
+        // Extraer contenido de tags XML
+        $sistema = $this->extraerContenidoTag($promptMaestro, 'SISTEMA');
+        $configuracion = $this->extraerContenidoTag($promptMaestro, 'CONFIGURACION');
+        $flujoVentas = $this->extraerContenidoTag($promptMaestro, 'FLUJO_VENTAS');
+        $reglasContenido = $this->extraerContenidoTag($reglas, 'REGLAS_CRITICAS');
+        $checklist = $this->extraerContenidoTag($reglas, 'CHECKLIST_FINAL');
+
+        $completo = implode("\n\n", array_filter([
+            $sistema,
+            $configuracion,
+            $flujoVentas,
+            $catalogo,
+            $reglasContenido,
+            $checklist,
+        ]));
+
+        return [
+            'sistema' => $sistema,
+            'configuracion' => $configuracion."\n\n".$flujoVentas,
+            'flujo_ventas' => $flujoVentas,
+            'catalogo' => $catalogo,
+            'reglas' => $reglasContenido,
+            'checklist' => $checklist,
+            'completo' => $completo,
+        ];
+    }
+
+    private function extraerContenidoTag(string $texto, string $tag): string
+    {
+        if (preg_match("/<{$tag}>(.*?)<\/{$tag}>/s", $texto, $matches)) {
+            return trim($matches[1]);
+        }
+
+        return '';
     }
 
     public function construirPromptParaAgenteConPedido(?Customer $customer): string
@@ -227,7 +302,7 @@ class ContextoConversacion
             ? $formatoRegistroVenta
             : 'Registra internamente la venta con los datos completos del pedido, cliente, envío y monto pagado.';
 
-        return <<<PROMPT
+        $sistema = <<<SISTEMA
 # INSTRUCCIONES DEL SISTEMA - {$nombre}
 
 ## IDENTIDAD Y PERSONALIDAD
@@ -250,28 +325,17 @@ Cuando inicie una conversación NUEVA (sin historial previo), responde exactamen
 - Los audios se transcriben a texto automáticamente.
 - Responde al **contenido** del audio como si fuera un mensaje escrito.
 - Nunca respondas solo al hecho de que envió audio; responde lo que dijo.
+SISTEMA;
 
----
-
+        $configuracion = <<<CONFIGURACION
 ## REGLAS DE COMUNICACIÓN CRÍTICAS
 {$reglasComun}
-
----
-
-## FLUJO DE VENTAS
-{$flujoVentas}
-
----
 
 ## MÉTODOS DE PAGO DISPONIBLES
 {$metodosTexto}
 
----
-
 ## POLÍTICAS Y ATENCIÓN
 {$informacionAdicionalTexto}
-
----
 
 ## INFORMACIÓN DE ENTREGAS
 
@@ -282,8 +346,6 @@ Cuando inicie una conversación NUEVA (sin historial previo), responde exactamen
 ### Tarifario
 {$tarifarioTexto}
 
----
-
 ## PLANTILLAS DE RECOLECCIÓN DE DATOS
 
 Solo datos de la clienta para coordinar el envío. El vestido y color ya están registrados en el pedido activo — no los pidas de nuevo.
@@ -292,26 +354,38 @@ Cuando necesites recopilar datos del cliente, usa estas plantillas:
 
 {$plantillasTexto}
 
----
-
 ## RECORDATORIOS AUTOMÁTICOS
 
 Si el cliente no responde o no completa datos:
 {$recordatoriosTexto}
+CONFIGURACION;
 
----
+        $flujoVentasTexto = <<<FLUJO
+## FLUJO DE VENTAS
+{$flujoVentas}
 
 ## REGISTRO DE VENTA
 
 Cuando tengas toda la información del pedido, registra la venta internamente con este formato:
 {$formatoRegistroTexto}
 
----
-
 ## PROTOCOLO DE TRASPASO A HUMANO
 
 {$protocolo}
+FLUJO;
 
+        return <<<PROMPT
+<SISTEMA>
+{$sistema}
+</SISTEMA>
+
+<CONFIGURACION>
+{$configuracion}
+</CONFIGURACION>
+
+<FLUJO_VENTAS>
+{$flujoVentasTexto}
+</FLUJO_VENTAS>
 PROMPT;
     }
 
@@ -577,7 +651,9 @@ PROTOCOLO;
             ->limit(100)
             ->get();
 
-        return $formateador->formatearCatalogo($productos);
+        $catalogo = $formateador->formatearCatalogo($productos);
+
+        return "<CATALOGO>\n{$catalogo}\n</CATALOGO>";
     }
 
     /**
@@ -605,7 +681,7 @@ PROTOCOLO;
 
         $instruccionTallas = NormalizadorStockTallas::instruccionTallaParaPrompt();
 
-        return <<<AGENTE
+        $reglas = <<<REGLAS
 ## AGENTE VENDEDOR — HERRAMIENTAS
 
 Eres la vendedora experta: hablas como en el prompt maestro (personalidad, flujo, reglas). Todo lo que escribes al cliente sale de ti; no envíes mensajes tipo sistema ni plantillas vacías.
@@ -647,7 +723,19 @@ Eres la vendedora experta: hablas como en el prompt maestro (personalidad, flujo
   ---SPLIT---
   ¿Deseas que continuemos con este pedido o prefieres ver otro modelo? 😊
 - Si solo respondes una frase muy corta (ej. "Sí, hermosa"), una burbuja basta.
-AGENTE;
+REGLAS;
+
+        $checklist = <<<'CHECKLIST'
+<CHECKLIST_FINAL>
+Antes de enviar cada respuesta, verifica:
+1. ¿Llamé verificar_stock si hablé de stock o talla?
+2. ¿Usé ---SPLIT--- si hay 2+ ideas distintas?
+3. ¿No inventé nada que no esté en el catálogo o en la configuración?
+4. ¿El total que dijo coincide con el PEDIDO ACTIVO?
+</CHECKLIST_FINAL>
+CHECKLIST;
+
+        return "<REGLAS_CRITICAS>\n{$reglas}\n</REGLAS_CRITICAS>\n\n{$checklist}";
     }
 
     private function valorConfigurado(string $valor, string $default): string

@@ -3,7 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PipelineSaleCard from '@/components/pipeline/PipelineSaleCard.vue';
 import { isDraggablePipelineColumn } from '@/lib/pipelineTransitions';
-import { SALE_STATUS_LABELS, type Sale, type SaleStatus, type SaleTransition } from '@/types/sale';
+import { SALE_STATUS_LABELS, type Sale, type SaleStatus } from '@/types/sale';
 import { useCurrency } from '@/composables/useCurrency';
 import { computed } from 'vue';
 import { VueDraggable } from 'vue-draggable-plus';
@@ -20,7 +20,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-    openTransition: [sale: Sale, transition: SaleTransition];
+    openTransition: [sale: Sale, transition: 'confirm_payment' | 'mark_shipped' | 'mark_delivered'];
+    openDetail: [sale: Sale];
     columnChange: [payload: { toStatus: SaleStatus; event: SortableEvent }];
     'update:sales': [sales: Sale[]];
     openArchive: [];
@@ -78,7 +79,7 @@ const onColumnAdd = (event: SortableEvent) => {
     <Card
         :data-pipeline-status="status"
         :class="[
-            'min-w-[280px] flex-1 shrink-0 snap-center rounded-2xl border border-border/40 shadow-sm transition-shadow hover:shadow-md',
+            'min-w-[220px] flex-1 shrink-0 snap-center rounded-2xl border border-border/40 shadow-sm transition-shadow hover:shadow-md',
             statusConfig[status].bg,
             highlightAttention && sales.length > 0 ? 'ring-2 ring-amber-500/50 ring-offset-2 ring-offset-background' : '',
         ]"
@@ -114,7 +115,7 @@ const onColumnAdd = (event: SortableEvent) => {
                     :sale="sale"
                     :status="status"
                     :border-class="statusConfig[status].border"
-                    @open-transition="(s, t) => emit('openTransition', s, t)"
+                    @open-detail="(s: Sale) => emit('openDetail', s)"
                 />
             </div>
 
@@ -140,7 +141,7 @@ const onColumnAdd = (event: SortableEvent) => {
                         :status="status"
                         draggable
                         :border-class="statusConfig[status].border"
-                        @open-transition="(s, t) => emit('openTransition', s, t)"
+                        @open-detail="(s: Sale) => emit('openDetail', s)"
                     />
                 </div>
             </VueDraggable>
