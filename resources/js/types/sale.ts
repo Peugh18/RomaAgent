@@ -56,9 +56,11 @@ export interface Sale {
     delivery_address?: string | null;
     maps_url?: string | null;
     comprobante_url?: string | null;
+    notes?: string | null;
     can_confirm_payment?: boolean;
     can_mark_shipped?: boolean;
     can_mark_delivered?: boolean;
+    can_cancel?: boolean;
 }
 
 export const SALE_STATUS_LABELS: Record<SaleStatus, string> = {
@@ -82,6 +84,7 @@ export const PIPELINE_COLUMNS: SaleStatus[] = [
     'confirmado',
     'enviado',
     'entregado',
+    'cancelado',
 ];
 
 /** Columnas que siempre se muestran aunque estén vacías (flujo operativo). */
@@ -92,6 +95,25 @@ export const PIPELINE_ALWAYS_VISIBLE_COLUMNS: SaleStatus[] = [
     'enviado',
     'entregado',
 ];
+
+/** Columnas del tab "En progreso" (antes de logística). */
+export const PIPELINE_PROGRESS_COLUMNS: SaleStatus[] = [
+    'consultando',
+    'cotizando',
+    'datos_listos',
+    'pago_pendiente',
+    'pago_recibido',
+];
+
+/** Columnas del tab "Logística" (confirmado, enviado, entregado, cancelado). */
+export const PIPELINE_LOGISTICS_COLUMNS: SaleStatus[] = [
+    'confirmado',
+    'enviado',
+    'entregado',
+    'cancelado',
+];
+
+export type PipelineTab = 'progress' | 'logistics';
 
 /** Máximo de entregados recientes en la columna del kanban; el resto va al archivo. */
 export const PIPELINE_ENTREGADOS_KANBAN_LIMIT = 15;

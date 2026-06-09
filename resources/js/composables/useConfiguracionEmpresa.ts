@@ -14,6 +14,11 @@ export function useConfiguracionEmpresa() {
     const error = ref<string | null>(null);
     const success = ref<string | null>(null);
     const promptCompleto = ref('');
+    const promptSecciones = ref<{
+        sistema: string;
+        configuracion: string;
+        completo: string;
+    }>({ sistema: '', configuracion: '', completo: '' });
 
     const form = useForm<CompanySettingsForm & { estadisticas?: Record<string, unknown> }>({
         company_name: '',
@@ -69,10 +74,15 @@ export function useConfiguracionEmpresa() {
 
     const cargarPromptCompleto = async () => {
         try {
-            const datos = await apiJson<{ prompt_completo: string }>('/api/company-settings/prompt-completo');
+            const datos = await apiJson<{
+                prompt_completo: string;
+                prompt_secciones: { sistema: string; configuracion: string; completo: string };
+            }>('/api/company-settings/prompt-completo');
             promptCompleto.value = datos.prompt_completo || '';
+            promptSecciones.value = datos.prompt_secciones || { sistema: '', configuracion: '', completo: '' };
         } catch {
             promptCompleto.value = '';
+            promptSecciones.value = { sistema: '', configuracion: '', completo: '' };
         }
     };
 
@@ -369,6 +379,7 @@ export function useConfiguracionEmpresa() {
         error,
         success,
         promptCompleto,
+        promptSecciones,
         cargarDatos,
         cargarPromptCompleto,
         guardarConfiguracion,

@@ -75,7 +75,7 @@ class ConfiguracionAgente
      */
     public function obtenerTemperatura(): float
     {
-        return (float) ($this->agenteConfig?->temperatura ?? 0.7);
+        return (float) ($this->agenteConfig?->temperatura ?? 0.3);
     }
 
     /**
@@ -163,7 +163,7 @@ class ConfiguracionAgente
         $updateData = [
             'activado' => $datos['agente_ia_activado'] ?? $this->agenteConfig->activado ?? false,
             'modelo' => $datos['agente_ia_modelo'] ?? $this->agenteConfig->modelo ?? 'gemini-2.5-flash',
-            'temperatura' => $datos['agente_ia_temperatura'] ?? $this->agenteConfig->temperatura ?? 0.7,
+            'temperatura' => $datos['agente_ia_temperatura'] ?? $this->agenteConfig->temperatura ?? 0.3,
         ];
 
         // Actualizar API key si se proporcionó

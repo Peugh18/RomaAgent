@@ -174,6 +174,55 @@ class SalePaymentConfirmationTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_confirm_payment_auto_pauses_ia(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create();
+
+        $product = Product::query()->create([
+            'name' => 'Mariela',
+            'price' => 180,
+            'status' => Product::ESTADO_DISPONIBLE,
+        ]);
+
+        $variant = ProductVariant::query()->create([
+            'product_id' => $product->id,
+            'color' => 'Lila',
+            'sizes_stock' => ['UNICA' => 5],
+        ]);
+
+        $customer = Customer::factory()->create([
+            'phone_number' => '+51912345678',
+            'ia_paused' => false,
+        ]);
+
+        $sale = Sale::factory()->forProduct($product, $variant)->create([
+            'customer_id' => $customer->id,
+            'phone_number' => $customer->phone_number,
+            'status' => SaleStatus::PagoRecibido,
+            'size' => 'UNICA',
+            'quantity' => 1,
+            'total_amount' => 195,
+            'delivery_cost' => 15,
+            'payment_method' => 'yape',
+        ]);
+
+        $customer->update(['active_sale_id' => $sale->id]);
+
+        $this->assertFalse($customer->fresh()->ia_paused);
+
+        $response = $this->actingAs($user)->postJson("/api/sales/{$sale->id}/confirm-payment", [
+            'message' => $this->mensajeConfirmacion(),
+        ]);
+
+        $response->assertOk();
+
+        $customer->refresh();
+        $this->assertTrue($customer->ia_paused);
+        $this->assertSame('Pedido confirmado: modo humano activo', $customer->ia_pause_reason);
+    }
+
     public function test_active_sale_endpoint_returns_open_sale_for_phone(): void
     {
         $user = User::factory()->create();
@@ -239,5 +288,57 @@ class SalePaymentConfirmationTest extends TestCase
                 'content' => 'Link de pago aquí',
             ])
             ->assertOk();
+    }
+
+    public function test_admin_can_cancel_sale_and_ia_resumes(): void
+    {
+        $user = User::factory()->create();
+
+        $customer = Customer::factory()->iaPausada()->create([
+            'phone_number' => '+51912345678',
+        ]);
+
+        $sale = Sale::factory()->confirmado()->create([
+            'customer_id' => $customer->id,
+            'phone_number' => $customer->phone_number,
+        ]);
+
+        $customer->update(['active_sale_id' => $sale->id]);
+
+        $this->assertTrue($customer->fresh()->ia_paused);
+
+        $response = $this->actingAs($user)->postJson("/api/sales/{$sale->id}/cancel");
+
+        $response->assertOk();
+        $response->assertJsonPath('status', SaleStatus::Cancelado->value);
+
+        $sale->refresh();
+        $this->assertSame(SaleStatus::Cancelado, $sale->status);
+
+        $customer->refresh();
+        $this->assertFalse($customer->ia_paused);
+        $this->assertNull($customer->active_sale_id);
+    }
+
+    public function test_cannot_cancel_delivered_sale(): void
+    {
+        $user = User::factory()->create();
+        $sale = Sale::factory()->entregado()->create();
+
+        $this->actingAs($user)
+            ->postJson("/api/sales/{$sale->id}/cancel")
+            ->assertStatus(422);
+    }
+
+    public function test_cannot_cancel_already_cancelled_sale(): void
+    {
+        $user = User::factory()->create();
+        $sale = Sale::factory()->create([
+            'status' => SaleStatus::Cancelado,
+        ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/sales/{$sale->id}/cancel")
+            ->assertStatus(422);
     }
 }

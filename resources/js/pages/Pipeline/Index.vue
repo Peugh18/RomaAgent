@@ -5,8 +5,8 @@ import CrmPageHero from '@/components/crm/CrmPageHero.vue';
 import PipelineColumn from '@/components/pipeline/PipelineColumn.vue';
 import PipelineEmptyState from '@/components/pipeline/PipelineEmptyState.vue';
 import PipelineEntregadosArchivo from '@/components/pipeline/PipelineEntregadosArchivo.vue';
-import PipelineColumnNav from '@/components/pipeline/PipelineColumnNav.vue';
 import PipelineToolbar from '@/components/pipeline/PipelineToolbar.vue';
+import SaleDetailModal from '@/components/sales/SaleDetailModal.vue';
 import SaleTransitionModal from '@/components/sales/SaleTransitionModal.vue';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -19,7 +19,16 @@ import {
     type PipelineRevertEndpoint,
 } from '@/lib/pipelineTransitions';
 import { usePipelineSales } from '@/composables/useSale';
-import { PIPELINE_ALWAYS_VISIBLE_COLUMNS, PIPELINE_COLUMNS, type Sale, type SaleStatus, type SaleTransition } from '@/types/sale';
+import {
+    PIPELINE_ALWAYS_VISIBLE_COLUMNS,
+    PIPELINE_COLUMNS,
+    PIPELINE_LOGISTICS_COLUMNS,
+    PIPELINE_PROGRESS_COLUMNS,
+    type PipelineTab,
+    type Sale,
+    type SaleStatus,
+    type SaleTransition,
+} from '@/types/sale';
 import { useCurrency } from '@/composables/useCurrency';
 import { Head } from '@inertiajs/vue3';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
@@ -42,6 +51,10 @@ const transitionOpen = ref(false);
 const transitionSale = ref<Sale | null>(null);
 const activeTransition = ref<SaleTransition | null>(null);
 const dragError = ref<string | null>(null);
+
+const activeTab = ref<PipelineTab>('progress');
+const detailOpen = ref(false);
+const detailSale = ref<Sale | null>(null);
 
 const filteredSales = computed(() => {
     const query = searchQuery.value.trim().toLowerCase();
@@ -88,14 +101,17 @@ const needsPaymentAttention = computed(() =>
     sales.value.filter((sale) => sale.status === 'pago_pendiente' || sale.status === 'pago_recibido').length,
 );
 
-const visibleColumns = computed(() => {
+const tabColumns = computed(() => {
     const hasSearch = searchQuery.value.trim() !== '';
+    const baseColumns = activeTab.value === 'progress'
+        ? PIPELINE_PROGRESS_COLUMNS
+        : PIPELINE_LOGISTICS_COLUMNS;
 
     if (hasSearch) {
-        return PIPELINE_COLUMNS.filter((status) => columnSales.value[status].length > 0);
+        return baseColumns.filter((status) => columnSales.value[status].length > 0);
     }
 
-    return PIPELINE_COLUMNS.filter(
+    return baseColumns.filter(
         (status) =>
             PIPELINE_ALWAYS_VISIBLE_COLUMNS.includes(status)
             || columnSales.value[status].length > 0,
@@ -107,6 +123,32 @@ const columnCounts = computed(() =>
         PIPELINE_COLUMNS.map((status) => [status, columnSales.value[status]?.length ?? 0]),
     ) as Record<SaleStatus, number>,
 );
+
+const openDetail = (sale: Sale) => {
+    detailSale.value = sale;
+    detailOpen.value = true;
+};
+
+const onDetailTransition = (sale: Sale, transition: SaleTransition) => {
+    openTransition(sale, transition);
+};
+
+const cancelSale = async (sale: Sale) => {
+    if (!window.confirm('¿Cancelar este pedido? El cliente será notificado y el bot se reactivará.')) {
+        return;
+    }
+    try {
+        await apiJson(`/api/sales/${sale.id}/cancel`, {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': getCsrfToken(),
+            },
+        });
+        await loadSales();
+    } catch (err) {
+        dragError.value = err instanceof Error ? err.message : 'No se pudo cancelar el pedido';
+    }
+};
 
 const scrollToStatus = (status: SaleStatus) => {
     const column = kanbanRef.value?.querySelector(`[data-pipeline-status="${status}"]`);
@@ -233,8 +275,8 @@ const onTransitionCancelled = async () => {
                 {{ error || dragError }}
             </div>
 
-            <div v-if="loading && sales.length === 0" class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4">
-                <div v-for="i in 8" :key="i" class="min-w-[280px] flex-1 shrink-0 snap-center">
+            <div v-if="loading && sales.length === 0" class="flex gap-3 pb-4">
+                <div v-for="i in 5" :key="i" class="min-w-[220px] flex-1 shrink-0">
                     <div class="rounded-xl border bg-card p-4 shadow-sm">
                         <Skeleton class="mb-3 h-5 w-24" />
                         <Skeleton class="h-20 w-full" />
@@ -252,18 +294,40 @@ const onTransitionCancelled = async () => {
             </template>
 
             <CrmAnimatedSection v-else :delay="140">
-                <PipelineColumnNav
-                    :columns="visibleColumns"
-                    :counts="columnCounts"
-                    @navigate="scrollToStatus"
-                />
+                <!-- Tabs -->
+                <div class="mb-4 flex gap-2">
+                    <button
+                        class="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                        :class="activeTab === 'progress'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                        @click="activeTab = 'progress'"
+                    >
+                        En progreso
+                        <span class="ml-1.5 rounded-full bg-background/20 px-1.5 py-0.5 text-xs">
+                            {{ PIPELINE_PROGRESS_COLUMNS.reduce((sum, s) => sum + columnCounts[s], 0) }}
+                        </span>
+                    </button>
+                    <button
+                        class="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                        :class="activeTab === 'logistics'
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground hover:bg-muted/80'"
+                        @click="activeTab = 'logistics'"
+                    >
+                        Logística
+                        <span class="ml-1.5 rounded-full bg-background/20 px-1.5 py-0.5 text-xs">
+                            {{ PIPELINE_LOGISTICS_COLUMNS.reduce((sum, s) => sum + columnCounts[s], 0) }}
+                        </span>
+                    </button>
+                </div>
 
                 <div
                     ref="kanbanRef"
-                    class="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 scroll-smooth"
+                    class="flex gap-3 pb-4"
                 >
                     <PipelineColumn
-                        v-for="status in visibleColumns"
+                        v-for="status in tabColumns"
                         :key="status"
                         :status="status"
                         :sales="columnSales[status]"
@@ -272,6 +336,7 @@ const onTransitionCancelled = async () => {
                         :archived-count="status === 'entregado' ? entregadosArchivedCount : undefined"
                         @update:sales="columnSales[status] = $event"
                         @open-transition="openTransition"
+                        @open-detail="openDetail"
                         @column-change="handleColumnChange"
                         @open-archive="archivoOpen = true"
                     />
@@ -290,6 +355,13 @@ const onTransitionCancelled = async () => {
                 :transition="activeTransition"
                 @completed="onTransitionCompleted"
                 @cancelled="onTransitionCancelled"
+            />
+
+            <SaleDetailModal
+                v-model:open="detailOpen"
+                :sale="detailSale"
+                @transition="onDetailTransition"
+                @cancel="cancelSale"
             />
         </div>
     </AppLayout>

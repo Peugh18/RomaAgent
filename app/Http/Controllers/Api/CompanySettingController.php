@@ -253,9 +253,11 @@ class CompanySettingController extends Controller
         CompanySetting::query()->firstOrCreate([]);
 
         $configuracion = new ConfiguracionEmpresa;
+        $datos = $configuracion->obtenerTodos();
 
         return response()->json([
-            'prompt_completo' => $configuracion->obtenerTodos()['prompt_completo'],
+            'prompt_completo' => $datos['prompt_completo'],
+            'prompt_secciones' => $datos['prompt_secciones'],
         ]);
     }
 

@@ -70,4 +70,12 @@ class SaleFactory extends Factory
             'confirmed_at' => now(),
         ]);
     }
+
+    public function entregado(): static
+    {
+        return $this->state(fn (): array => [
+            'status' => SaleStatus::Entregado,
+            'delivered_at' => now(),
+        ]);
+    }
 }

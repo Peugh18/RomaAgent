@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import CrmPanel from '@/components/crm/CrmPanel.vue';
 import { Button } from '@/components/ui/button';
 import { Copy, Download, Zap, CheckCircle, AlertCircle } from 'lucide-vue-next';
 
+type PromptTab = 'sistema' | 'configuracion' | 'completo';
+
 interface Props {
     promptCompleto: string;
+    promptSecciones?: {
+        sistema: string;
+        configuracion: string;
+        completo: string;
+    };
     probando?: boolean;
     resultadoPrueba?: string | null;
     errorPrueba?: string | null;
@@ -27,7 +34,22 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const promptVisible = computed(() => props.promptCompleto || 'Cargando prompt...');
+const activeTab = ref<PromptTab>('sistema');
+
+const promptVisible = computed(() => {
+    const secciones = props.promptSecciones;
+    if (!secciones) return props.promptCompleto || 'Cargando prompt...';
+
+    switch (activeTab.value) {
+        case 'sistema':
+            return secciones.sistema || 'Sin contenido en SISTEMA';
+        case 'configuracion':
+            return secciones.configuracion || 'Sin contenido en CONFIGURACIÓN';
+        case 'completo':
+        default:
+            return secciones.completo || props.promptCompleto || 'Cargando prompt...';
+    }
+});
 
 const est = computed(() => {
     return {
@@ -151,6 +173,37 @@ const descargarPrompt = () => {
 
         <CrmPanel title="Preview del Prompt" description="Prompt completo que usa la IA. Se actualiza al guardar.">
             <div class="space-y-3">
+                <!-- Tabs -->
+                <div class="flex gap-1 rounded-lg bg-muted p-1">
+                    <button
+                        class="flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors"
+                        :class="activeTab === 'sistema'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'"
+                        @click="activeTab = 'sistema'"
+                    >
+                        SISTEMA
+                    </button>
+                    <button
+                        class="flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors"
+                        :class="activeTab === 'configuracion'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'"
+                        @click="activeTab = 'configuracion'"
+                    >
+                        CONFIGURACIÓN
+                    </button>
+                    <button
+                        class="flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-colors"
+                        :class="activeTab === 'completo'
+                            ? 'bg-background text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'"
+                        @click="activeTab = 'completo'"
+                    >
+                        COMPLETO
+                    </button>
+                </div>
+
                 <div class="max-h-96 overflow-y-auto rounded-xl border border-border/60 bg-zinc-950 p-3">
                     <pre class="whitespace-pre-wrap break-words font-mono text-xs text-zinc-100">{{ promptVisible }}</pre>
                 </div>

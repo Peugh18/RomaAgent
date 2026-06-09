@@ -108,6 +108,18 @@ class Sale extends Model
         return $this->status === SaleStatus::Enviado;
     }
 
+    public function puedeCancelar(): bool
+    {
+        return ! in_array($this->status, [SaleStatus::Cancelado, SaleStatus::Entregado], true);
+    }
+
+    public function cancelar(): void
+    {
+        $this->update([
+            'status' => SaleStatus::Cancelado,
+        ]);
+    }
+
     public function estaAbierto(): bool
     {
         return $this->status->esPipelineAbierto()

@@ -64,6 +64,7 @@ const {
     error, 
     success, 
     promptCompleto,
+    promptSecciones,
     guardarConfiguracion, 
     resetearConfiguracion,
     agregarMetodoPago, 
@@ -963,6 +964,7 @@ const heroStats = computed(() => {
                 <div class="lg:col-span-1">
                     <PreviewPrompt
                         :prompt-completo="promptCompleto"
+                        :prompt-secciones="promptSecciones"
                         :estadisticas="form.estadisticas || {}"
                         :probando="probandoIA"
                         :resultado-prueba="resultadoPruebaIA"
