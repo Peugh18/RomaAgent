@@ -213,12 +213,13 @@ class SaleController extends Controller
         return response()->json($sale);
     }
 
-    public function sendPaymentLink(Sale $sale, EnviarLinkPagoTarjeta $enviarLink): JsonResponse
+    public function sendPaymentLink(Sale $sale, Request $request, EnviarLinkPagoTarjeta $enviarLink): JsonResponse
     {
         $this->authorize('update', $sale);
 
         try {
-            $resultado = $enviarLink->handle($sale);
+            $customLink = $request->input('link');
+            $resultado = $enviarLink->handle($sale, $customLink);
         } catch (RuntimeException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }

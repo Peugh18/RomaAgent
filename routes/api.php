@@ -53,6 +53,8 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
 
     Route::get('company-settings/prompt-completo', [ApiCompanySettingController::class, 'promptCompleto']);
 
+    Route::post('company-settings/logo', [ApiCompanySettingController::class, 'uploadLogo']);
+
     Route::put('company-settings', [ApiCompanySettingController::class, 'update']);
 
     Route::delete('company-settings', [ApiCompanySettingController::class, 'destroy']);

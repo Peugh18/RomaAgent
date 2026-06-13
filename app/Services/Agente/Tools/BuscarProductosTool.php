@@ -22,7 +22,6 @@ class BuscarProductosTool
                     'min_price' => ['type' => 'number'],
                     'max_price' => ['type' => 'number'],
                     'has_photo' => ['type' => 'boolean'],
-                    'limit' => ['type' => 'integer'],
                 ],
             ],
         ];
@@ -35,12 +34,21 @@ class BuscarProductosTool
     public static function execute(array $args): array
     {
         $q = trim((string) ($args['q'] ?? ''));
+
+        // Ignorar palabras genéricas que harían que la búsqueda estricta falle
+        $palabrasGenericas = ['vestido', 'vestidos', 'ropa', 'prenda', 'modelo', 'modelos', 'quiero', 'buscar', 'otro', 'otros', 'tienes', 'hay', 'algún', 'algun'];
+        $pattern = '/\b('.implode('|', $palabrasGenericas).')\b/iu';
+        $qLimpio = trim((string) preg_replace($pattern, '', $q));
+
+        // Limpiar espacios dobles que hayan quedado
+        $q = trim((string) preg_replace('/\s+/', ' ', $qLimpio));
+
         $color = trim((string) ($args['color'] ?? ''));
         $size = strtoupper(trim((string) ($args['size'] ?? NormalizadorStockTallas::defaultSizeKey())));
         $min = is_numeric($args['min_price'] ?? null) ? (float) $args['min_price'] : null;
         $max = is_numeric($args['max_price'] ?? null) ? (float) $args['max_price'] : null;
         $hasPhoto = (bool) ($args['has_photo'] ?? false);
-        $limit = (int) ($args['limit'] ?? 20);
+        $limit = 5; // Forzar límite a 5 para dar variedad sin consumir muchos tokens
 
         $query = Product::query()
             ->where('status', Product::ESTADO_DISPONIBLE)
@@ -62,13 +70,19 @@ class BuscarProductosTool
             $query->where('price', '<=', $max);
         }
 
-        $productos = $query->limit(min(50, max(1, $limit)))->get();
+        if ($color !== '') {
+            $query->whereHas('variants', function ($qVariant) use ($color) {
+                $qVariant->where('color', 'like', '%'.$color.'%');
+            });
+        }
+
+        $productos = $query->inRandomOrder()->limit(min(50, max(1, $limit)))->get();
 
         $items = [];
         foreach ($productos as $p) {
             $variants = $p->variants;
             if ($color !== '') {
-                $variants = $variants->filter(fn ($v) => strcasecmp((string) $v->color, $color) === 0);
+                $variants = $variants->filter(fn ($v) => stripos((string) $v->color, $color) !== false);
             }
             if ($hasPhoto) {
                 $variants = $variants->filter(fn ($v) => ! empty($v->image_url) || ! empty($v->image_path));

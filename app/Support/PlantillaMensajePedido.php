@@ -26,6 +26,7 @@ class PlantillaMensajePedido
         $customerData = $sale->customer_data ?? [];
         $nombre = trim((string) (
             $sale->customer?->name
+            ?? $customerData['nombre_completo']
             ?? $customerData['nombre']
             ?? $customerData['name']
             ?? ''
@@ -39,7 +40,7 @@ class PlantillaMensajePedido
                 (string) $sale->color,
                 number_format((float) $sale->total_amount, 2),
                 (string) ($sale->delivery_district ?? ''),
-                (string) ($sale->payment_method ?? ''),
+                (string) ($sale->payment_method ?? 'transferencia/yape'),
             ],
             $plantilla,
         );
@@ -79,6 +80,7 @@ class PlantillaMensajePedido
         $customerData = $sale->customer_data ?? [];
         $nombre = trim((string) (
             $sale->customer?->name
+            ?? $customerData['nombre_completo']
             ?? $customerData['nombre']
             ?? $customerData['name']
             ?? null

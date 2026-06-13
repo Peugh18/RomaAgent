@@ -68,7 +68,8 @@ class ActualizarPedidoVenta
             }
 
             // Update customer name from customer_data if provided
-            $customerName = $datos['customer_data']['nombre']
+            $customerName = $datos['customer_data']['nombre_completo']
+                ?? $datos['customer_data']['nombre']
                 ?? $datos['customer_data']['name']
                 ?? null;
             if ($customerName !== null && trim($customerName) !== '' && $customer->name !== $customerName) {

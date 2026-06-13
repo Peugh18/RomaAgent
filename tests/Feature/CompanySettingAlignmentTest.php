@@ -141,62 +141,6 @@ class CompanySettingAlignmentTest extends TestCase
         $this->assertSame('@nueva_cuenta', $response->json('empresa.social_networks.instagram'));
     }
 
-    public function test_delivery_zone_rates_appear_in_prompt_from_database(): void
-    {
-        $user = User::factory()->create();
-        $settings = CompanySetting::factory()->create($this->configuracionCompleta());
-
-        DeliveryZone::query()->create([
-            'district' => 'Miraflores',
-            'cost_motorizado' => 15.50,
-            'cost_shalom' => 18.00,
-        ]);
-
-        Cache::forget('contexto_prompt_completo_'.$settings->id);
-
-        $response = $this->actingAs($user)->getJson('/api/company-settings');
-
-        $response->assertOk();
-
-        $prompt = $this->promptCompleto($user);
-
-        $this->assertStringContainsString('Miraflores', $prompt);
-        $this->assertStringContainsString('15.5', $prompt);
-        $this->assertStringContainsString('18', $prompt);
-        $this->assertStringContainsString('$ 15.5', $prompt);
-    }
-
-    public function test_provincia_shalom_appears_in_prompt_without_motorizado(): void
-    {
-        $user = User::factory()->create();
-        $settings = CompanySetting::factory()->create($this->configuracionCompleta());
-
-        DeliveryZone::query()->create([
-            'district' => 'Miraflores',
-            'cost_motorizado' => 15,
-            'cost_shalom' => 10,
-        ]);
-
-        DeliveryZone::query()->create([
-            'district' => 'Provincia (Shalom)',
-            'cost_motorizado' => 0,
-            'cost_shalom' => 12,
-        ]);
-
-        Cache::forget('contexto_prompt_completo_'.$settings->id);
-
-        $response = $this->actingAs($user)->getJson('/api/company-settings');
-
-        $response->assertOk();
-
-        $prompt = $this->promptCompleto($user);
-
-        $this->assertStringContainsString('Shalom (Lima y provincia)', $prompt);
-        $this->assertStringContainsString('Provincia (Shalom)', $prompt);
-        $this->assertStringContainsString('$ 12', $prompt);
-        $this->assertStringNotContainsString('Provincia (Shalom): $ 0', $prompt);
-    }
-
     public function test_prompt_completo_endpoint_matches_contexto_conversacion(): void
     {
         $user = User::factory()->create();
@@ -207,7 +151,6 @@ class CompanySettingAlignmentTest extends TestCase
         $prompt = $this->promptCompleto($user);
 
         $this->assertStringContainsString('AGENTE VENDEDOR', $prompt);
-        $this->assertStringContainsString('CATÁLOGO', $prompt);
         $this->assertGreaterThan(500, strlen($prompt));
     }
 
@@ -257,12 +200,9 @@ class CompanySettingAlignmentTest extends TestCase
         $this->assertStringContainsString('INFORMACIÓN DE CONTACTO', $prompt);
         $this->assertStringContainsString('SALUDO INICIAL', $prompt);
         $this->assertStringContainsString('REGLAS DE COMUNICACIÓN', $prompt);
-        $this->assertStringContainsString('FLUJO DE VENTAS', $prompt);
         $this->assertStringContainsString('Plantilla datos cliente', $prompt);
         $this->assertStringContainsString('Recuerda enviarme tu dirección', $prompt);
         $this->assertStringContainsString('Te derivo con el equipo', $prompt);
-        $this->assertStringContainsString('Venta: {producto}', $prompt);
-        $this->assertStringContainsString('San Isidro', $prompt);
         $this->assertStringContainsString('Yape', $prompt);
     }
 

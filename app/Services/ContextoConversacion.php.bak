@@ -54,16 +54,13 @@ class ContextoConversacion
             $romaStore
         );
 
-        // Sección final: Catálogo dinámico (productos solamente)
-        $formateador = new FormateadorCatalogoProductos($this->simboloMoneda($contexto['moneda'] ?? 'PEN'));
-        $productos = Product::where('status', Product::ESTADO_DISPONIBLE)
-            ->with('variants')->get();
-        $catalogoTexto = $formateador->formatearCatalogo($productos);
+        // Sección final: Catálogo dinámico (productos y zonas)
+        $catalogo = $this->construirContextoCatalogo();
 
         // Armar el prompt final: Prompt maestro + Catálogo dinámico
         $secciones = [
             $promptCompleto,
-            $catalogoTexto,
+            $catalogo,
         ];
 
         return implode("\n\n---\n\n", array_filter($secciones));
@@ -114,13 +111,8 @@ class ContextoConversacion
         $romaStore = $this->configuracion->obtenerConfiguracionRomaStore();
 
         $promptMaestro = $this->construirPromptMaestroUnico($empresa, $personalidad, $metodos, $contexto, $romaStore);
-
+        $catalogo = $this->construirContextoCatalogo();
         $reglas = $this->construirInstruccionesAgente();
-
-        $formateador = new FormateadorCatalogoProductos($this->simboloMoneda($contexto['moneda'] ?? 'PEN'));
-        $productos = Product::where('status', Product::ESTADO_DISPONIBLE)
-            ->with('variants')->get();
-        $catalogoTexto = $formateador->formatearCatalogo($productos);
 
         // Extraer contenido de tags XML
         $sistema = $this->extraerContenidoTag($promptMaestro, 'SISTEMA');
@@ -131,7 +123,7 @@ class ContextoConversacion
         $completo = implode("\n\n", array_filter([
             $sistema,
             $configuracion,
-            $catalogoTexto,
+            $catalogo,
             $reglasContenido,
             $checklist,
         ]));
@@ -140,7 +132,7 @@ class ContextoConversacion
             'sistema' => $sistema,
             'configuracion' => $configuracion,
             'flujo_ventas' => '',
-            'catalogo' => $catalogoTexto,
+            'catalogo' => $catalogo,
             'reglas' => $reglasContenido,
             'checklist' => $checklist,
             'completo' => $completo,
@@ -166,13 +158,8 @@ class ContextoConversacion
 
         $customer->loadMissing('activeSale');
 
-        $canalStr = $customer->channel ?: 'desconocido';
-
         return $prompt
             ."\n\n---\n\n"
-            ."## DATOS DE LA CLIENTA ACTUAL\n"
-            .'- Canal de origen del chat: '.$canalStr."\n"
-            ."\n---\n\n"
             .ContextoPedidoActivo::formatear(
                 $customer->activeSale,
                 $this->configuracion->obtenerMoneda(),
@@ -281,6 +268,7 @@ class ContextoConversacion
         $metodosTexto = $this->construirMetodosTexto($metodos, $moneda);
 
         // Construir tarifario
+        $tarifarioTexto = $this->construirTarifarioTexto($romaStore['entregas'] ?? [], $moneda);
 
         // Plantillas de datos (dinámicas)
         $plantillasTexto = $this->construirPlantillasTexto($romaStore['plantillas_datos'] ?? []);
@@ -351,6 +339,9 @@ SISTEMA;
 ### Horarios
 - **Entregas por Motorizado:** {$horarioEntregas}
 - **Entregas por Shalom:** {$horarioShalom}
+
+### Tarifario
+{$tarifarioTexto}
 
 ## PLANTILLAS DE RECOLECCIÓN DE DATOS
 
@@ -487,6 +478,40 @@ PROMPT;
     }
 
     /**
+     * Construye el tarifario de entregas dinámicamente.
+     */
+    private function construirTarifarioTexto(array $entregas, string $moneda = 'PEN'): string
+    {
+        if (empty($entregas)) {
+            return 'Tarifario a confirmar';
+        }
+
+        $simbolo = $this->simboloMoneda($moneda);
+        $texto = '';
+
+        // Motorizado
+        if (! empty($entregas['motorizado'])) {
+            $texto .= "**Motorizado (por distrito):**\n";
+            $distritos = $entregas['motorizado'];
+            foreach ($distritos as $distrito => $costo) {
+                $texto .= "- {$distrito}: {$simbolo} {$costo}\n";
+            }
+            $texto .= "\n";
+        }
+
+        // Shalom
+        if (! empty($entregas['shalom'])) {
+            $texto .= "**Shalom (Lima y provincia):**\n";
+            $distritos = $entregas['shalom'];
+            foreach ($distritos as $distrito => $costo) {
+                $texto .= "- {$distrito}: {$simbolo} {$costo}\n";
+            }
+        }
+
+        return $texto ?: 'Tarifario a confirmar';
+    }
+
+    /**
      * Construye la sección de políticas y horarios de atención.
      */
     private function construirInformacionAdicionalTexto(
@@ -596,6 +621,30 @@ PROTOCOLO;
     }
 
     /**
+     * Construye el contexto del catálogo de productos.
+     */
+    private function construirContextoCatalogo(): string
+    {
+        $moneda = $this->configuracion->obtenerMoneda();
+        $formateador = new FormateadorCatalogoProductos(
+            FormateadorCatalogoProductos::simboloDesdeMoneda($moneda),
+            NormalizadorStockTallas::defaultSizeKey(),
+        );
+
+        // Limitar a 100 productos disponibles para mantener el prompt manejable
+        // y evitar exceso de tokens en la API de Gemini
+        $productos = Product::with(['category', 'variants'])
+            ->where('status', Product::ESTADO_DISPONIBLE)
+            ->orderBy('name')
+            ->limit(100)
+            ->get();
+
+        $catalogo = $formateador->formatearCatalogo($productos);
+
+        return "<CATALOGO>\n{$catalogo}\n</CATALOGO>";
+    }
+
+    /**
      * Instrucciones para el agente con herramientas (function calling).
      */
     public function construirInstruccionesAgente(): string
@@ -618,10 +667,6 @@ PROTOCOLO;
             MensajesEmpresaDefaults::esperaLinkTarjeta(),
         );
 
-        // Obtener el umbral de escasez de los settings (por defecto 2 si no existe)
-        $romaStore = $this->configuracion->obtenerConfiguracionRomaStore();
-        $umbralEscasez = (int) ($romaStore['umbral_escasez'] ?? 2);
-
         $instruccionTallas = NormalizadorStockTallas::instruccionTallaParaPrompt();
 
         $reglas = <<<REGLAS
@@ -632,51 +677,51 @@ Eres la vendedora experta: hablas como en el prompt maestro (personalidad, flujo
 {$instruccionTallas}
 
 ### Herramientas
-- **actualizar_pedido**: OBLIGATORIO cada vez que avances la venta (cambios de producto, color, cantidad, envío, total, pago, datos). Actualiza y recalcula antes de hablar.
-- **enviar_foto_producto**: llama INMEDIATAMENTE si piden foto o confirmas modelo y la BD indica "foto". NO describas la imagen, da paso con una frase corta.
-- **registrar_comprobante_recibido**: cuando envíe captura de pago. Luego di: "{$mensajeComprobante}" (fuera horario: "{$mensajeNoche}").
-- **solicitar_atencion_humana**: SOLO para link de tarjeta ({$mensajeTarjeta}), quejas graves o cuando la BD falla/no responde.
-- **consultar_pedido_activo**: para recordar el estado de la venta.
-- **buscar_productos**: opcional. Usa esto solo si el cliente pide una búsqueda muy compleja que no puedes resolver mirando el CATÁLOGO.
-- **verificar_stock**: usa esta herramienta si necesitas re-confirmar el stock de una talla o color específico antes de agregarlo al pedido.
-- **calcular_envio**: para obtener costo de envío exacto por distrito/método.
+- **actualizar_pedido**: cada vez que avances la venta (producto, color, envío, total, pago, datos).
+- **enviar_foto_producto**: cuando la clienta pida foto, color, "cómo se ve", o confirmes un modelo — SI el catálogo dice foto: sí. Llama la herramienta INMEDIATAMENTE; envía la imagen real de Productos por WhatsApp (no describas la foto en texto, envíala). Luego responde con caption corto.
+- **registrar_comprobante_recibido**: cuando envíe captura de Yape/transferencia/voucher. Después di: "{$mensajeComprobante}" (fuera de horario: "{$mensajeNoche}").
+- **solicitar_atencion_humana**: SOLO tarjeta ({$mensajeTarjeta}), quejas graves o casos imposibles de resolver con el catálogo. Nunca confirmes pagos tú sola.
+- **consultar_pedido_activo**: si necesitas recordar en qué paso va la venta.
+- **buscar_productos**: para encontrar modelos por nombre/tags con filtros opcionales (color, talla, precio, foto). Solo ofrece lo que tenga stock.
+- **Imágenes entrantes**: si el mensaje incluye "Match catálogo" con producto/color y % confianza, úsalo como hipótesis principal; confirma con la clienta si confianza media/baja antes de actualizar_pedido.
+- **verificar_stock**: antes de confirmar talla/color, valida disponibilidad en vivo (usa talla estándar si no especifican).
+- **calcular_envio**: obtiene costo estimado por distrito y método (motorizado o Shalom) desde la base de datos.
 
-### Reglas de Venta Ultra-Críticas
+### Reglas de venta
+- Solo ofrece productos del catálogo con stock real; no inventes precios, fotos ni productos. Usa **buscar_productos** para explorar y **verificar_stock** para validar.
+- **ESTRATEGIA DE MARKETING (CRÍTICA):** Cuando el cliente consulte por disponibilidad, talla o stock, indícale siempre que quedan **pocas unidades** disponibles (para generar urgencia). **NUNCA** digas el stock o cantidad exacta de unidades (ej. no digas "nos quedan 3 unidades" o "tenemos 10 en stock"; en su lugar di "nos quedan muy pocas unidades, hermosa, se están agotando rápido" o "quedan pocas unidades disponibles de ese color"). Si al verificar stock resulta que la prenda tiene stock cero (0), debes decir amablemente que está agotada.
+- **DUPLICIDAD DE TEXTO / CAPTION (CRÍTICA):** Cuando uses la herramienta `enviar_foto_producto`, la foto se enviará por WhatsApp con el `caption` que le proporciones. En tu respuesta de texto final (la que escribes en este turno después de usar la herramienta), **NO** repitas el caption ni describas lo que ya muestra la imagen. Tu respuesta de texto final debe ser extremadamente corta (una sola frase breve) para dar paso al cliente y continuar el flujo (ej: "¿Qué te parece, hermosa?", "¿Te gustaría que verifiquemos la talla?", "¿Deseas que lo separemos?").
+- {$instruccionMoneda}
+- Si cambia la cantidad (ej. quiere 3 unidades del mismo producto), actualiza quantity y recalcula el total antes de responder.
+- Cada vez que calcules producto × cantidad + envío = total, llama **actualizar_pedido** con quantity, unit_price, delivery_cost y total_amount ANTES de decirle el monto. El total que escribes debe coincidir con el bloque PEDIDO ACTIVO.
+- No confirmes pagos tú sola; usa registrar_comprobante_recibido o solicitar_atencion_humana.
+- Si preguntan **métodos de pago**, **Yape**, **transferencia** o **cómo pagar**: responde TÚ con la sección **MÉTODOS DE PAGO DISPONIBLES** del prompt (números, titular, instrucciones). **NUNCA** uses solicitar_atencion_humana para eso.
+- Stickers, emojis sueltos o reacciones no requieren humano: ignóralos o responde con 1 emoji/frase corta. **NUNCA** escales por un sticker.
+- solicitar_atencion_humana solo para: link de tarjeta, queja seria, producto fuera de catálogo, o imposible resolver con herramientas.
+- Para costos/ETA de envío usa **calcular_envio** (no adivines tarifas).
+- Al pedir datos de envío: usa el pedido activo; no repitas producto/color (ver plantillas arriba).
 
-<PROHIBICIONES>
-1. NUNCA inventes productos, precios, fotos, stock, descuentos ni costos de envío. Si algo falla, deriva a un humano.
-2. NUNCA digas la cantidad exacta de unidades en stock (ej. prohibido decir "tengo 12 azules").
-3. NUNCA ofrezcas el precio de TikTok si el canal de origen no es explícitamente "tiktok".
-4. NUNCA confirmes pagos tú sola (debes pedir la foto y usar la herramienta registrar_comprobante_recibido).
-5. NUNCA repitas preguntas o datos que el cliente ya dio o que ya están confirmados en el Pedido Activo.
-</PROHIBICIONES>
-
-<OBLIGATORIOS>
-1. SIEMPRE indica solo "tenemos stock", o "quedan pocas unidades" (si verificar_stock indica <= {$umbralEscasez}). Si es 0, di que está agotado.
-2. SIEMPRE usa la info de "MÉTODOS DE PAGO" si preguntan cómo pagar.
-3. {$instruccionMoneda}
-4. Si tu respuesta tiene 2 o más ideas (ej. saludo, detalle, pregunta), DEBES separarlas EXACTAMENTE con la palabra ---SPLIT--- en una línea sola.
-</OBLIGATORIOS>
-
-<FORMATO>
-- Cero markdown. Emojis con moderación (máx 1 por burbuja).
-- Frases cortas y naturales (chat real).
-Ejemplo correcto de uso de SPLIT:
-Hola hermosa
----SPLIT---
-Aquí tienes el detalle de tu pedido...
----SPLIT---
-¿Te confirmo esto para el envío?
-</FORMATO>
+### Formato WhatsApp (OBLIGATORIO)
+- Sin markdown (**negrita**). Emojis con moderación (0-1 por burbuja).
+- Escribe como chat real: frases cortas, tono cercano, nunca un solo bloque enorme.
+- Si tu respuesta tiene 2 o más ideas (saludo, detalle del pedido/producto, precio, pregunta final), sepáralas con ---SPLIT--- en una línea sola entre cada burbuja.
+- Máximo 3 burbujas por respuesta. Cada burbuja: 1-2 frases.
+- Ejemplo natural:
+  ¡Claro, hermosa! Teníamos tu pedido del vestido Mariela en lila, talla estándar, envío motorizado a Ate.
+  ---SPLIT---
+  El total a cobrar es de {$simbolo} 190.00.
+  ---SPLIT---
+  ¿Deseas que continuemos con este pedido o prefieres ver otro modelo? 😊
+- Si solo respondes una frase muy corta (ej. "Sí, hermosa"), una burbuja basta.
 REGLAS;
 
         $checklist = <<<'CHECKLIST'
 <CHECKLIST_FINAL>
-Verificación final antes de responder:
-1. ¿Usé verificar_stock antes de confirmar algo?
-2. ¿Usé ---SPLIT--- si hay ideas distintas?
-3. ¿Todo es real (no inventado)?
-4. ¿El total coincide con el PEDIDO ACTIVO y usé actualizar_pedido si algo cambió?
+Antes de enviar cada respuesta, verifica:
+1. ¿Llamé verificar_stock si hablé de stock o talla?
+2. ¿Usé ---SPLIT--- si hay 2+ ideas distintas?
+3. ¿No inventé nada que no esté en el catálogo o en la configuración?
+4. ¿El total que dijo coincide con el PEDIDO ACTIVO?
 </CHECKLIST_FINAL>
 CHECKLIST;
 

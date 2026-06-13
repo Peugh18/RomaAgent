@@ -59,38 +59,29 @@ class FormateadorCatalogoProductos
 
     public function formatearProducto(Product $producto): string
     {
-        $categoria = $producto->category?->name ?? 'Sin categoría';
-        $precioNormal = number_format((float) $producto->price, 2);
-        $lineas = [
-            sprintf('- **%s** | Categoría: %s', $producto->name, $categoria),
-            sprintf('  Precio normal: %s %s', $this->simboloMoneda, $precioNormal),
-        ];
-
-        if ($producto->descuentoPromoActivo()) {
-            $lineas[] = sprintf(
-                '  Precio normal con promo: %s %s (descuento %s %s — solo venta directa, no aplica a TikTok)',
-                $this->simboloMoneda,
-                number_format((float) $producto->precioNormalConPromo(), 2),
-                $this->simboloMoneda,
-                number_format((float) $producto->discount, 2),
-            );
-        }
-
-        if ($producto->price_tiktok !== null && (float) $producto->price_tiktok > 0) {
-            $lineas[] = sprintf(
-                '  Precio TikTok: %s %s',
-                $this->simboloMoneda,
-                number_format((float) $producto->price_tiktok, 2)
-            );
-        }
-
-        if (! empty($producto->description)) {
-            $lineas[] = '  Descripción: '.trim((string) $producto->description);
-        }
+        $categoria = $producto->category?->name ?? 'Sin cat';
+        $lineaNombre = sprintf('- [%s] **%s**', $categoria, $producto->name);
 
         $tags = $producto->tags_ia ?? [];
         if ($tags !== []) {
-            $lineas[] = '  Tags: '.implode(', ', $tags);
+            $lineaNombre .= ' (Tags: '.implode(', ', $tags).')';
+        }
+        $lineas = [$lineaNombre];
+
+        $precios = [sprintf('%s %s', $this->simboloMoneda, number_format((float) $producto->price, 2))];
+
+        if ($producto->descuentoPromoActivo()) {
+            $precios[] = sprintf('Promo: %s %s', $this->simboloMoneda, number_format((float) $producto->precioNormalConPromo(), 2));
+        }
+
+        if ($producto->price_tiktok !== null && (float) $producto->price_tiktok > 0) {
+            $precios[] = sprintf('TikTok: %s %s', $this->simboloMoneda, number_format((float) $producto->price_tiktok, 2));
+        }
+
+        $lineas[] = '  Precio: '.implode(' | ', $precios);
+
+        if (! empty($producto->description)) {
+            $lineas[] = '  Desc: '.trim((string) $producto->description);
         }
 
         $variantes = $producto->relationLoaded('variants')
@@ -98,84 +89,36 @@ class FormateadorCatalogoProductos
             : $producto->variants()->get();
 
         if ($variantes->isEmpty()) {
-            $lineas[] = '  Colores y stock: sin variantes registradas';
+            $lineas[] = '  Stock: sin variantes';
         } else {
-            $lineas[] = '  Colores y stock:';
+            $partesStock = [];
             foreach ($variantes as $variante) {
-                $foto = $this->varianteTieneFoto($variante) ? 'foto: sí' : 'foto: no';
-                $lineas[] = '    · '.$variante->color.': '.$this->formatearStockVariante($variante)." ({$foto})";
+                $foto = $this->varianteTieneFoto($variante) ? 'foto' : 'no-foto';
+                $stockStr = $this->formatearStockVarianteCompacto($variante);
+                $partesStock[] = sprintf('%s (%s, %s)', $variante->color, $stockStr, $foto);
             }
+            $lineas[] = '  Stock: '.implode('; ', $partesStock);
         }
-
-        $stockTotal = $this->stockTotalProducto($variantes);
-        $lineas[] = sprintf('  Stock total: %d unidad(es)', $stockTotal);
 
         return implode("\n", $lineas);
     }
 
-    /**
-     * @param  Collection<int, ProductVariant>|iterable<ProductVariant>  $variantes
-     */
-    private function stockTotalProducto(iterable $variantes): int
-    {
-        $total = 0;
-
-        foreach ($variantes as $variante) {
-            foreach ($variante->sizes_stock ?? [] as $qty) {
-                $total += max(0, (int) $qty);
-            }
-        }
-
-        return $total;
-    }
-
-    private function formatearStockVariante(ProductVariant $variante): string
+    private function formatearStockVarianteCompacto(ProductVariant $variante): string
     {
         $sizesStock = NormalizadorStockTallas::normalize($variante->sizes_stock ?? []);
 
         if ($sizesStock === []) {
-            return 'sin stock registrado';
+            return '0';
         }
 
-        $partes = $this->ordenarTallasDesdeBd($sizesStock);
-
-        return implode(', ', $partes);
-    }
-
-    /**
-     * @param  array<string, int>  $sizesStock
-     * @return list<string>
-     */
-    private function ordenarTallasDesdeBd(array $sizesStock): array
-    {
-        $estandar = [];
-        $extras = [];
-
+        $partes = [];
         foreach ($sizesStock as $talla => $cantidad) {
             $tallaLabel = strtoupper(trim((string) $talla));
-            $linea = $this->formatearLineaTallaBd($tallaLabel, (int) $cantidad);
-
-            if ($tallaLabel === $this->tallaEstandar) {
-                $estandar[] = $linea;
-            } else {
-                $extras[$tallaLabel] = $linea;
-            }
+            $etiqueta = NormalizadorStockTallas::etiquetaPublica($tallaLabel);
+            $partes[] = "{$etiqueta}:".max(0, (int) $cantidad);
         }
 
-        ksort($extras);
-
-        return array_values([...$estandar, ...$extras]);
-    }
-
-    private function formatearLineaTallaBd(string $talla, int $cantidad): string
-    {
-        $etiqueta = NormalizadorStockTallas::etiquetaPublica($talla);
-
-        if ($cantidad > 0) {
-            return sprintf('%s: %d en stock', $etiqueta, $cantidad);
-        }
-
-        return sprintf('%s: agotado', $etiqueta);
+        return implode(', ', $partes);
     }
 
     private function varianteTieneFoto(ProductVariant $variante): bool

@@ -20,7 +20,7 @@ class EnviarLinkPagoTarjeta
     /**
      * @return array{link: string, message: Message}
      */
-    public function handle(Sale $sale): array
+    public function handle(Sale $sale, ?string $customLink = null): array
     {
         if (! $sale->esPagoTarjeta()) {
             throw new RuntimeException('Este pedido no es pago con tarjeta.');
@@ -30,8 +30,11 @@ class EnviarLinkPagoTarjeta
             throw new RuntimeException('Solo puedes enviar el link cuando el pedido está en pago pendiente.');
         }
 
-        $settings = CompanySetting::query()->with('ventas')->first();
-        $link = GeneradorLinkPagoTarjeta::construir($settings?->ventas, $sale);
+        $link = trim((string) $customLink);
+        if ($link === '') {
+            $settings = CompanySetting::query()->with('ventas')->first();
+            $link = GeneradorLinkPagoTarjeta::construir($settings?->ventas, $sale);
+        }
 
         return DB::transaction(function () use ($sale, $link): array {
             $message = $this->enviarMensaje->handle(

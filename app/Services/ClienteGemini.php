@@ -178,6 +178,12 @@ class ClienteGemini
                     }
                 }
 
+                if ($functionCall === null && ($texto === null || $texto === '')) {
+                    Log::warning('Gemini agent devolvio candidato sin text ni functionCall', [
+                        'response' => $data,
+                    ]);
+                }
+
                 if ($functionCall !== null) {
                     $nombre = (string) ($functionCall['name'] ?? '');
                     $args = is_array($functionCall['args'] ?? null) ? $functionCall['args'] : [];
@@ -196,6 +202,10 @@ class ClienteGemini
                     ];
 
                     $resultado = $ejecutor($nombre, $args);
+
+                    if (is_array($resultado) && empty($resultado)) {
+                        $resultado = new \stdClass;
+                    }
 
                     $contents[] = [
                         'role' => 'user',
@@ -343,13 +353,30 @@ class ClienteGemini
     private function construirContents(array $historialMensajes): array
     {
         $contents = [];
+        $lastRole = null;
+        $lastText = '';
 
         foreach ($historialMensajes as $mensaje) {
             $role = $mensaje['role'] === 'assistant' ? 'model' : 'user';
-            $contents[] = [
-                'role' => $role,
-                'parts' => [['text' => $mensaje['content']]],
-            ];
+            $text = trim((string) $mensaje['content']);
+
+            if ($text === '') {
+                continue;
+            }
+
+            if ($role === $lastRole) {
+                // Merge text
+                $lastText .= "\n\n".$text;
+                // Update last content
+                $contents[count($contents) - 1]['parts'][0]['text'] = $lastText;
+            } else {
+                $contents[] = [
+                    'role' => $role,
+                    'parts' => [['text' => $text]],
+                ];
+                $lastRole = $role;
+                $lastText = $text;
+            }
         }
 
         if ($contents === []) {
