@@ -48,12 +48,14 @@ class Customer extends Model
     public static function resolverDesdeMensaje(string $phoneNumber, ?string $name = null): self
     {
         $customer = self::query()->firstOrCreate(
-            ['phone_number' => $phoneNumber],
-            ['name' => $name]
+            ['phone_number' => $phoneNumber]
         );
 
-        if ($name !== null && $name !== '' && $customer->name !== $name) {
-            $customer->update(['name' => $name]);
+        if ($name !== null && $name !== '') {
+            $isCurrentEmptyOrPhone = $customer->name === null || $customer->name === '' || $customer->name === $phoneNumber;
+            if ($isCurrentEmptyOrPhone && $customer->name !== $name) {
+                $customer->update(['name' => $name]);
+            }
         }
 
         return $customer->fresh();

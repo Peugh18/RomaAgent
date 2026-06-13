@@ -1,2 +1,35 @@
 [2026-06-09 04:59:55] local.DEBUG: Producto creado: 1 mariela es super bello 180.00 170.00 null false 1  disponible 1 camel null null 10 2 lila null null 10 3 azul null null 12 2026-06-09T04:59:55.000000Z 2026-06-09T04:59:55.000000Z {"url":"https://caravan-cycle-elixir.ngrok-free.dev/productos/create","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36","timestamp":"2026-06-09T04:59:55.235Z"} 
 [2026-06-09 05:18:07] local.DEBUG: Producto creado: 2 Aurora el mas hermoso 190.00 100.00 null false 1  disponible 4 rojo null null 12 2026-06-09T05:18:06.000000Z 2026-06-09T05:18:06.000000Z {"url":"https://caravan-cycle-elixir.ngrok-free.dev/productos/create","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36","timestamp":"2026-06-09T05:18:06.706Z"} 
+[2026-06-13 13:30:24] local.ERROR: InvalidStateError Failed to set the 'value' property on 'HTMLInputElement': This input element accepts a filename, which may only be programmatically set to the empty string. InvalidStateError: Failed to set the 'value' property on 'HTMLInputElement': This input element accepts a filename, which may only be programmatically set to the empty string.
+    at Es (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:87:38)
+    at Ur (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:87:109)
+    at Nr (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:87:2631)
+    at z (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:16938)
+    at P (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:15828)
+    at x (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:15203)
+    at Od.X [as fn] (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:19146)
+    at Od.run (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:83:1808)
+    at Oe (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:18747)
+    at ce (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:18409) {"url":"https://unbend-eloquence-sedation.ngrok-free.dev/configuracion/empresa","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36","timestamp":"2026-06-13T13:30:23.888Z"} 
+[2026-06-13 13:30:35] local.ERROR: InvalidStateError Failed to set the 'value' property on 'HTMLInputElement': This input element accepts a filename, which may only be programmatically set to the empty string. InvalidStateError: Failed to set the 'value' property on 'HTMLInputElement': This input element accepts a filename, which may only be programmatically set to the empty string.
+    at Es (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:87:38)
+    at Ur (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:87:109)
+    at Nr (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:87:2631)
+    at z (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:16938)
+    at P (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:15828)
+    at x (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:15203)
+    at Od.X [as fn] (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:19146)
+    at Od.run (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:83:1808)
+    at Oe (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:18747)
+    at ce (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:18409) {"url":"https://unbend-eloquence-sedation.ngrok-free.dev/configuracion/empresa","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36","timestamp":"2026-06-13T13:30:34.759Z"} 
+[2026-06-13 14:28:42] local.ERROR: TypeError Cannot read properties of null (reading 'scrollRegions') TypeError: Cannot read properties of null (reading 'scrollRegions')
+    at Jb.getScrollRegions (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:10:14863)
+    at Zb.handleBackForward (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:10:17974)
+    at https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:10:17795
+    at Array.find (<anonymous>)
+    at Zb.handle (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:10:17775)
+    at av.init (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:10:32456)
+    at setup (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:92:32638)
+    at Es (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:87:38)
+    at bw (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:34721)
+    at mw (https://unbend-eloquence-sedation.ngrok-free.dev/build/assets/app-B7x43MKK.js:88:34510) {"url":"https://unbend-eloquence-sedation.ngrok-free.dev/login","user_agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36","timestamp":"2026-06-13T14:28:42.775Z"} 

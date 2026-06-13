@@ -16,10 +16,10 @@ class NormalizadorRespuestaAgente
     public const MAX_PARTES = 3;
 
     /** Por encima de este largo el sistema intenta partir aunque la IA no use SPLIT. */
-    public const UMBRAL_TEXTO_LARGO = 180;
+    public const UMBRAL_TEXTO_LARGO = 60;
 
     /** Objetivo de caracteres por burbuja al partir automáticamente. */
-    public const MAX_CARACTERES_POR_PARTE = 240;
+    public const MAX_CARACTERES_POR_PARTE = 120;
 
     public function procesar(string $texto, string $moneda = 'PEN', ?Sale $sale = null): string
     {

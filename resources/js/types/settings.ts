@@ -29,16 +29,18 @@ export interface MetodoPago {
 export interface CompanySettingsForm {
     id?: number;
     company_name: string;
-    ruc?: string;
-    razon_social?: string;
+    vendedor_nombre?: string;
+    vendedor_genero?: string;
     celular?: string;
     email?: string;
     website?: string;
+    descripcion_empresa?: string;
     logo_path?: string;
     actividad_economica?: string;
     tono_bot?: string;
     estilo_comunicacion?: string;
     personalidad_bot?: string;
+    estilo_ventas?: string;
     respuesta_si_es_bot?: string;
     moneda?: string;
     metodos_pago?: MetodoPago[];

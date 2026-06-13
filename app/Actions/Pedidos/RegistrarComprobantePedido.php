@@ -15,11 +15,12 @@ use Illuminate\Support\Facades\DB;
 class RegistrarComprobantePedido
 {
     /**
+     * @param  array<string, mixed>  $args
      * @return array{mensaje: string, sale: Sale|null, pausado: bool}
      */
-    public function handle(Customer $customer, ?Message $mensajeComprobante = null): array
+    public function handle(Customer $customer, ?Message $mensajeComprobante = null, array $args = []): array
     {
-        return DB::transaction(function () use ($customer, $mensajeComprobante): array {
+        return DB::transaction(function () use ($customer, $mensajeComprobante, $args): array {
             $sale = $customer->activeSale;
 
             if ($sale === null) {
@@ -37,6 +38,10 @@ class RegistrarComprobantePedido
 
             if ($sale !== null) {
                 $sale->marcarPagoRecibido();
+
+                if (! empty($args['payment_method']) && empty($sale->payment_method)) {
+                    $sale->update(['payment_method' => $args['payment_method']]);
+                }
 
                 if ($mensajeComprobante !== null && ComprobantePagoMensaje::esImagenEntrante($mensajeComprobante)) {
                     ComprobantePagoMensaje::marcar($mensajeComprobante, $sale->fresh());

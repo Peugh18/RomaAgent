@@ -12,8 +12,10 @@ use App\Support\PlantillasDatosEmpresa;
 use App\Support\SanitizadorMetodosPago;
 use App\Support\ValidadorPlantillaMensaje;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Controller para gestión de configuraciones de empresa
@@ -95,12 +97,22 @@ class CompanySettingController extends Controller
     private function actualizarEmpresaInfo(CompanySetting $companySetting, array $datos): void
     {
         $empresaFields = [
-            'company_name', 'ruc', 'razon_social', 'celular', 'email',
-            'website', 'logo_path', 'actividad_economica', 'social_networks',
-            'address',
+            'company_name', 'vendedor_nombre', 'vendedor_genero', 'celular', 'email',
+            'website', 'descripcion_empresa', 'logo_path', 'actividad_economica', 'social_networks',
+            'address', 'informacion_adicional',
         ];
 
         $empresaData = array_intersect_key($datos, array_flip($empresaFields));
+
+        if (isset($empresaData['logo_path'])) {
+            $logoPath = $empresaData['logo_path'];
+            if (str_starts_with($logoPath, '/storage/')) {
+                $empresaData['logo_path'] = substr($logoPath, strlen('/storage/'));
+            } elseif (str_contains($logoPath, '/storage/')) {
+                $parts = explode('/storage/', $logoPath);
+                $empresaData['logo_path'] = end($parts);
+            }
+        }
 
         if (! empty($empresaData)) {
             $empresaInfo = $companySetting->obtenerOCrearEmpresaInfo();
@@ -122,6 +134,7 @@ class CompanySettingController extends Controller
             'tono_bot' => 'tono_bot',
             'estilo_comunicacion' => 'estilo_comunicacion',
             'personalidad_bot' => 'personalidad_bot',
+            'estilo_ventas' => 'estilo_ventas',
             'respuesta_si_es_bot' => 'respuesta_si_es_bot',
         ];
 
@@ -259,6 +272,23 @@ class CompanySettingController extends Controller
             'prompt_completo' => $datos['prompt_completo'],
             'prompt_secciones' => $datos['prompt_secciones'],
         ]);
+    }
+
+    public function uploadLogo(Request $request): JsonResponse
+    {
+        $request->validate([
+            'logo' => 'required|image|max:2048',
+        ]);
+
+        if ($request->hasFile('logo')) {
+            $path = $request->file('logo')->store('logos', 'public');
+
+            return response()->json([
+                'logo_path' => Storage::url($path),
+            ]);
+        }
+
+        return response()->json(['message' => 'No se pudo subir la imagen.'], 400);
     }
 
     /**
