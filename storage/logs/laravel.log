@@ -6778,3 +6778,14 @@ Please retry in 53.156456308s.","status":"RESOURCE_EXHAUSTED"}
 [2026-06-13 23:01:57] local.WARNING: DescargadorMediaWhatsapp: download failed {"wa_id":"wamid.HBgLNTE5MzU1NjEzNjEVAgASGCBBQzgxQzg2QTgxMzMxQjIwODk3NjRFOEI5NjNFMTRGRAA=","status":401,"media_id":"2921341388209704","hint":"WHATSAPP_ACCESS_TOKEN inválido o expirado","body":"{\"title\":\"Authentication Error\",\"detail\":\"Authentication Error\",\"status\":401}"} 
 [2026-06-13 23:01:57] local.WARNING: ProcessMediaThenRespondJob: media no descargada, reintentando {"msg":180,"type":"audio","attempt":1} 
 [2026-06-13 23:02:43] local.WARNING: DescargadorMediaWhatsapp: graph media url failed {"media_id":"2921341388209704","status":401,"hint":"WHATSAPP_ACCESS_TOKEN inválido o expirado","body":"{\"error\":{\"message\":\"Authentication Error\",\"code\":190,\"type\":\"OAuthException\",\"fbtrace_id\":\"Al8ehRWzk6RbDG7giU93hsB\"}}"} 
+[2026-06-13 23:02:43] local.WARNING: DescargadorMediaWhatsapp: download failed {"wa_id":"wamid.HBgLNTE5MzU1NjEzNjEVAgASGCBBQzgxQzg2QTgxMzMxQjIwODk3NjRFOEI5NjNFMTRGRAA=","status":401,"media_id":"2921341388209704","hint":"WHATSAPP_ACCESS_TOKEN inválido o expirado","body":"{\"title\":\"Authentication Error\",\"detail\":\"Authentication Error\",\"status\":401}"} 
+[2026-06-13 23:02:43] local.WARNING: ProcessMediaThenRespondJob: media no descargada, reintentando {"msg":180,"type":"audio","attempt":2} 
+[2026-06-13 23:02:59] local.INFO: Roma inbound: message stored {"id":181,"phone":"51920772139","type":"text"} 
+[2026-06-13 23:02:59] local.INFO: Encolando respuesta IA con debounce {"phone":"51920772139","message_id":181,"debounce_seconds":5} 
+[2026-06-13 23:03:04] local.INFO: EsperarRespuestaAgenteJob: generando respuesta tras debounce {"phone":"51920772139","message_id":181} 
+[2026-06-13 23:03:04] local.INFO: GenerarRespuestaAgenteJob: processing {"message_id":181,"phone":"51920772139"} 
+[2026-06-13 23:03:04] local.INFO: Agente vendedor procesando mensaje {"phone":"51920772139","modelo":"gemini-2.5-flash"} 
+[2026-06-13 23:03:08] local.INFO: SendWhatsappMessageJob: processing {"id":182,"phone":"51920772139"} 
+[2026-06-13 23:03:08] local.INFO: RomaWhatsappClient: sending to Meta {"phone":"51920772139","type":"text"} 
+[2026-06-13 23:03:08] local.INFO: MetaWhatsAppClient: sending {"phone":"51920772139","type":"text","trace_id":"trace_1781391788_hEi17j4"} 
+[2026-06-13 23:03:08] local.ERROR: SendWhatsappMessageJob: failed {"id":182,"error":"Meta/WhatsApp rejected message: {\"message\":\"Authentication Error\",\"code\":190,\"type\":\"OAuthException\",\"fbtrace_id\":\"AURH8TLqepZnHEqRjPmkHKW\"}","attempt":1} 
