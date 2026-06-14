@@ -11,9 +11,6 @@ use App\Models\Message;
 use App\Services\Media\AudioTranscriber;
 use App\Services\Media\DescargadorMediaWhatsapp;
 use App\Services\Media\ImageAnalyzer;
-use App\Services\Vision\CatalogoImageMatcher;
-use App\Services\Vision\HybridImageMatcher;
-use App\Services\Vision\VisionLearningService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -57,9 +54,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -115,9 +109,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -174,9 +165,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -213,9 +201,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -264,9 +249,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         $job->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -325,9 +307,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         $job->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
