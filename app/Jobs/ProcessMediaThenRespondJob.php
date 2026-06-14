@@ -146,7 +146,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         // Flujo directo de Roma Store para optimizar conversión y asegurar adherencia a la marca:
         // Si el mensaje es una imagen y ya se resolvió y respondió directamente,
         // saltamos el agente de IA para evitar respuestas redundantes.
-        if ($type === 'image' && $enriquecido && ! ($meta['vision']['inbound_profile']['tipo_mensaje'] ?? '' === 'comprobante')) {
+        if ($type === 'image' && $enriquecido && ($message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? '') !== 'comprobante') {
             return;
         }
 
@@ -231,7 +231,7 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         $res = $analyzer->analyzeUrl($this->resolveAbsoluteUrl($imgUrl), [
             'caption_cliente' => $captionCliente,
         ]);
-        if (! is_array($res) || empty($res['caption'])) {
+        if (! is_array($res) || ! isset($res['inbound_profile'])) {
             Log::warning('ProcessMediaThenRespondJob: análisis de imagen vacío', [
                 'msg' => $message->id,
                 'url' => $imgUrl,
@@ -281,16 +281,15 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
             $textoRespuesta = 'Hermosa, no logro reconocer muy bien ese modelito por la foto. ¿Me podrías indicar el nombre del vestido y el color que deseas solicitar? ✨';
         }
 
-        SendMessageJob::dispatch($message->customer_id, $textoRespuesta, null);
-
-        // Guardar la respuesta del bot en BD
-        Message::create([
-            'customer_id' => $message->customer_id,
-            'direction' => 'outbound',
-            'status' => 'queued',
+        $outbound = Message::create([
+            'message_id' => 'temp_'.uniqid(),
+            'phone_number' => $message->phone_number,
+            'direction' => 'outgoing',
+            'status' => 'pending',
             'content' => $textoRespuesta,
-            'message_type' => 'text',
         ]);
+
+        SendWhatsappMessageJob::dispatch($outbound);
 
         return true;
     }
