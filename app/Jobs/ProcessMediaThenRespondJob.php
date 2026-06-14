@@ -249,28 +249,12 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         }
 
         $inboundProfile = is_array($res['inbound_profile'] ?? null) ? $res['inbound_profile'] : [];
-        $visionAnterior = is_array($meta['vision'] ?? null) ? $meta['vision'] : [];
-
-        if ($this->debePreservarPerfilVisionAnterior($inboundProfile, $visionAnterior)) {
-            $inboundProfile = is_array($visionAnterior['inbound_profile'] ?? null)
-                ? $visionAnterior['inbound_profile']
-                : $inboundProfile;
-            $res['caption'] = is_string($visionAnterior['caption'] ?? null) && trim($visionAnterior['caption']) !== ''
-                ? trim($visionAnterior['caption'])
-                : $res['caption'];
-        }
-
-        $matchResult = $this->resolverMatchCatalogo($matcher, $hybridMatcher, $inboundProfile, $captionCliente);
+        $encontrado = $inboundProfile['encontrado'] ?? false;
+        $esComprobante = ($inboundProfile['tipo_mensaje'] ?? '') === 'comprobante';
 
         $meta['vision'] = [
-            'caption' => $res['caption'],
             'inbound_profile' => $inboundProfile,
-            'matches' => $matchResult['matches'],
-            'mejor_match' => $matchResult['mejor_match'],
-            'confianza_final' => $matchResult['confianza_final'],
-            'nivel' => $matchResult['nivel'],
-            'estrategia' => $matchResult['estrategia'] ?? 'textual',
-            'recomendaciones' => $matchResult['recomendaciones'] ?? [],
+            'encontrado' => $encontrado,
         ];
         if ($captionCliente !== '') {
             $meta['vision']['caption_cliente'] = $captionCliente;
@@ -279,21 +263,40 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         unset($meta['media_download_failed'], $meta['vision_failed'], $meta['vision_error']);
         $message->metadata = $meta;
 
-        $this->registrarMatchParaEntrenamiento(
-            $learningService,
-            $inboundProfile,
-            $matchResult,
-            $imgUrl,
-            $message->id,
-        );
-
         $contenido = $captionCliente !== ''
-            ? '[Imagen — clienta: '.$captionCliente.'] '.$res['caption']
-            : '[Imagen: '.$res['caption'].']';
+            ? '[Imagen — clienta: '.$captionCliente.']'
+            : '[Imagen enviada]';
         $message->content = $contenido;
         $message->save();
 
-        return true;
+        if ($esComprobante) {
+            // Dejar que siga el flujo normal o el bot de IA normal
+            return true;
+        }
+
+        // Respuesta directa!
+        $nombre = $inboundProfile['nombre_vestido'] ?? 'elegido';
+        $color = $inboundProfile['color'] ?? '';
+
+        if ($encontrado) {
+            $textoRespuesta = "¡Sí lo tenemos disponible en tienda, hermosa! El modelo es el vestido {$nombre} en color {$color}. nos confirmas si deseas realizar el pedido para poder ayudarte hermosa 🤗🛍️";
+        } else {
+            $textoRespuesta = 'Hermosa, no logro reconocer muy bien ese modelito por la foto. ¿Me podrías indicar el nombre del vestido y el color que deseas solicitar? ✨';
+        }
+
+        SendMessageJob::dispatch($message->customer_id, $textoRespuesta, null);
+
+        // Guardar la respuesta del bot en BD
+        Message::create([
+            'customer_id' => $message->customer_id,
+            'direction' => 'outbound',
+            'status' => 'queued',
+            'content' => $textoRespuesta,
+            'message_type' => 'text',
+        ]);
+
+        // Retornamos false para que no siga al bot de IA general
+        return false;
     }
 
     /**

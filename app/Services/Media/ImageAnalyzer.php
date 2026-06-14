@@ -3,6 +3,8 @@
 namespace App\Services\Media;
 
 use App\Exceptions\GeminiQuotaExceededException;
+use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Services\ConfiguracionAgente;
 use App\Services\Vision\OptimizedVisionPrompts;
 use App\Support\Vision\ParseadorRespuestaJsonGemini;
@@ -46,8 +48,22 @@ class ImageAnalyzer extends BaseGeminiService
 
         $captionCliente = trim((string) ($contexto['caption_cliente'] ?? ''));
 
+        // Obtener inventario activo
+        $variantesActivas = ProductVariant::where('stock', '>', 0)
+            ->whereHas('product', function ($q) {
+                $q->where('status', Product::ESTADO_DISPONIBLE);
+            })
+            ->with('product')
+            ->get();
+
+        $inventarioTexto = $variantesActivas->map(function ($variante) {
+            $nombre = $variante->product->name ?? 'Desconocido';
+
+            return "- ID_Producto: {$variante->product_id} | Vestido: {$nombre} | Color: {$variante->color} | Stock: {$variante->stock}";
+        })->join("\n");
+
         // Usar prompts optimizados del sistema de visión
-        $prompt = OptimizedVisionPrompts::promptAnalisisCliente($captionCliente);
+        $prompt = OptimizedVisionPrompts::promptAnalisisCliente($captionCliente, $inventarioTexto);
 
         $modelo = $this->obtenerModelo();
         $endpoint = $this->construirEndpoint($modelo);
