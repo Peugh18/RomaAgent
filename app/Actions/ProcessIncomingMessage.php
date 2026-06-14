@@ -47,7 +47,7 @@ class ProcessIncomingMessage
             ['message_id' => $this->extractMessageId($payload)],
             [
                 'phone_number' => $phoneNumber,
-                'customer_name' => $payload['customer_name'] ?? $payload['name'] ?? null,
+                'customer_name' => $payload['sender_name'] ?? $payload['customer_name'] ?? $payload['name'] ?? null,
                 'content' => is_string($contentPreview) ? $contentPreview : json_encode($contentPreview),
                 'direction' => $this->normalizeDirection($payload['direction'] ?? 'incoming'),
                 'status' => $payload['status'] ?? 'delivered',
