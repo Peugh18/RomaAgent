@@ -66,12 +66,23 @@ class WhatsappWebhookController extends Controller
                 $value = is_array($change['value'] ?? null) ? $change['value'] : [];
                 $metaPhoneId = (string) ($value['metadata']['phone_number_id'] ?? MetaWhatsAppSettings::phoneNumberId());
 
+                $contacts = is_array($value['contacts'] ?? null) ? $value['contacts'] : [];
+                $contactProfiles = [];
+                foreach ($contacts as $contact) {
+                    if (is_array($contact) && isset($contact['wa_id'])) {
+                        $contactProfiles[(string) $contact['wa_id']] = $contact['profile']['name'] ?? null;
+                    }
+                }
+
                 foreach ($value['messages'] ?? [] as $message) {
                     if (! is_array($message)) {
                         continue;
                     }
 
                     $event = NormalizadorWebhookMeta::normalizarMensaje($message, $metaPhoneId);
+                    if (isset($message['from'])) {
+                        $event['sender_name'] = $contactProfiles[(string) $message['from']] ?? null;
+                    }
                     $event = $this->enriquecerMedia($event);
                     $payload = NormalizadorWebhookMeta::aPayloadCrm($event);
 

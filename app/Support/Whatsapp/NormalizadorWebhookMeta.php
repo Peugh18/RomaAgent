@@ -120,6 +120,7 @@ class NormalizadorWebhookMeta
 
         return [
             'wa_id' => $event['wa_id'] ?? '',
+            'sender_name' => $event['sender_name'] ?? null,
             'sender_phone' => $event['from'] ?? '',
             'from' => $event['from'] ?? '',
             'message_body' => $event['text'] ?? ($event['interactive']['title'] ?? ''),
