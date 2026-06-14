@@ -41,6 +41,26 @@ FORMATO JSON OBLIGATORIO (sin markdown, sin comentarios):
 PROMPT;
     }
 
+    public static function promptExtractorCaracteristicasPrenda(): string
+    {
+        return <<<PROMPT
+Eres un experto analista de moda. Tu único objetivo es describir la PRENDA PRINCIPAL que viste la persona en la foto.
+Ignora por completo el fondo, la cara de la persona, los maniquíes de atrás, las luces o cualquier otra cosa.
+
+Describe la prenda de manera muy breve enfocándote solo en lo visual. 
+Debe incluir: Tipo de prenda (ej. vestido, blusa), Color dominante (ej. rojo, camel, lila) y Patrón o Diseño (ej. zig-zag, liso, floral).
+
+FORMATO JSON OBLIGATORIO (sin markdown, sin comentarios):
+{
+  "es_prenda": true|false,
+  "tipo_prenda": "vestido|blusa|pantalón|etc",
+  "color": "color dominante",
+  "patron": "diseño o textura visible",
+  "descripcion_vectorial": "frase corta como: Vestido de mujer, patrón zig-zag, color rojo"
+}
+PROMPT;
+    }
+
     /**
      * Prompt para generar embeddings de catálogo
      */

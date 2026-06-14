@@ -38,8 +38,8 @@ class ProcessCatalogEmbeddings extends Command
         }
 
         // Procesar con barra de progreso
-        $this->withProgressBar(1, function () use ($embeddingService) {
-            $stats = $embeddingService->procesarCatalogoCompleto();
+        $this->withProgressBar(1, function () use ($embeddingService, $force) {
+            $stats = $embeddingService->procesarCatalogoCompleto($force);
 
             $this->newLine();
             $this->table(

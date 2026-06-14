@@ -36,6 +36,7 @@ class ProductResource extends JsonResource
                 'image_url' => $this->resolveVariantImageUrl($variant),
                 'image_path' => $variant->image_path,
                 'sizes_stock' => $variant->sizes_stock,
+                'has_embedding' => !empty($variant->image_embedding),
             ])),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
