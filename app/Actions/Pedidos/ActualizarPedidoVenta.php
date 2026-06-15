@@ -47,7 +47,9 @@ class ActualizarPedidoVenta
                 'product_variant_id' => $variant?->id,
                 'product_name' => $product?->name ?? (string) ($datos['product_name'] ?? $sale->product_name),
                 'color' => $variant?->color ?? ($datos['color'] ?? $sale->color),
-                'size' => strtoupper(trim((string) ($datos['size'] ?? $sale->size ?? NormalizadorStockTallas::defaultSizeKey()))),
+                'size' => NormalizadorStockTallas::esTallaEstandar((string) ($datos['size'] ?? $sale->size))
+                    ? NormalizadorStockTallas::defaultSizeKey()
+                    : mb_strtoupper(trim((string) ($datos['size'] ?? $sale->size)), 'UTF-8'),
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
                 'delivery_cost' => $deliveryCost,

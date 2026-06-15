@@ -27,7 +27,11 @@ class ServicioStockPedido
                 return;
             }
 
-            $sizeKey = strtoupper(trim($size)) ?: NormalizadorStockTallas::defaultSizeKey();
+            $sizeKey = mb_strtoupper(trim($size), 'UTF-8') ?: NormalizadorStockTallas::defaultSizeKey();
+            if (NormalizadorStockTallas::esTallaEstandar($sizeKey)) {
+                $sizeKey = NormalizadorStockTallas::defaultSizeKey();
+            }
+
             $stock = $variant->sizes_stock ?? [];
 
             if (! array_key_exists($sizeKey, $stock)) {

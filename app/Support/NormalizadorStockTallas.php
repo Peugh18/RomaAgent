@@ -56,7 +56,8 @@ class NormalizadorStockTallas
 
     public static function esTallaEstandar(?string $talla): bool
     {
-        $key = strtoupper(trim((string) ($talla ?? self::defaultSizeKey())));
+        $key = mb_strtoupper(trim((string) ($talla ?? self::defaultSizeKey())), 'UTF-8');
+        $key = str_replace(['TALLA ', 'TALLA_'], '', $key);
 
         return $key === self::defaultSizeKey();
     }
@@ -67,12 +68,12 @@ class NormalizadorStockTallas
     public static function etiquetaPublica(?string $talla = null): string
     {
         if (self::esTallaEstandar($talla)) {
-            return 'talla estándar';
+            return 'estándar';
         }
 
-        $key = strtoupper(trim((string) $talla));
+        $key = mb_strtoupper(trim((string) $talla), 'UTF-8');
 
-        return $key !== '' ? sprintf('talla %s', $key) : 'talla estándar';
+        return $key !== '' ? sprintf('%s', $key) : 'estándar';
     }
 
     /**

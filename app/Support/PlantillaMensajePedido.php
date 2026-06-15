@@ -31,11 +31,14 @@ class PlantillaMensajePedido
             ?? ''
         ));
 
+        $talla = \App\Support\NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
+        $productNames = "{$sale->quantity}x {$sale->product_name} (talla {$talla})";
+
         return str_replace(
             ['{nombre}', '{producto}', '{color}', '{total}', '{distrito}', '{metodo_pago}'],
             [
                 $nombre,
-                $sale->product_name,
+                $productNames,
                 (string) $sale->color,
                 number_format((float) $sale->total_amount, 2),
                 (string) ($sale->delivery_district ?? ''),
@@ -84,11 +87,14 @@ class PlantillaMensajePedido
             ?? null
         ));
 
+        $talla = \App\Support\NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
+        $productNames = "{$sale->quantity}x {$sale->product_name} (talla {$talla})";
+
         return [
             'nombre' => $nombre !== '' ? $nombre : null,
-            'producto' => $sale->product_name,
+            'producto' => $productNames,
             'color' => $sale->color,
-            'total' => number_format((float) $sale->total_amount, 2),
+            'total' => $sale->total_amount,
             'distrito' => $sale->delivery_district,
             'metodo_pago' => $sale->payment_method,
         ];

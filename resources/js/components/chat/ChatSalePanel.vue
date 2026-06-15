@@ -122,7 +122,8 @@ const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
             <div class="min-w-0 space-y-1">
                 <div class="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <Package class="h-4 w-4 shrink-0 text-primary" />
-                    <span class="truncate">{{ sale.product_name }}</span>
+                    <span class="truncate">{{ sale.quantity }}x {{ sale.product_name }}</span>
+                    <span v-if="sale.size" class="font-normal text-muted-foreground">· {{ sale.size }}</span>
                     <span v-if="sale.color" class="font-normal text-muted-foreground">· {{ sale.color }}</span>
                 </div>
                 <p class="text-xs text-muted-foreground">
