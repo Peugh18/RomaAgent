@@ -18,8 +18,6 @@ import {
 import { CheckCircle, ExternalLink, Loader2, MapPin, Package, Truck } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { apiJson, getCsrfToken } from '@/composables/useApi';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 const props = defineProps<{
     sale: Sale | null;
