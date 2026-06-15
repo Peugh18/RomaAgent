@@ -31,7 +31,7 @@ class MensajesEmpresaDefaults
 
     public static function esperaLinkTarjeta(): string
     {
-        return 'Te comunico con el equipo para pasarte el link de pago, hermosa. Un momento por favor.';
+        return "Te comunico con un asesor para generar tu link de pago seguro.\n\nPor favor, envíame los siguientes datos:\n- Nombre completo:\n- Correo electrónico:\n- Número de Celular:\n- Monto a pagar:\n\nUna vez realizado el pago, envíame tu comprobante por aquí para confirmar tu pedido.";
     }
 
     public static function recordatorio3Min(): string

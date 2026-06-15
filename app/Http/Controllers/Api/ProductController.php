@@ -210,4 +210,12 @@ class ProductController extends Controller
 
         $product->desmarcarOculto();
     }
+
+    public function generateEmbeddings(\App\Services\Vision\ProductEmbeddingService $service): JsonResponse
+    {
+        // Pasamos true para forzar el recálculo de los nuevos vectores de texto
+        $stats = $service->procesarCatalogoCompleto(true);
+
+        return response()->json($stats);
+    }
 }

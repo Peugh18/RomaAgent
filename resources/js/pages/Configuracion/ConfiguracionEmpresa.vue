@@ -462,7 +462,10 @@ const heroStats = computed(() => {
                             </div>
                         </div>
                     </CrmPanel>
+                </TabsContent>
 
+                <!-- TAB 2: CONTACTO Y REDES SOCIALES -->
+                <TabsContent value="contacto" class="mt-6 space-y-6">
                     <CrmPanel>
                         <ConfigSectionHeader
                             :icon="Share2"
@@ -474,6 +477,7 @@ const heroStats = computed(() => {
                                 <Label for="website">Sitio Web</Label>
                                 <Input id="website" v-model="form.website" placeholder="https://miempresa.com" />
                             </div>
+>>>>>>> origin/main
                             <div class="space-y-2">
                                 <Label for="instagram">Instagram</Label>
                                 <Input id="instagram" v-model="form.social_networks.instagram" placeholder="@tuempresa" />
@@ -485,6 +489,10 @@ const heroStats = computed(() => {
                             <div class="space-y-2">
                                 <Label for="tiktok">TikTok</Label>
                                 <Input id="tiktok" v-model="form.social_networks.tiktok" placeholder="@tuempresa" />
+                            </div>
+                            <div class="space-y-2">
+                                <Label for="website">Sitio Web</Label>
+                                <Input id="website" v-model="form.social_networks.website" placeholder="https://miempresa.com" />
                             </div>
                         </div>
                     </CrmPanel>
@@ -872,6 +880,7 @@ const heroStats = computed(() => {
                             </div>
                         </div>
                     </CrmPanel>
+
 
                     <CrmPanel>
                         <ConfigSectionHeader

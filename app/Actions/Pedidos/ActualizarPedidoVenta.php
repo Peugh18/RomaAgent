@@ -21,35 +21,87 @@ class ActualizarPedidoVenta
         return DB::transaction(function () use ($customer, $datos): Sale {
             $sale = $this->resolverPedidoActivo($customer);
 
-            $product = $this->resolverProducto($datos['product_name'] ?? $sale->product_name);
-            $variant = $this->resolverVariante($product, $datos['color'] ?? $sale->color);
-
-            $unitPrice = ValidadorPrecioPedido::resolverPrecioUnitario(
-                $product,
-                $datos['unit_price'] ?? null,
-            );
+            $status = isset($datos['status'])
+                ? SaleStatus::from($datos['status'])
+                : ($sale->exists ? $sale->status : SaleStatus::Cotizando);
 
             $deliveryCost = isset($datos['delivery_cost'])
                 ? max(0, (float) $datos['delivery_cost'])
                 : (float) $sale->delivery_cost;
 
-            $quantity = max(1, (int) ($datos['quantity'] ?? $sale->quantity));
+            $itemsData = $datos['items'] ?? [];
+            if (empty($itemsData) && isset($datos['product_name'])) {
+                // Fallback para array de single product si manda formato antiguo
+                $itemsData = [[
+                    'product_name' => $datos['product_name'],
+                    'color' => $datos['color'] ?? null,
+                    'size' => $datos['size'] ?? null,
+                    'quantity' => $datos['quantity'] ?? 1,
+                    'unit_price' => $datos['unit_price'] ?? null,
+                ]];
+            }
 
-            $status = isset($datos['status'])
-                ? SaleStatus::from($datos['status'])
-                : ($sale->exists ? $sale->status : SaleStatus::Cotizando);
+            // Calcular items
+            $processedItems = [];
+            $totalSubtotal = 0;
+            $firstProduct = null;
+            $firstVariant = null;
 
-            $total = ValidadorPrecioPedido::calcularTotal($unitPrice, $quantity, $deliveryCost);
+            foreach ($itemsData as $idx => $itemData) {
+                $productName = $itemData['product_name'] ?? 'Producto';
+                $product = $this->resolverProducto($productName);
+                $variant = $this->resolverVariante($product, $itemData['color'] ?? null);
+
+                if ($idx === 0) {
+                    $firstProduct = $product;
+                    $firstVariant = $variant;
+                }
+
+                $unitPrice = ValidadorPrecioPedido::resolverPrecioUnitario(
+                    $product,
+                    $itemData['unit_price'] ?? null,
+                );
+                
+                $quantity = max(1, (int) ($itemData['quantity'] ?? 1));
+                $subtotal = $unitPrice * $quantity;
+                $totalSubtotal += $subtotal;
+
+                $processedItems[] = [
+                    'product_id' => $product?->id,
+                    'product_variant_id' => $variant?->id,
+                    'product_name' => $product?->name ?? $productName,
+                    'color' => $variant?->color ?? ($itemData['color'] ?? null),
+                    'size' => strtoupper(trim((string) ($itemData['size'] ?? NormalizadorStockTallas::defaultSizeKey()))),
+                    'quantity' => $quantity,
+                    'unit_price' => $unitPrice,
+                    'subtotal' => $subtotal,
+                ];
+            }
+
+            // Si hay items nuevos en $datos, recalculamos el total. Si no mandó items, usamos el existente pero recalculamos total por si cambió el envío
+            if (!empty($processedItems)) {
+                $total = $totalSubtotal + $deliveryCost;
+            } else {
+                $totalSubtotal = $sale->items()->sum('subtotal');
+                $total = $totalSubtotal + $deliveryCost;
+            }
+
+            // Opcional: el bot podría enviar total_amount forzoso
+            if (isset($datos['total_amount'])) {
+                $total = (float) $datos['total_amount'];
+            }
 
             $payload = [
                 'phone_number' => $customer->phone_number,
-                'product_id' => $product?->id,
-                'product_variant_id' => $variant?->id,
-                'product_name' => $product?->name ?? (string) ($datos['product_name'] ?? $sale->product_name),
-                'color' => $variant?->color ?? ($datos['color'] ?? $sale->color),
-                'size' => strtoupper(trim((string) ($datos['size'] ?? $sale->size ?? NormalizadorStockTallas::defaultSizeKey()))),
-                'quantity' => $quantity,
-                'unit_price' => $unitPrice,
+                // Mantener los campos de legacy en la venta para el primer producto (compatibilidad vista antigua/migraciones)
+                'product_id' => $firstProduct?->id ?? $sale->product_id,
+                'product_variant_id' => $firstVariant?->id ?? $sale->product_variant_id,
+                'product_name' => $processedItems[0]['product_name'] ?? $sale->product_name,
+                'color' => $processedItems[0]['color'] ?? $sale->color,
+                'size' => $processedItems[0]['size'] ?? $sale->size ?? NormalizadorStockTallas::defaultSizeKey(),
+                'quantity' => $processedItems[0]['quantity'] ?? $sale->quantity ?? 1,
+                'unit_price' => $processedItems[0]['unit_price'] ?? $sale->unit_price ?? 0,
+                
                 'delivery_cost' => $deliveryCost,
                 'total_amount' => $total,
                 'payment_method' => $datos['payment_method'] ?? $sale->payment_method,
@@ -67,6 +119,22 @@ class ActualizarPedidoVenta
                 $sale = Sale::query()->create($payload);
             }
 
+            // Sincronizar items (Borrar y recrear es más seguro para el carrito del bot)
+            if (!empty($processedItems)) {
+                $sale->items()->delete();
+                foreach ($processedItems as $item) {
+                    $sale->items()->create($item);
+                }
+            } elseif ($sale->wasRecentlyCreated) {
+                // Caso extremo: se creó venta sin items. Agregamos un item por defecto
+                $sale->items()->create([
+                    'product_name' => $sale->product_name,
+                    'quantity' => $sale->quantity,
+                    'unit_price' => $sale->unit_price,
+                    'subtotal' => $sale->unit_price * $sale->quantity,
+                ]);
+            }
+
             // Update customer name from customer_data if provided
             $customerName = $datos['customer_data']['nombre_completo']
                 ?? $datos['customer_data']['nombre']
@@ -78,7 +146,7 @@ class ActualizarPedidoVenta
 
             $customer->asignarPedidoActivo($sale);
 
-            return $sale->fresh(['product', 'productVariant']);
+            return $sale->fresh(['product', 'productVariant', 'items']);
         });
     }
 

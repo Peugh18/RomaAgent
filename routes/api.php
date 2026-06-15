@@ -36,6 +36,7 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
 
     Route::post('/messages/{message}/resend', [RomaMessageController::class, 'resend']);
 
+    Route::post('products/generate-embeddings', [ApiProductController::class, 'generateEmbeddings']);
     Route::apiResource('products', ApiProductController::class);
 
     Route::post('product-variants/{variant}/photo', [ProductVariantPhotoController::class, 'store']);

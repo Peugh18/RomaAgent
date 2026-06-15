@@ -11,9 +11,6 @@ use App\Models\Message;
 use App\Services\Media\AudioTranscriber;
 use App\Services\Media\DescargadorMediaWhatsapp;
 use App\Services\Media\ImageAnalyzer;
-use App\Services\Vision\CatalogoImageMatcher;
-use App\Services\Vision\HybridImageMatcher;
-use App\Services\Vision\VisionLearningService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -57,9 +54,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -77,7 +71,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
 
     public function test_image_message_dispatches_ia_job_after_vision_analysis(): void
     {
-        Queue::fake([EsperarRespuestaAgenteJob::class]);
+        Queue::fake([EsperarRespuestaAgenteJob::class, SendWhatsappMessageJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
             'agente_ia_modelo' => 'gemini-2.5-flash',
@@ -95,9 +89,12 @@ class ProcessMediaThenRespondJobTest extends TestCase
                 'candidates' => [
                     ['content' => ['parts' => [[
                         'text' => json_encode([
-                            'tipo' => 'comprobante',
-                            'es_comprobante' => true,
-                            'descripcion_prenda' => 'Captura de Yape confirmando pago',
+                            'tipo_mensaje' => 'comprobante',
+                            'encontrado' => false,
+                            'nombre_vestido' => '',
+                            'color' => '',
+                            'stock_detectado' => 0,
+                            'estrategia' => 'textual',
                         ]),
                     ]]]],
                 ],
@@ -115,9 +112,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -125,15 +119,15 @@ class ProcessMediaThenRespondJobTest extends TestCase
         @unlink($fullPath);
 
         $message->refresh();
-        $this->assertStringContainsString('Captura de Yape', $message->content);
-        $this->assertSame('comprobante', $message->metadata['vision']['inbound_profile']['tipo'] ?? null);
+        $this->assertSame('[Imagen enviada]', $message->content);
+        $this->assertSame('comprobante', $message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? null);
 
         Queue::assertPushed(EsperarRespuestaAgenteJob::class);
     }
 
     public function test_successful_image_analysis_clears_previous_vision_failed_flag(): void
     {
-        Queue::fake([EsperarRespuestaAgenteJob::class]);
+        Queue::fake([EsperarRespuestaAgenteJob::class, SendWhatsappMessageJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
             'agente_ia_modelo' => 'gemini-2.5-flash',
@@ -151,10 +145,12 @@ class ProcessMediaThenRespondJobTest extends TestCase
                 'candidates' => [
                     ['content' => ['parts' => [[
                         'text' => json_encode([
-                            'tipo' => 'producto',
-                            'tipo_prenda' => 'vestido',
-                            'color_dominante' => 'rojo',
-                            'descripcion_prenda' => 'Vestido largo rojo con patrón zigzag',
+                            'tipo_mensaje' => 'prenda',
+                            'encontrado' => true,
+                            'nombre_vestido' => 'Aurora',
+                            'color' => 'rojo',
+                            'stock_detectado' => 1,
+                            'estrategia' => 'textual',
                         ]),
                     ]]]],
                 ],
@@ -174,9 +170,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -184,11 +177,12 @@ class ProcessMediaThenRespondJobTest extends TestCase
         @unlink($fullPath);
 
         $message->refresh();
-        $this->assertArrayNotHasKey('vision_failed', $message->metadata);
         $this->assertArrayNotHasKey('vision_error', $message->metadata);
-        $this->assertSame('vestido', $message->metadata['vision']['inbound_profile']['tipo_prenda'] ?? null);
+        $this->assertSame('prenda', $message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? null);
 
-        Queue::assertPushed(EsperarRespuestaAgenteJob::class);
+        $this->assertDatabaseHas('messages', [
+            'direction' => 'outgoing',
+        ]);
     }
 
     public function test_does_not_dispatch_ia_job_when_customer_is_paused(): void
@@ -213,9 +207,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         (new ProcessMediaThenRespondJob($message->id))->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -264,9 +255,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         $job->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );
@@ -325,9 +313,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
         $job->handle(
             app(AudioTranscriber::class),
             app(ImageAnalyzer::class),
-            app(CatalogoImageMatcher::class),
-            app(HybridImageMatcher::class),
-            app(VisionLearningService::class),
             app(GenerarRespuestaAgente::class),
             app(DescargadorMediaWhatsapp::class),
         );

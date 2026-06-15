@@ -159,7 +159,6 @@ const plantillaShalomTexto = computed({
         </Card>
 
 
-
         <Card>
             <CardHeader>
                 <CardTitle class="flex items-center gap-2">

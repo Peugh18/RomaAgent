@@ -5,7 +5,6 @@ import {
     primaryNavGroups,
     systemNavGroup,
     toNavMainItems,
-    trainingNavGroup,
 } from '@/config/appNavigation';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { Link } from '@inertiajs/vue3';
@@ -38,9 +37,6 @@ import AppLogo from './AppLogo.vue';
 
             <NavMain :items="toNavMainItems(systemNavGroup.items)" :group-label="systemNavGroup.label" />
 
-            <div class="mx-3 my-3 border-t border-sidebar-border/80" role="separator" />
-
-            <NavMain :items="toNavMainItems(trainingNavGroup.items)" :group-label="trainingNavGroup.label" />
         </SidebarContent>
 
         <SidebarFooter>

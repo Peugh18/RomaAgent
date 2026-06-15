@@ -11,53 +11,53 @@ class OptimizedVisionPrompts
     /**
      * Prompt mejorado para análisis de imágenes de clientes
      */
-    public static function promptAnalisisCliente(string $captionCliente = ''): string
+    public static function promptAnalisisCliente(string $captionCliente = '', string $inventarioActivo = ''): string
     {
         $captionPart = $captionCliente ? "Caption clienta: '{$captionCliente}'." : '';
+        $inventarioPart = $inventarioActivo ? "INVENTARIO ACTIVO DISPONIBLE:\n{$inventarioActivo}" : 'No hay inventario activo especificado.';
 
         return <<<PROMPT
 Eres un experto en moda y ventas de ropa femenina. Analiza esta imagen para un sistema de ventas por WhatsApp.
 
 {$captionPart}
 
-Contexto: Clientas envían fotos de prendas que quieren comprar (capturas de redes sociales, fotos de productos, etc).
+{$inventarioPart}
 
 INSTRUCCIONES CRÍTICAS:
-1. Si es COMPROBANTE DE PAGO (Yape, Plin, transferencia, BCP) -> tipo=comprobante
-2. Si es PRENDA DE VESTIR o CAPTURA con prenda visible -> tipo=producto
-3. Si es CAPTURA DE PANTALLA (TikTok, Instagram, Facebook) -> es_captura_redes=true
-4. Ignora UI, marcas de agua, textos superpuestos, logos de redes sociales
-
-ANÁLISIS DE PRENDA (solo si tipo=producto):
-- Identificar TIPO exacto: vestido, blusa, pantalón, falda, chompa, accesorio, otro
-- MATERIAL visible: punto, algodón, lino, poliéster, denim, seda, lana, mezclilla, otro
-- SILUETA/TALLA: corta, midi, larga, crop, oversized, ajustada, recta
-- DISEÑO/PATRÓN: liso, estampado floral, rayas, lunares, geométrico, tie-dye, otro
-- COLORES: identificar color dominante y secundarios (usar nombres estándar español)
-- DETALLES específicos: escote, mangas, cinturón, bolsillos, transparencias, bordados
+1. Revisa detenidamente la imagen enviada por la clienta (puede ser captura de TikTok, foto, etc).
+2. Compara la prenda de la imagen con la lista de "INVENTARIO ACTIVO DISPONIBLE".
+3. Si la prenda de la imagen COINCIDE claramente con alguno de los vestidos en stock activo, marca encontrado=true y extrae los datos.
+4. Si NO coincide, marca encontrado=false.
+5. Si es un comprobante de pago, marca encontrado=false y tipo_mensaje=comprobante.
 
 FORMATO JSON OBLIGATORIO (sin markdown, sin comentarios):
 {
-  "tipo": "producto|comprobante|otro",
-  "es_comprobante": boolean,
-  "es_captura_redes": boolean,
-  "tipo_prenda": "vestido|blusa|pantalón|falda|chompa|accesorio|otro|null",
-  "material_aparente": "punto|algodón|lino|poliéster|denim|seda|lana|mezclilla|otro|null",
-  "silueta": "corta|midi|larga|crop|oversized|ajustada|recta|null",
-  "patron": "liso|estampado|rayas|lunares|geométrico|tie-dye|otro|null",
-  "color_dominante": "color principal en español",
-  "colores_dominantes": ["color1", "color2"],
-  "descripcion_prenda": "descripción detallada 1-2 frases",
-  "detalles_visibles": ["detalle1", "detalle2"],
-  "texto_visible": "texto OCR relevante o vacío",
-  "caption_cliente": "{$captionCliente}",
-  "confianza_analisis": 0.95
+  "encontrado": true|false,
+  "id_producto": X (id del producto si fue encontrado, o null),
+  "nombre_vestido": "Nombre exacto del catálogo o null",
+  "color": "Color exacto del catálogo o null",
+  "tipo_mensaje": "producto|comprobante|otro"
 }
+PROMPT;
+    }
 
-EJEMPLOS:
-- Vestido azul liso manga larga -> tipo=producto, tipo_prenda=vestido, color_dominante=azul
-- Captura TikTok vestido rojo -> tipo=producto, es_captura_redes=true
-- Foto comprobante Yape -> tipo=comprobante, es_comprobante=true
+    public static function promptExtractorCaracteristicasPrenda(): string
+    {
+        return <<<PROMPT
+Eres un experto analista de moda. Tu único objetivo es describir la PRENDA PRINCIPAL que viste la persona en la foto.
+Ignora por completo el fondo, la cara de la persona, los maniquíes de atrás, las luces o cualquier otra cosa.
+
+Describe la prenda de manera muy breve enfocándote solo en lo visual. 
+Debe incluir: Tipo de prenda (ej. vestido, blusa), Color dominante (ej. rojo, camel, lila) y Patrón o Diseño (ej. zig-zag, liso, floral).
+
+FORMATO JSON OBLIGATORIO (sin markdown, sin comentarios):
+{
+  "es_prenda": true|false,
+  "tipo_prenda": "vestido|blusa|pantalón|etc",
+  "color": "color dominante",
+  "patron": "diseño o textura visible",
+  "descripcion_vectorial": "frase corta como: Vestido de mujer, patrón zig-zag, color rojo"
+}
 PROMPT;
     }
 

@@ -97,7 +97,7 @@ class CompanySettingController extends Controller
     private function actualizarEmpresaInfo(CompanySetting $companySetting, array $datos): void
     {
         $empresaFields = [
-            'company_name', 'vendedor_nombre', 'vendedor_genero', 'celular', 'email',
+            'company_name', 'ruc', 'razon_social', 'vendedor_nombre', 'vendedor_genero', 'celular', 'email',
             'website', 'descripcion_empresa', 'logo_path', 'actividad_economica', 'social_networks',
             'address', 'informacion_adicional',
         ];
@@ -166,7 +166,6 @@ class CompanySettingController extends Controller
         $mensajeFields = [
             'saludo_inicial' => 'saludo_inicial',
             'reglas_comunicacion' => 'reglas_comunicacion',
-            'flujo_ventas' => 'flujo_ventas',
             'mensaje_recordatorio_3min' => 'recordatorio_3min',
             'mensaje_recordatorio_15min' => 'recordatorio_15min',
             'mensaje_recordatorio_datos' => 'recordatorio_datos',
@@ -205,8 +204,6 @@ class CompanySettingController extends Controller
             'moneda' => 'moneda',
             'metodos_pago' => 'metodos_pago',
             'comision_tarjeta' => 'comision_tarjeta',
-            'link_pago_tarjeta' => 'link_pago_tarjeta',
-            'formato_registro_venta' => 'formato_registro_venta',
             'protocolo_traspaso' => 'protocolo_traspaso',
         ];
 

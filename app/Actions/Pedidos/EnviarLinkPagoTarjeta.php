@@ -4,10 +4,7 @@ namespace App\Actions\Pedidos;
 
 use App\Actions\Mensajes\EnviarMensajeWhatsappSaliente;
 use App\Enums\SaleStatus;
-use App\Models\CompanySetting;
-use App\Models\Message;
 use App\Models\Sale;
-use App\Support\GeneradorLinkPagoTarjeta;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -30,16 +27,62 @@ class EnviarLinkPagoTarjeta
             throw new RuntimeException('Solo puedes enviar el link cuando el pedido está en pago pendiente.');
         }
 
+        $sale->loadMissing('items');
+        
         $link = trim((string) $customLink);
         if ($link === '') {
             $settings = CompanySetting::query()->with('ventas')->first();
             $link = GeneradorLinkPagoTarjeta::construir($settings?->ventas, $sale);
         }
 
-        return DB::transaction(function () use ($sale, $link): array {
+        $listaProductos = "";
+
+        if ($sale->items->isNotEmpty()) {
+            foreach ($sale->items as $item) {
+                $nombreItem = $item->product_name;
+                if ($item->color || $item->size) {
+                    $variante = collect([$item->color, $item->size])->filter()->join(' / ');
+                    $nombreItem .= " ($variante)";
+                }
+                $precioFmt = number_format((float) $item->unit_price, 2, '.', '');
+                $listaProductos .= "- {$item->quantity} x {$nombreItem} (S/ {$precioFmt})\n";
+            }
+        } else {
+            $nombreItem = $sale->product_name;
+            if ($sale->color || $sale->size) {
+                $variante = collect([$sale->color, $sale->size])->filter()->join(' / ');
+                $nombreItem .= " ($variante)";
+            }
+            $precioFmt = number_format((float) $sale->unit_price, 2, '.', '');
+            $listaProductos .= "- {$sale->quantity} x {$nombreItem} (S/ {$precioFmt})\n";
+        }
+
+        $totalOriginal = (float) $sale->total_amount;
+        $envio = (float) $sale->delivery_cost;
+
+        $recargoTarjeta = round($totalOriginal * 0.05, 2);
+        $totalAPagar = $totalOriginal + $recargoTarjeta;
+
+        $envioFmt = number_format($envio, 2, '.', '');
+        $recargoFmt = number_format($recargoTarjeta, 2, '.', '');
+        $totalFinalFmt = number_format($totalAPagar, 2, '.', '');
+
+        $mensajeFinal = "¡Hola hermosa! Aquí tienes el resumen de tu pedido:\n\n"
+            . "🛍️ *Tus productos:*\n"
+            . "{$listaProductos}"
+            . "-------------------------\n"
+            . "🚚 *Envío:* S/ {$envioFmt}\n"
+            . "💳 *Recargo por tarjeta (5%):* S/ {$recargoFmt}\n"
+            . "=========================\n"
+            . "💰 *TOTAL A PAGAR:* S/ {$totalFinalFmt}\n\n"
+            . "🔗 *Tu link de pago seguro es:*\n"
+            . "{$linkUrl}\n\n"
+            . "✅ Por favor, envíame tu comprobante por aquí mismo una vez realizado el pago para confirmar tu pedido.";
+
+        return DB::transaction(function () use ($sale, $linkUrl, $mensajeFinal): array {
             $message = $this->enviarMensaje->handle(
                 phoneNumber: $sale->phone_number,
-                content: $link,
+                content: $mensajeFinal,
                 customerName: $sale->customer?->name,
                 metadataExtra: [
                     'generated_by' => 'admin_link_pago_tarjeta',
@@ -50,11 +93,15 @@ class EnviarLinkPagoTarjeta
 
             $metadata = is_array($sale->agent_metadata) ? $sale->agent_metadata : [];
             $metadata['link_pago_enviado_at'] = now()->toIso8601String();
-            $metadata['link_pago_url'] = $link;
+            $metadata['link_pago_url'] = $linkUrl;
             $sale->update(['agent_metadata' => $metadata]);
 
+            if ($sale->customer) {
+                $sale->customer->reanudarIa();
+            }
+
             return [
-                'link' => $link,
+                'link' => $linkUrl,
                 'message' => $message,
             ];
         });

@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/vue3';
-import { Plus, Edit, Trash2, Package, ImageOff } from 'lucide-vue-next';
+import { Plus, Edit, Trash2, Package, ImageOff, Brain } from 'lucide-vue-next';
 import { useCurrency } from '@/composables/useCurrency';
 import { normalizeLaravelPagination, type PaginatedResponse } from '@/lib/pagination';
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
@@ -40,6 +40,7 @@ interface ProductVariant {
     color: string;
     image_url: string | null;
     sizes_stock: Record<string, number>;
+    has_embedding?: boolean;
 }
 
 const productsData = ref<PaginatedResponse<Product> | null>(null);
@@ -162,6 +163,29 @@ const deleteProduct = async (id: number) => {
     }
 };
 
+const isGeneratingEmbeddings = ref(false);
+
+const generateEmbeddings = async () => {
+    if (!confirm('¿Deseas generar los vectores IA de todas las variantes sin vector? (Esto puede tardar unos minutos)')) return;
+    isGeneratingEmbeddings.value = true;
+    try {
+        const response = await fetch('/api/products/generate-embeddings', {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'X-CSRF-TOKEN': getCsrfToken() },
+            credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error('Error al generar vectores');
+        const data = await response.json();
+        alert(`¡Listo! Procesados: ${data.processed}, Exitosos: ${data.success}, Fallidos: ${data.failed}, Saltados: ${data.skipped}`);
+        await fetchProducts();
+    } catch (error) {
+        console.error(error);
+        alert('Error al generar los vectores IA.');
+    } finally {
+        isGeneratingEmbeddings.value = false;
+    }
+};
+
 onMounted(() => {
     fetchProducts();
 });
@@ -180,6 +204,10 @@ onMounted(() => {
                 :stats="heroStats"
             >
                 <template #actions>
+                    <Button variant="outline" class="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950" @click="generateEmbeddings" :disabled="isGeneratingEmbeddings">
+                        <Brain class="h-4 w-4" />
+                        {{ isGeneratingEmbeddings ? 'Generando...' : 'Sincronizar IA' }}
+                    </Button>
                     <Button as-child class="gap-2 bg-emerald-600 hover:bg-emerald-700">
                         <Link href="/productos/create" class="gap-2">
                             <Plus class="h-4 w-4" />
@@ -245,7 +273,12 @@ onMounted(() => {
                                         <span v-else class="text-sm text-muted-foreground">—</span>
                                     </TableCell>
                                     <TableCell class="text-center">
-                                        <Badge variant="outline" class="font-mono">{{ product.variants.length }}</Badge>
+                                        <div class="flex items-center justify-center gap-1">
+                                            <Badge variant="outline" class="font-mono">{{ product.variants.length }}</Badge>
+                                            <span v-if="product.variants.length > 0 && product.variants.every(v => v.has_embedding)" title="Vectorizado para IA" class="text-emerald-500">
+                                                <Brain class="h-3.5 w-3.5" />
+                                            </span>
+                                        </div>
                                     </TableCell>
                                     <TableCell class="text-right">
                                         <span

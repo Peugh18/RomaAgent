@@ -41,11 +41,21 @@ class EjecutorHerramientasAgente
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
-                        'product_name' => ['type' => 'string', 'description' => 'Nombre del producto en Productos'],
-                        'color' => ['type' => 'string'],
-                        'size' => ['type' => 'string'],
-                        'quantity' => ['type' => 'integer'],
-                        'unit_price' => ['type' => 'number'],
+                        'items' => [
+                            'type' => 'array',
+                            'description' => 'Lista de productos en el carrito. Agrega cada nuevo producto que la clienta pida. Si cambia cantidades, actualiza la lista.',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'product_name' => ['type' => 'string', 'description' => 'Nombre del producto'],
+                                    'color' => ['type' => 'string'],
+                                    'size' => ['type' => 'string'],
+                                    'quantity' => ['type' => 'integer'],
+                                    'unit_price' => ['type' => 'number'],
+                                ],
+                                'required' => ['product_name', 'quantity'],
+                            ],
+                        ],
                         'delivery_cost' => ['type' => 'number'],
                         'total_amount' => ['type' => 'number'],
                         'payment_method' => ['type' => 'string', 'description' => 'yape, tarjeta, transferencia, etc.'],
@@ -148,30 +158,26 @@ class EjecutorHerramientasAgente
             ?? CompanySetting::query()->value('moneda')
             ?? 'PEN';
         $simbolo = FormateadorCatalogoProductos::simboloDesdeMoneda((string) $moneda);
-        $quantity = max(1, (int) $sale->quantity);
-        $unitPrice = (float) $sale->unit_price;
         $deliveryCost = (float) $sale->delivery_cost;
         $total = (float) $sale->total_amount;
-        $subtotal = $unitPrice * $quantity;
+        $items = $sale->items;
+        
+        $desgloseItems = $items->map(function ($item) use ($simbolo) {
+            $qty = max(1, (int) $item->quantity);
+            return sprintf('%d × %s %s (%.2f)', $qty, $item->product_name, $item->color ?? '', (float) $item->unit_price);
+        })->join(' + ');
 
         return [
             'ok' => true,
             'sale_id' => $sale->id,
             'status' => $sale->status->value,
-            'product_name' => $sale->product_name,
-            'color' => $sale->color,
-            'size' => NormalizadorStockTallas::etiquetaPublica($sale->size),
-            'quantity' => $quantity,
-            'unit_price' => $unitPrice,
+            'items_count' => $items->count(),
             'delivery_cost' => $deliveryCost,
-            'subtotal_producto' => $subtotal,
             'total_amount' => $total,
             'moneda' => $simbolo,
             'desglose' => sprintf(
-                '%d × %s %.2f + envío %s %.2f = total %s %.2f',
-                $quantity,
-                $simbolo,
-                $unitPrice,
+                'Productos: [%s] + Envío %s %.2f = Total %s %.2f',
+                $desgloseItems,
                 $simbolo,
                 $deliveryCost,
                 $simbolo,
@@ -361,29 +367,32 @@ class EjecutorHerramientasAgente
             ?? CompanySetting::query()->value('moneda')
             ?? 'PEN';
         $simbolo = FormateadorCatalogoProductos::simboloDesdeMoneda((string) $moneda);
-        $quantity = max(1, (int) $sale->quantity);
-        $unitPrice = (float) $sale->unit_price;
         $deliveryCost = (float) $sale->delivery_cost;
         $total = (float) $sale->total_amount;
+        $items = $sale->items;
+        
+        $desgloseItems = $items->map(function ($item) use ($simbolo) {
+            $qty = max(1, (int) $item->quantity);
+            return sprintf('%d × %s %s (%.2f)', $qty, $item->product_name, $item->color ?? '', (float) $item->unit_price);
+        })->join(' + ');
 
         return [
             'ok' => true,
             'pedido' => [
                 'id' => $sale->id,
-                'product_name' => $sale->product_name,
-                'color' => $sale->color,
-                'size' => NormalizadorStockTallas::etiquetaPublica($sale->size),
-                'quantity' => $quantity,
-                'unit_price' => $unitPrice,
+                'items' => $items->map(fn ($i) => [
+                    'product_name' => $i->product_name,
+                    'color' => $i->color,
+                    'size' => NormalizadorStockTallas::etiquetaPublica($i->size),
+                    'quantity' => max(1, (int) $i->quantity),
+                    'unit_price' => (float) $i->unit_price,
+                ])->toArray(),
                 'delivery_cost' => $deliveryCost,
-                'subtotal_producto' => $unitPrice * $quantity,
                 'total_amount' => $total,
                 'moneda' => $simbolo,
                 'desglose' => sprintf(
-                    '%d × %s %.2f + envío %s %.2f = total %s %.2f',
-                    $quantity,
-                    $simbolo,
-                    $unitPrice,
+                    'Productos: [%s] + Envío %s %.2f = Total %s %.2f',
+                    $desgloseItems,
                     $simbolo,
                     $deliveryCost,
                     $simbolo,
@@ -394,7 +403,7 @@ class EjecutorHerramientasAgente
                 'delivery_type' => $sale->delivery_type,
                 'delivery_district' => $sale->delivery_district,
                 'customer_data' => $sale->customer_data ?? [],
-                'nota' => 'Producto, color y cantidad ya confirmados; no volver a pedirlos salvo cambio de la clienta.',
+                'nota' => 'Productos, colores y cantidades ya confirmados; no volver a pedirlos salvo cambio de la clienta.',
             ],
         ];
     }

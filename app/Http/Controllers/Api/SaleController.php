@@ -41,7 +41,7 @@ class SaleController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = Sale::query()
-            ->with(['customer', 'product', 'productVariant'])
+            ->with(['customer', 'product', 'productVariant', 'items'])
             ->latest();
 
         if ($request->filled('status')) {
@@ -74,7 +74,7 @@ class SaleController extends Controller
         $recentEntregadoIds = PipelineKanban::recentEntregadoIds();
 
         $sales = Sale::query()
-            ->with(['customer', 'product', 'productVariant'])
+            ->with(['customer', 'product', 'productVariant', 'items'])
             ->where(function ($query) use ($recentEntregadoIds): void {
                 $query->where('status', '!=', SaleStatus::Entregado)
                     ->where('status', '!=', SaleStatus::Cancelado)
@@ -138,7 +138,7 @@ class SaleController extends Controller
 
         if ($customer !== null && $customer->active_sale_id !== null) {
             $sale = Sale::query()
-                ->with(['customer', 'product', 'productVariant'])
+                ->with(['customer', 'product', 'productVariant', 'items'])
                 ->find($customer->active_sale_id);
 
             if ($sale !== null) {
@@ -153,7 +153,7 @@ class SaleController extends Controller
                 SaleStatus::Entregado,
             ])
             ->latest()
-            ->with(['customer', 'product', 'productVariant'])
+            ->with(['customer', 'product', 'productVariant', 'items'])
             ->first();
 
         return response()->json($sale);
@@ -217,9 +217,12 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
+        $validated = $request->validate([
+            'link' => ['required', 'string', 'max:1000'],
+        ]);
+
         try {
-            $customLink = $request->input('link');
-            $resultado = $enviarLink->handle($sale, $customLink);
+            $resultado = $enviarLink->handle($sale, $validated['link']);
         } catch (RuntimeException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
@@ -227,7 +230,7 @@ class SaleController extends Controller
         return response()->json([
             'link' => $resultado['link'],
             'message' => $resultado['message'],
-            'sale' => $sale->fresh(['customer', 'product', 'productVariant']),
+            'sale' => $sale->fresh(['customer', 'product', 'productVariant', 'items']),
         ]);
     }
 
