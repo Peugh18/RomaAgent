@@ -22,13 +22,9 @@ class EmpresaInfoConfig extends Model
         'company_name',
         'vendedor_nombre',
         'vendedor_genero',
-        'celular',
-        'email',
-        'website',
         'descripcion_empresa',
         'logo_path',
         'actividad_economica',
-        'informacion_adicional',
         'social_networks',
         'address',
     ];

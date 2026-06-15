@@ -474,11 +474,6 @@ const heroStats = computed(() => {
                         />
                         <div class="grid gap-4 md:grid-cols-2">
                             <div class="space-y-2">
-                                <Label for="website">Sitio Web</Label>
-                                <Input id="website" v-model="form.website" placeholder="https://miempresa.com" />
-                            </div>
->>>>>>> origin/main
-                            <div class="space-y-2">
                                 <Label for="instagram">Instagram</Label>
                                 <Input id="instagram" v-model="form.social_networks.instagram" placeholder="@tuempresa" />
                             </div>

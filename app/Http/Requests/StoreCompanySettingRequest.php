@@ -17,13 +17,8 @@ class StoreCompanySettingRequest extends FormRequest
     {
         return [
             'company_name' => 'nullable|string|max:255',
-            'ruc' => 'nullable|string|max:20',
-            'razon_social' => 'nullable|string|max:255',
             'vendedor_nombre' => 'nullable|string|max:255',
             'vendedor_genero' => 'nullable|string|max:255',
-            'celular' => 'nullable|string|max:20',
-            'email' => 'nullable|email',
-            'website' => 'nullable|url',
             'descripcion_empresa' => 'nullable|string',
             'logo_path' => 'nullable|string',
             'actividad_economica' => 'nullable|string|max:255',

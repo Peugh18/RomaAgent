@@ -97,9 +97,9 @@ class CompanySettingController extends Controller
     private function actualizarEmpresaInfo(CompanySetting $companySetting, array $datos): void
     {
         $empresaFields = [
-            'company_name', 'ruc', 'razon_social', 'vendedor_nombre', 'vendedor_genero', 'celular', 'email',
-            'website', 'descripcion_empresa', 'logo_path', 'actividad_economica', 'social_networks',
-            'address', 'informacion_adicional',
+            'company_name', 'vendedor_nombre', 'vendedor_genero',
+            'descripcion_empresa', 'logo_path', 'actividad_economica', 'social_networks',
+            'address',
         ];
 
         $empresaData = array_intersect_key($datos, array_flip($empresaFields));
