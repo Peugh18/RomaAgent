@@ -256,7 +256,6 @@ class ContextoConversacion
         $instruccionMoneda = $this->instruccionMonedaCliente($moneda, $simboloMonedaCliente);
         $politicaDevoluciones = trim((string) ($contexto['politica_devoluciones'] ?? ''));
         $restriccionesEspeciales = trim((string) ($contexto['restricciones'] ?? ''));
-        $informacionAdicional = trim((string) ($contexto['info_extra'] ?? ''));
         $comisionRaw = $romaStore['pagos']['tarjeta']['comision'] ?? null;
         $comisionTarjeta = $comisionRaw !== null ? (float) $comisionRaw : 5.00;
 
@@ -288,7 +287,6 @@ class ContextoConversacion
         $informacionAdicionalTexto = $this->construirInformacionAdicionalTexto(
             $politicaDevoluciones,
             $restriccionesEspeciales,
-            $informacionAdicional,
             (float) $comisionTarjeta,
         );
 
@@ -492,7 +490,6 @@ PROMPT;
     private function construirInformacionAdicionalTexto(
         string $politicaDevoluciones,
         string $restriccionesEspeciales,
-        string $informacionAdicional,
         float $comisionTarjeta,
     ): string {
         $lineas = [];
@@ -505,10 +502,6 @@ PROMPT;
 
         if ($restriccionesEspeciales !== '') {
             $lineas[] = "**Restricciones especiales:**\n{$restriccionesEspeciales}";
-        }
-
-        if ($informacionAdicional !== '') {
-            $lineas[] = "**Información adicional:**\n{$informacionAdicional}";
         }
 
         $lineas[] = '**Comisión por pago con tarjeta:** '.$comisionTarjeta.'%';
@@ -634,7 +627,7 @@ Eres la vendedora experta: hablas como en el prompt maestro (personalidad, flujo
 ### Herramientas
 - **actualizar_pedido**: OBLIGATORIO cada vez que avances la venta (cambios de producto, color, cantidad, envío, total, pago, datos). Actualiza y recalcula antes de hablar.
 - **enviar_foto_producto**: llama INMEDIATAMENTE si piden foto o confirmas modelo y la BD indica "foto". NO describas la imagen, da paso con una frase corta.
-- **registrar_comprobante_recibido**: cuando envíe captura de pago. Luego di: "{$mensajeComprobante}" (fuera horario: "{$mensajeNoche}").
+- **registrar_comprobante_recibido**: OBLIGATORIO cuando el cliente envíe una captura de pantalla (comprobante) o indique que ya pagó. NUNCA respondas a un comprobante usando enviar_foto_producto. Luego de registrar, di: "{$mensajeComprobante}" (fuera horario: "{$mensajeNoche}"). Al usar actualizar_pedido o registrar_comprobante_recibido, usa el nombre EXACTO del método de pago de tu configuración.
 - **solicitar_atencion_humana**: SOLO para link de tarjeta ({$mensajeTarjeta}), quejas graves o cuando la BD falla/no responde.
 - **consultar_pedido_activo**: para recordar el estado de la venta.
 - **buscar_productos**: opcional. Usa esto solo si el cliente pide una búsqueda muy compleja que no puedes resolver mirando el CATÁLOGO.
@@ -650,6 +643,7 @@ Eres la vendedora experta: hablas como en el prompt maestro (personalidad, flujo
 4. NUNCA confirmes pagos tú sola (debes pedir la foto y usar la herramienta registrar_comprobante_recibido).
 5. NUNCA repitas preguntas o datos que el cliente ya dio o que ya están confirmados en el Pedido Activo.
 6. NUNCA brindes la información de métodos de pago o cuentas bancarias si el cliente aún no ha definido qué producto y color desea comprar. Si te pide el número de cuenta antes de tiempo, pídele amablemente que primero te confirme qué prenda le enviaremos.
+7. NUNCA asumas que un "comprobante" es un modelo de vestido. Jamás llames a la herramienta enviar_foto_producto con product_name "comprobante" o color "pago".
 </PROHIBICIONES>
 
 <OBLIGATORIOS>

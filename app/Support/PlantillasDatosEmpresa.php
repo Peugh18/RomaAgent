@@ -26,7 +26,6 @@ class PlantillasDatosEmpresa
     }
 
     /**
-     * @param  mixed  $plantillas
      * @return array{motorizado: array<string, string>, shalom: array<string, string>}
      */
     public static function normalizar(mixed $plantillas): array

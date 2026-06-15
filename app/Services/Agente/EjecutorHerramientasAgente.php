@@ -58,7 +58,7 @@ class EjecutorHerramientasAgente
                         ],
                         'delivery_cost' => ['type' => 'number'],
                         'total_amount' => ['type' => 'number'],
-                        'payment_method' => ['type' => 'string', 'description' => 'yape, tarjeta, transferencia, etc.'],
+                        'payment_method' => ['type' => 'string', 'description' => 'Método de pago utilizado (ej. yape, plin, depósito, etc., DEBE coincidir con el método configurado en la tienda)'],
                         'delivery_type' => ['type' => 'string', 'description' => 'motorizado o shalom'],
                         'delivery_district' => ['type' => 'string'],
                         'status' => [
@@ -85,18 +85,33 @@ class EjecutorHerramientasAgente
             ],
             [
                 'name' => 'registrar_comprobante_recibido',
-                'description' => 'Usa cuando la clienta envía comprobante de pago (Yape, transferencia, voucher). Marca el pedido y pausa respuestas automáticas hasta que el equipo confirme el pago.',
+                'description' => 'Usa cuando la clienta envía comprobante de pago (captura, voucher o foto de pago). Marca el pedido y pausa respuestas automáticas hasta que el equipo confirme el pago. Si la clienta confirma los datos del pedido junto con el voucher, incluye los items.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
                         'payment_method' => ['type' => 'string', 'description' => 'Método de pago deducido del comprobante (Yape, Plin, BCP, BBVA, etc.)'],
                         'notas' => ['type' => 'string'],
+                        'items' => [
+                            'type' => 'array',
+                            'description' => 'Lista de productos si la clienta los confirma junto con el pago.',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'product_name' => ['type' => 'string'],
+                                    'color' => ['type' => 'string'],
+                                    'size' => ['type' => 'string'],
+                                    'quantity' => ['type' => 'integer'],
+                                    'unit_price' => ['type' => 'number'],
+                                ],
+                                'required' => ['product_name', 'quantity'],
+                            ],
+                        ],
                     ],
                 ],
             ],
             [
                 'name' => 'solicitar_atencion_humana',
-                'description' => 'Pausa la IA y escala a un asesor: SOLO tarjeta (link de pago), quejas graves o casos imposibles con el catálogo. NO uses para métodos de pago (Yape/transferencia), stickers ni preguntas que están en el prompt.',
+                'description' => 'Pausa la IA y escala a un asesor: SOLO quejas graves o casos imposibles con el catálogo. NO uses para comprobantes de pago ni preguntas que están en el prompt.',
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
@@ -161,9 +176,10 @@ class EjecutorHerramientasAgente
         $deliveryCost = (float) $sale->delivery_cost;
         $total = (float) $sale->total_amount;
         $items = $sale->items;
-        
-        $desgloseItems = $items->map(function ($item) use ($simbolo) {
+
+        $desgloseItems = $items->map(function ($item) {
             $qty = max(1, (int) $item->quantity);
+
             return sprintf('%d × %s %s (%.2f)', $qty, $item->product_name, $item->color ?? '', (float) $item->unit_price);
         })->join(' + ');
 
@@ -232,6 +248,11 @@ class EjecutorHerramientasAgente
      */
     private function ejecutarComprobante(Customer $customer, Message $mensajeEntrante, array $args = []): array
     {
+        if (! empty($args['items'])) {
+            // Update the sale first with the provided items
+            $this->ejecutarActualizarPedido($customer, $args);
+        }
+
         $resultado = $this->registrarComprobante->handle($customer, $mensajeEntrante, $args);
 
         return [
@@ -334,12 +355,8 @@ class EjecutorHerramientasAgente
             'cómo pago',
             'donde pago',
             'dónde pago',
-            'yape',
-            'transferencia',
-            'plin',
-            'cuenta bancaria',
-            'numero de cuenta',
-            'número de cuenta',
+            'voucher',
+            'recibo',
         ];
 
         foreach ($motivosResolviblesPorIa as $patron) {
@@ -370,16 +387,32 @@ class EjecutorHerramientasAgente
         $deliveryCost = (float) $sale->delivery_cost;
         $total = (float) $sale->total_amount;
         $items = $sale->items;
-        
-        $desgloseItems = $items->map(function ($item) use ($simbolo) {
-            $qty = max(1, (int) $item->quantity);
-            return sprintf('%d × %s %s (%.2f)', $qty, $item->product_name, $item->color ?? '', (float) $item->unit_price);
-        })->join(' + ');
+
+        if ($items->isEmpty()) {
+            $desgloseItems = sprintf(
+                '%d × %s %s (%.2f)',
+                max(1, (int) $sale->quantity),
+                $sale->product_name,
+                $sale->color ?? '',
+                (float) $sale->unit_price
+            );
+        } else {
+            $desgloseItems = $items->map(function ($item) {
+                $qty = max(1, (int) $item->quantity);
+
+                return sprintf('%d × %s %s (%.2f)', $qty, $item->product_name, $item->color ?? '', (float) $item->unit_price);
+            })->join(' + ');
+        }
 
         return [
             'ok' => true,
             'pedido' => [
                 'id' => $sale->id,
+                'product_name' => $sale->product_name,
+                'color' => $sale->color,
+                'size' => NormalizadorStockTallas::etiquetaPublica($sale->size),
+                'quantity' => (int) $sale->quantity,
+                'unit_price' => (float) $sale->unit_price,
                 'items' => $items->map(fn ($i) => [
                     'product_name' => $i->product_name,
                     'color' => $i->color,

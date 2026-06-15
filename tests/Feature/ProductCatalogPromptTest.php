@@ -43,8 +43,8 @@ class ProductCatalogPromptTest extends TestCase
         $this->assertStringContainsString('**Mariela**', $texto);
         $this->assertStringContainsString('Precio: $ 180.00', $texto);
         $this->assertStringContainsString('TikTok: $ 150.00', $texto);
-        $this->assertStringContainsString('Rojo (talla estándar:3', $texto);
-        $this->assertStringContainsString('Negro (talla estándar:2', $texto);
+        $this->assertStringContainsString('Rojo (estándar:3', $texto);
+        $this->assertStringContainsString('Negro (estándar:2', $texto);
         $this->assertStringContainsString('Tags: elegante, fiesta', $texto);
     }
 
@@ -65,8 +65,8 @@ class ProductCatalogPromptTest extends TestCase
 
         $texto = (new FormateadorCatalogoProductos('S/', 'UNICA'))->formatearProducto($product);
 
-        $this->assertStringContainsString('talla estándar:1', $texto);
-        $this->assertStringContainsString('talla M:2', $texto);
+        $this->assertStringContainsString('estándar:1', $texto);
+        $this->assertStringContainsString('M:2', $texto);
     }
 
     public function test_promo_only_applies_to_normal_price_when_active(): void

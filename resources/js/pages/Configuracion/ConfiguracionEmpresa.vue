@@ -460,34 +460,27 @@ const heroStats = computed(() => {
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                    </CrmPanel>
-                </TabsContent>
-
-                <!-- TAB 2: CONTACTO Y REDES SOCIALES -->
-                <TabsContent value="contacto" class="mt-6 space-y-6">
-                    <CrmPanel>
-                        <ConfigSectionHeader
-                            :icon="Share2"
-                            title="Redes Sociales y Sitio Web"
-                            description="Tus perfiles y sitio web oficial (opcional)"
-                        />
-                        <div class="grid gap-4 md:grid-cols-2">
-                            <div class="space-y-2">
-                                <Label for="instagram">Instagram</Label>
-                                <Input id="instagram" v-model="form.social_networks.instagram" placeholder="@tuempresa" />
-                            </div>
-                            <div class="space-y-2">
-                                <Label for="facebook">Facebook</Label>
-                                <Input id="facebook" v-model="form.social_networks.facebook" placeholder="facebook.com/tuempresa" />
-                            </div>
-                            <div class="space-y-2">
-                                <Label for="tiktok">TikTok</Label>
-                                <Input id="tiktok" v-model="form.social_networks.tiktok" placeholder="@tuempresa" />
-                            </div>
-                            <div class="space-y-2">
-                                <Label for="website">Sitio Web</Label>
-                                <Input id="website" v-model="form.social_networks.website" placeholder="https://miempresa.com" />
+                            <!-- Redes Sociales (Movido aquí por solicitud) -->
+                            <div class="pt-4 mt-2 border-t border-border/40">
+                                <h4 class="mb-4 text-sm font-medium text-foreground">Redes Sociales y Sitio Web</h4>
+                                <div class="grid gap-4 md:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <Label for="instagram">Instagram</Label>
+                                        <Input id="instagram" v-model="form.social_networks.instagram" placeholder="@tuempresa" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="facebook">Facebook</Label>
+                                        <Input id="facebook" v-model="form.social_networks.facebook" placeholder="facebook.com/tuempresa" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="tiktok">TikTok</Label>
+                                        <Input id="tiktok" v-model="form.social_networks.tiktok" placeholder="@tuempresa" />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <Label for="website">Sitio Web</Label>
+                                        <Input id="website" v-model="form.social_networks.website" placeholder="https://miempresa.com" />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </CrmPanel>

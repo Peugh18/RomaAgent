@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
+use App\Services\Vision\ProductEmbeddingService;
 use App\Support\InvalidatesPromptCache;
 use App\Support\NormalizadorStockTallas;
 use Illuminate\Http\JsonResponse;
@@ -211,7 +212,7 @@ class ProductController extends Controller
         $product->desmarcarOculto();
     }
 
-    public function generateEmbeddings(\App\Services\Vision\ProductEmbeddingService $service): JsonResponse
+    public function generateEmbeddings(ProductEmbeddingService $service): JsonResponse
     {
         // Pasamos true para forzar el recálculo de los nuevos vectores de texto
         $stats = $service->procesarCatalogoCompleto(true);

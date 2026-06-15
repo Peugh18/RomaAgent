@@ -43,7 +43,7 @@ PROMPT;
 
     public static function promptExtractorCaracteristicasPrenda(): string
     {
-        return <<<PROMPT
+        return <<<'PROMPT'
 Eres un experto analista de moda. Tu único objetivo es describir la PRENDA PRINCIPAL que viste la persona en la foto.
 Ignora por completo el fondo, la cara de la persona, los maniquíes de atrás, las luces o cualquier otra cosa.
 
@@ -138,12 +138,12 @@ PROMPT;
         return <<<'PROMPT'
 Detecta si esta imagen es un COMPROBANTE DE PAGO.
 
-Busca indicios de Yape, Plin, BCP, BBVA, Scotiabank, Interbank, transferencias, operaciones bancarias.
+Busca indicios de comprobantes de pago, comprobantes bancarios, billeteras móviles, operaciones o depósitos.
 
 JSON:
 {
   "es_comprobante": boolean,
-  "tipo_comprobante": "yape|plin|transferencia|otro|null",
+  "tipo_comprobante": "billetera_movil|deposito_bancario|otro|null",
   "banco_visible": "nombre banco o null",
   "monto_visible": "monto o null",
   "confianza": 0.95

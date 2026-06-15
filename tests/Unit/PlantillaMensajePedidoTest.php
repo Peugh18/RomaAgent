@@ -5,10 +5,13 @@ namespace Tests\Unit;
 use App\Enums\SaleStatus;
 use App\Models\Sale;
 use App\Support\PlantillaMensajePedido;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class PlantillaMensajePedidoTest extends TestCase
 {
+    use RefreshDatabase;
+
     public function test_render_replaces_sale_variables(): void
     {
         $sale = new Sale([

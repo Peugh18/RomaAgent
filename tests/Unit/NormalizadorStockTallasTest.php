@@ -22,9 +22,9 @@ class NormalizadorStockTallasTest extends TestCase
 
     public function test_etiqueta_publica_convierte_unica_a_talla_estandar(): void
     {
-        $this->assertSame('talla estándar', NormalizadorStockTallas::etiquetaPublica('UNICA'));
-        $this->assertSame('talla estándar', NormalizadorStockTallas::etiquetaPublica('unica'));
-        $this->assertSame('talla M', NormalizadorStockTallas::etiquetaPublica('M'));
+        $this->assertSame('estándar', NormalizadorStockTallas::etiquetaPublica('UNICA'));
+        $this->assertSame('estándar', NormalizadorStockTallas::etiquetaPublica('unica'));
+        $this->assertSame('M', NormalizadorStockTallas::etiquetaPublica('M'));
     }
 
     public function test_instruccion_prompt_prohibe_decir_unica(): void

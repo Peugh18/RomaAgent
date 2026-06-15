@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
+use Database\Factories\MessageFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Message extends Model
 {
-    /** @use HasFactory<\Database\Factories\MessageFactory> */
+    /** @use HasFactory<MessageFactory> */
     use HasFactory;
+
     protected $fillable = [
         'message_id',
         'phone_number',

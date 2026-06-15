@@ -21,6 +21,17 @@ class ActualizarPedidoVenta
         return DB::transaction(function () use ($customer, $datos): Sale {
             $sale = $this->resolverPedidoActivo($customer);
 
+            // Handle items
+            $items = $datos['items'] ?? [];
+            if (! empty($items) && is_array($items)) {
+                $firstItem = $items[0];
+                $datos['product_name'] = $firstItem['product_name'] ?? $datos['product_name'] ?? null;
+                $datos['color'] = $firstItem['color'] ?? $datos['color'] ?? null;
+                $datos['size'] = $firstItem['size'] ?? $datos['size'] ?? null;
+                $datos['quantity'] = $firstItem['quantity'] ?? $datos['quantity'] ?? null;
+                $datos['unit_price'] = $firstItem['unit_price'] ?? $datos['unit_price'] ?? null;
+            }
+
             $product = $this->resolverProducto($datos['product_name'] ?? $sale->product_name);
             $variant = $this->resolverVariante($product, $datos['color'] ?? $sale->color);
 
@@ -79,7 +90,32 @@ class ActualizarPedidoVenta
 
             $customer->asignarPedidoActivo($sale);
 
-            return $sale->fresh(['product', 'productVariant']);
+            // Sync SaleItems if provided
+            if (! empty($items) && is_array($items)) {
+                $sale->items()->delete();
+                foreach ($items as $itemData) {
+                    $itemProduct = $this->resolverProducto($itemData['product_name'] ?? null);
+                    $itemVariant = $this->resolverVariante($itemProduct, $itemData['color'] ?? null);
+
+                    $itemQty = max(1, (int) ($itemData['quantity'] ?? 1));
+                    $itemPrice = ValidadorPrecioPedido::resolverPrecioUnitario($itemProduct, $itemData['unit_price'] ?? null);
+
+                    $sale->items()->create([
+                        'product_id' => $itemProduct?->id,
+                        'product_variant_id' => $itemVariant?->id,
+                        'product_name' => $itemProduct?->name ?? (string) ($itemData['product_name'] ?? 'Pedido'),
+                        'color' => $itemVariant?->color ?? ($itemData['color'] ?? null),
+                        'size' => NormalizadorStockTallas::esTallaEstandar((string) ($itemData['size'] ?? ''))
+                            ? NormalizadorStockTallas::defaultSizeKey()
+                            : mb_strtoupper(trim((string) ($itemData['size'] ?? '')), 'UTF-8'),
+                        'quantity' => $itemQty,
+                        'unit_price' => $itemPrice,
+                        'subtotal' => $itemQty * $itemPrice,
+                    ]);
+                }
+            }
+
+            return $sale->fresh(['product', 'productVariant', 'items']);
         });
     }
 

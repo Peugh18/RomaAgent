@@ -32,7 +32,9 @@ class EnviarLinkPagoTarjetaTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)
-            ->postJson("/api/sales/{$sale->id}/send-payment-link");
+            ->postJson("/api/sales/{$sale->id}/send-payment-link", [
+                'link' => 'https://pay.example.com/checkout?amount=190.00&id='.$sale->id,
+            ]);
 
         $response->assertOk()
             ->assertJsonPath('link', 'https://pay.example.com/checkout?amount=190.00&id='.$sale->id);

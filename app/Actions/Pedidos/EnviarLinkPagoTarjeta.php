@@ -28,14 +28,14 @@ class EnviarLinkPagoTarjeta
         }
 
         $sale->loadMissing('items');
-        
-        $link = trim((string) $customLink);
-        if ($link === '') {
+
+        $linkUrl = trim((string) $customLink);
+        if ($linkUrl === '') {
             $settings = CompanySetting::query()->with('ventas')->first();
-            $link = GeneradorLinkPagoTarjeta::construir($settings?->ventas, $sale);
+            $linkUrl = GeneradorLinkPagoTarjeta::construir($settings?->ventas, $sale);
         }
 
-        $listaProductos = "";
+        $listaProductos = '';
 
         if ($sale->items->isNotEmpty()) {
             foreach ($sale->items as $item) {
@@ -68,16 +68,16 @@ class EnviarLinkPagoTarjeta
         $totalFinalFmt = number_format($totalAPagar, 2, '.', '');
 
         $mensajeFinal = "¡Hola hermosa! Aquí tienes el resumen de tu pedido:\n\n"
-            . "🛍️ *Tus productos:*\n"
-            . "{$listaProductos}"
-            . "-------------------------\n"
-            . "🚚 *Envío:* S/ {$envioFmt}\n"
-            . "💳 *Recargo por tarjeta (5%):* S/ {$recargoFmt}\n"
-            . "=========================\n"
-            . "💰 *TOTAL A PAGAR:* S/ {$totalFinalFmt}\n\n"
-            . "🔗 *Tu link de pago seguro es:*\n"
-            . "{$linkUrl}\n\n"
-            . "✅ Por favor, envíame tu comprobante por aquí mismo una vez realizado el pago para confirmar tu pedido.";
+            ."🛍️ *Tus productos:*\n"
+            ."{$listaProductos}"
+            ."-------------------------\n"
+            ."🚚 *Envío:* S/ {$envioFmt}\n"
+            ."💳 *Recargo por tarjeta (5%):* S/ {$recargoFmt}\n"
+            ."=========================\n"
+            ."💰 *TOTAL A PAGAR:* S/ {$totalFinalFmt}\n\n"
+            ."🔗 *Tu link de pago seguro es:*\n"
+            ."{$linkUrl}\n\n"
+            .'✅ Por favor, envíame tu comprobante por aquí mismo una vez realizado el pago para confirmar tu pedido.';
 
         return DB::transaction(function () use ($sale, $linkUrl, $mensajeFinal): array {
             $message = $this->enviarMensaje->handle(

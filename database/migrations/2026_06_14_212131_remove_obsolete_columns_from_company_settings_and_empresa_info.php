@@ -27,7 +27,6 @@ return new class extends Migration
                 'celular',
                 'email',
                 'website',
-                'informacion_adicional',
             ]);
         });
     }
@@ -50,7 +49,6 @@ return new class extends Migration
             $table->string('celular')->nullable();
             $table->string('email')->nullable();
             $table->string('website')->nullable();
-            $table->text('informacion_adicional')->nullable();
         });
     }
 };

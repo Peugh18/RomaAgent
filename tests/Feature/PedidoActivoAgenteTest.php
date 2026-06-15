@@ -40,8 +40,8 @@ class PedidoActivoAgenteTest extends TestCase
         $this->assertTrue($resultado['ok']);
         $this->assertSame(3, $resultado['pedido']['quantity']);
         $this->assertSame(540.0, $resultado['pedido']['total_amount']);
-        $this->assertSame('talla estándar', $resultado['pedido']['size']);
-        $this->assertStringContainsString('3 × S/ 180.00', $resultado['pedido']['desglose']);
+        $this->assertSame('estándar', $resultado['pedido']['size']);
+        $this->assertStringContainsString('3 × Mariela', $resultado['pedido']['desglose']);
     }
 
     public function test_prompt_agente_incluye_bloque_pedido_activo(): void

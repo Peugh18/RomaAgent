@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia;
 use Tests\TestCase;
 
 class ExampleTest extends TestCase
@@ -14,12 +16,12 @@ class ExampleTest extends TestCase
         $response = $this->get('/');
 
         $response->assertOk();
-        $response->assertInertia(fn (\Inertia\Testing\AssertableInertia $page) => $page->component('Welcome'));
+        $response->assertInertia(fn (AssertableInertia $page) => $page->component('Welcome'));
     }
 
     public function test_authenticated_users_are_redirected_to_chat()
     {
-        $user = \App\Models\User::factory()->create();
+        $user = User::factory()->create();
 
         $this->actingAs($user)
             ->get('/')

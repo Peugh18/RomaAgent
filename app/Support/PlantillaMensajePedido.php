@@ -31,7 +31,7 @@ class PlantillaMensajePedido
             ?? ''
         ));
 
-        $talla = \App\Support\NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
+        $talla = NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
         $productNames = "{$sale->quantity}x {$sale->product_name} (talla {$talla})";
 
         return str_replace(
@@ -87,7 +87,7 @@ class PlantillaMensajePedido
             ?? null
         ));
 
-        $talla = \App\Support\NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
+        $talla = NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
         $productNames = "{$sale->quantity}x {$sale->product_name} (talla {$talla})";
 
         return [

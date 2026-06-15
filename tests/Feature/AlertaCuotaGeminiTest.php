@@ -2,11 +2,16 @@
 
 namespace Tests\Feature;
 
+use App\Exceptions\GeminiQuotaExceededException;
+use App\Jobs\GenerarRespuestaAgenteJob;
+use App\Models\CompanySetting;
 use App\Models\LogIA;
+use App\Models\Message;
 use App\Models\User;
 use App\Services\AlertaCuotaGemini;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class AlertaCuotaGeminiTest extends TestCase
@@ -61,15 +66,15 @@ class AlertaCuotaGeminiTest extends TestCase
 
         app(AlertaCuotaGemini::class)->marcar('Cuota agotada', 60);
 
-        \Illuminate\Support\Facades\Http::fake([
-            'generativelanguage.googleapis.com/*' => \Illuminate\Support\Facades\Http::response([
+        Http::fake([
+            'generativelanguage.googleapis.com/*' => Http::response([
                 'candidates' => [
                     ['content' => ['parts' => [['text' => 'OK']]]],
                 ],
             ]),
         ]);
 
-        \App\Models\CompanySetting::factory()->withIaEnabled()->create();
+        CompanySetting::factory()->withIaEnabled()->create();
 
         $response = $this->actingAs($user)->getJson('/api/estado-ia');
 
@@ -82,10 +87,10 @@ class AlertaCuotaGeminiTest extends TestCase
 
     public function test_job_marca_alerta_cuando_falla_por_cuota(): void
     {
-        $exception = new \App\Exceptions\GeminiQuotaExceededException('Quota exceeded', 45);
+        $exception = new GeminiQuotaExceededException('Quota exceeded', 45);
 
-        $job = new \App\Jobs\GenerarRespuestaAgenteJob(
-            \App\Models\Message::factory()->incoming()->create()
+        $job = new GenerarRespuestaAgenteJob(
+            Message::factory()->incoming()->create()
         );
 
         $job->failed($exception);

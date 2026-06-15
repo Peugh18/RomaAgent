@@ -53,7 +53,7 @@ class ImageAnalyzerTest extends TestCase
         $this->assertIsArray($result);
         $this->assertTrue($result['inbound_profile']['es_comprobante'] ?? false);
         $this->assertSame('comprobante', $result['inbound_profile']['tipo_mensaje'] ?? '');
-        
+
         // Verifica que se llamó una vez y terminó ahí (no busca embedding)
         Http::assertSentCount(1);
     }
@@ -87,18 +87,29 @@ class ImageAnalyzerTest extends TestCase
                 ->andReturn([0.1, 0.2, 0.3, 0.4]); // Mismo embedding, similitud 1.0
         });
 
-        // Mock para la primera llamada (detectar comprobante) - retorna falso
+        // Mock para las llamadas consecutivas de Gemini (detección y luego extracción)
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
-                'candidates' => [
-                    ['content' => ['parts' => [[
-                        'text' => json_encode([
-                            'es_comprobante' => false,
-                            'tipo_mensaje' => 'producto',
-                        ]),
-                    ]]]],
-                ],
-            ]),
+            'generativelanguage.googleapis.com/*' => Http::sequence()
+                ->push([
+                    'candidates' => [
+                        ['content' => ['parts' => [[
+                            'text' => json_encode([
+                                'es_comprobante' => false,
+                                'tipo_mensaje' => 'producto',
+                            ]),
+                        ]]]],
+                    ],
+                ])
+                ->push([
+                    'candidates' => [
+                        ['content' => ['parts' => [[
+                            'text' => json_encode([
+                                'es_prenda' => true,
+                                'descripcion_vectorial' => 'vestido rojo elegante de fiesta',
+                            ]),
+                        ]]]],
+                    ],
+                ]),
         ]);
 
         $result = app(ImageAnalyzer::class)->analyzeUrl('/storage/'.$relativePath);
@@ -109,7 +120,7 @@ class ImageAnalyzerTest extends TestCase
         $this->assertTrue($result['inbound_profile']['encontrado'] ?? false);
         $this->assertSame($variant->product_id, $result['inbound_profile']['id_producto']);
         $this->assertSame('Rojo', $result['inbound_profile']['color']);
-        
+
         // La similitud debería ser 1.0 o muy cercana
         $this->assertGreaterThan(0.99, $result['inbound_profile']['similitud']);
     }

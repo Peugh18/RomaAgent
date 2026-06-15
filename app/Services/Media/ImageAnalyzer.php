@@ -57,13 +57,14 @@ class ImageAnalyzer extends BaseGeminiService
         // 1. PASADA RÁPIDA: Detección de comprobante
         $promptComprobante = OptimizedVisionPrompts::promptDetectorComprobante();
         $payloadComprobante = $this->buildPayload($promptComprobante, $media, $mime);
-        
+
         $resComprobante = $this->ejecutarConRetry(function () use ($endpoint, $payloadComprobante, $apiKey, $captionCliente) {
             return $this->callGeminiApi($endpoint, $payloadComprobante, $apiKey, $captionCliente);
         });
 
         if ($resComprobante && ($resComprobante['inbound_profile']['es_comprobante'] ?? false)) {
             Log::info('ImageAnalyzer: Comprobante detectado.');
+
             return [
                 'caption' => 'Comprobante detectado',
                 'inbound_profile' => [
@@ -71,14 +72,14 @@ class ImageAnalyzer extends BaseGeminiService
                     'es_comprobante' => true,
                     'encontrado' => false,
                     'caption_cliente' => $captionCliente,
-                ]
+                ],
             ];
         }
 
         // 2. EXTRACCIÓN DE CARACTERÍSTICAS DE LA PRENDA
         $promptPrenda = OptimizedVisionPrompts::promptExtractorCaracteristicasPrenda();
         $payloadPrenda = $this->buildPayload($promptPrenda, $media, $mime);
-        
+
         $resPrenda = $this->ejecutarConRetry(function () use ($endpoint, $payloadPrenda, $apiKey, $captionCliente) {
             return $this->callGeminiApi($endpoint, $payloadPrenda, $apiKey, $captionCliente);
         });
@@ -86,8 +87,9 @@ class ImageAnalyzer extends BaseGeminiService
         $esPrenda = $resPrenda['inbound_profile']['es_prenda'] ?? false;
         $descripcion = $resPrenda['inbound_profile']['descripcion_vectorial'] ?? null;
 
-        if (!$esPrenda || empty($descripcion)) {
+        if (! $esPrenda || empty($descripcion)) {
             Log::info('ImageAnalyzer: No se detectó una prenda clara en la imagen o falló la descripción. Usando fallback.');
+
             return $this->fallbackAnalysis($endpoint, $media, $mime, $apiKey, $captionCliente);
         }
 
@@ -97,13 +99,14 @@ class ImageAnalyzer extends BaseGeminiService
         $embedding = $this->embeddingService->generarEmbeddingTexto($descripcion);
         if ($embedding === null) {
             Log::warning('ImageAnalyzer: No se pudo generar el embedding del texto. Usando fallback LLM.');
+
             return $this->fallbackAnalysis($endpoint, $media, $mime, $apiKey, $captionCliente);
         }
 
         // 4. BÚSQUEDA VECTORIAL EN MEMORIA (Cosine Similarity de Texto)
         $variantesActivas = ProductVariant::whereHas('product', function ($q) {
-                $q->where('status', Product::ESTADO_DISPONIBLE);
-            })
+            $q->where('status', Product::ESTADO_DISPONIBLE);
+        })
             ->whereNotNull('image_embedding')
             ->with('product')
             ->get();
@@ -113,7 +116,7 @@ class ImageAnalyzer extends BaseGeminiService
 
         foreach ($variantesActivas as $variante) {
             $stockTotal = is_array($variante->sizes_stock) ? array_sum($variante->sizes_stock) : 0;
-            if ($stockTotal <= 0 || !is_array($variante->image_embedding)) {
+            if ($stockTotal <= 0 || ! is_array($variante->image_embedding)) {
                 continue;
             }
 
@@ -130,7 +133,7 @@ class ImageAnalyzer extends BaseGeminiService
         if ($bestVariant && $bestSimilarity >= $umbral) {
             Log::info('ImageAnalyzer: Producto encontrado por similitud vectorial de TEXTO', [
                 'id_producto' => $bestVariant->product_id,
-                'similitud' => $bestSimilarity
+                'similitud' => $bestSimilarity,
             ]);
 
             return [
@@ -143,12 +146,12 @@ class ImageAnalyzer extends BaseGeminiService
                     'tipo_mensaje' => 'producto',
                     'similitud' => $bestSimilarity,
                     'caption_cliente' => $captionCliente,
-                ]
+                ],
             ];
         }
 
-        Log::info('ImageAnalyzer: No se encontró similitud vectorial aceptable (max: ' . $bestSimilarity . '). Se devolverá no encontrado.');
-        
+        Log::info('ImageAnalyzer: No se encontró similitud vectorial aceptable (max: '.$bestSimilarity.'). Se devolverá no encontrado.');
+
         return [
             'caption' => 'Producto no reconocido con certeza',
             'inbound_profile' => [
@@ -158,15 +161,15 @@ class ImageAnalyzer extends BaseGeminiService
                 'color' => null,
                 'tipo_mensaje' => 'producto',
                 'caption_cliente' => $captionCliente,
-            ]
+            ],
         ];
     }
 
     private function fallbackAnalysis(string $endpoint, array $media, string $mime, string $apiKey, string $captionCliente): ?array
     {
         $variantesActivas = ProductVariant::whereHas('product', function ($q) {
-                $q->where('status', Product::ESTADO_DISPONIBLE);
-            })
+            $q->where('status', Product::ESTADO_DISPONIBLE);
+        })
             ->with('product')
             ->get();
 
@@ -175,7 +178,7 @@ class ImageAnalyzer extends BaseGeminiService
             if ($stockTotal <= 0) {
                 return null;
             }
-            
+
             $nombre = $variante->product->name ?? 'Desconocido';
 
             return "- ID_Producto: {$variante->product_id} | Vestido: {$nombre} | Color: {$variante->color} | Stock: {$stockTotal}";
@@ -217,20 +220,20 @@ class ImageAnalyzer extends BaseGeminiService
         $norm1 = 0.0;
         $norm2 = 0.0;
         $count = min(count($vec1), count($vec2));
-        
+
         for ($i = 0; $i < $count; $i++) {
             $v1 = (float) $vec1[$i];
             $v2 = (float) $vec2[$i];
-            
+
             $dotProduct += $v1 * $v2;
             $norm1 += $v1 * $v1;
             $norm2 += $v2 * $v2;
         }
-        
+
         if ($norm1 == 0.0 || $norm2 == 0.0) {
             return 0.0;
         }
-        
+
         return $dotProduct / (sqrt($norm1) * sqrt($norm2));
     }
 

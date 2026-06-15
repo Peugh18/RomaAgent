@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\LogIA;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Cache;
 
 class AlertaCuotaGemini
@@ -71,7 +72,7 @@ class AlertaCuotaGemini
     private function enriquecer(array $datos): array
     {
         $disponibleEn = isset($datos['disponible_aprox_en'])
-            ? \Carbon\Carbon::parse((string) $datos['disponible_aprox_en'])
+            ? Carbon::parse((string) $datos['disponible_aprox_en'])
             : null;
 
         $segundosRestantes = $disponibleEn !== null && $disponibleEn->isFuture()

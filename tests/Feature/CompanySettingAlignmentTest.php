@@ -63,7 +63,6 @@ class CompanySettingAlignmentTest extends TestCase
         $this->assertStringContainsString('dólares ($)', $prompt);
         $this->assertStringContainsString('@romastore', $prompt);
         $this->assertStringContainsString('HOLA LINDA WAPA', $prompt);
-        $this->assertStringContainsString('959166911', $prompt);
         $this->assertStringContainsString('asesora de ventas', $prompt);
         $this->assertStringContainsString('buscar_productos', $prompt);
     }
@@ -126,6 +125,7 @@ class CompanySettingAlignmentTest extends TestCase
                 'instagram' => '@nueva_cuenta',
                 'facebook' => '',
                 'tiktok' => '',
+                'website' => 'https://new-website.com',
             ],
         ]);
 
@@ -136,9 +136,11 @@ class CompanySettingAlignmentTest extends TestCase
         $this->assertStringContainsString('Moda y Vestuario', $prompt);
         $this->assertStringContainsString('dólares ($)', $prompt);
         $this->assertStringContainsString('@nueva_cuenta', $prompt);
+        $this->assertStringContainsString('https://new-website.com', $prompt);
         $this->assertSame('Moda y Vestuario', $response->json('actividad'));
         $this->assertSame('USD', $response->json('moneda'));
         $this->assertSame('@nueva_cuenta', $response->json('empresa.social_networks.instagram'));
+        $this->assertSame('https://new-website.com', $response->json('empresa.social_networks.website'));
     }
 
     public function test_prompt_completo_endpoint_matches_contexto_conversacion(): void
