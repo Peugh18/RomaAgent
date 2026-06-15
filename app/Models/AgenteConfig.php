@@ -26,6 +26,7 @@ class AgenteConfig extends Model
         'tono_bot',
         'estilo_comunicacion',
         'personalidad_bot',
+        'estilo_ventas',
         'respuesta_si_es_bot',
     ];
 

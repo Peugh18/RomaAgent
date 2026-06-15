@@ -8,9 +8,10 @@ class NormalizadorWebhookMeta
 {
     /**
      * @param  array<string, mixed>  $message
+     * @param  array<int, mixed>  $contacts
      * @return array<string, mixed>
      */
-    public static function normalizarMensaje(array $message, string $metaPhoneId): array
+    public static function normalizarMensaje(array $message, string $metaPhoneId, array $contacts = []): array
     {
         $senderPhone = (string) ($message['from'] ?? '');
         $waId = (string) ($message['id'] ?? '');
@@ -67,6 +68,14 @@ class NormalizadorWebhookMeta
             $imageUrl = $block['link'] ?? $block['url'] ?? null;
         }
 
+        $profileName = null;
+        foreach ($contacts as $contact) {
+            if (is_array($contact) && ($contact['wa_id'] ?? '') === $senderPhone) {
+                $profileName = $contact['profile']['name'] ?? null;
+                break;
+            }
+        }
+
         return [
             'event' => 'message',
             'from' => $senderPhone,
@@ -76,6 +85,7 @@ class NormalizadorWebhookMeta
             'interactive' => $interactive,
             'image_url' => is_string($imageUrl) ? $imageUrl : null,
             'meta_phone_id' => $metaPhoneId,
+            'profile_name' => is_string($profileName) ? $profileName : null,
             'timestamp' => date('c', $timestamp),
             'raw' => $message,
         ];
@@ -122,6 +132,7 @@ class NormalizadorWebhookMeta
             'wa_id' => $event['wa_id'] ?? '',
             'sender_name' => $event['sender_name'] ?? null,
             'sender_phone' => $event['from'] ?? '',
+            'sender_name' => $event['profile_name'] ?? null,
             'from' => $event['from'] ?? '',
             'message_body' => $event['text'] ?? ($event['interactive']['title'] ?? ''),
             'content' => $event['text'] ?? ($event['interactive']['title'] ?? ''),

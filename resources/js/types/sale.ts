@@ -26,6 +26,16 @@ export interface SaleCustomerData {
     [key: string]: unknown;
 }
 
+export interface SaleItem {
+    id: number;
+    product_name: string;
+    color: string | null;
+    size: string;
+    quantity: number;
+    unit_price: number | string;
+    subtotal: number | string;
+}
+
 export interface Sale {
     id: number;
     phone_number: string;
@@ -61,6 +71,7 @@ export interface Sale {
     can_mark_shipped?: boolean;
     can_mark_delivered?: boolean;
     can_cancel?: boolean;
+    items?: SaleItem[];
 }
 
 export const SALE_STATUS_LABELS: Record<SaleStatus, string> = {
@@ -128,7 +139,7 @@ export function saleCanConfirmPayment(sale: Sale): boolean {
     }
 
     if (saleEsPagoTarjeta(sale)) {
-        return sale.status === 'pago_pendiente';
+        return sale.status === 'pago_pendiente' || sale.status === 'pago_recibido';
     }
 
     return sale.status === 'pago_recibido';

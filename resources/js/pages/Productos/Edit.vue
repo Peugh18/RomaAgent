@@ -798,7 +798,7 @@ onMounted(() => {
                             <!-- Stock talla estándar -->
                             <div class="mt-6 pt-4 border-t border-border/50">
                                 <Label class="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">
-                                    Stock — talla {{ standardSizeKey }} (estándar)
+                                    Stock - talla {{ standardSizeKey }}
                                 </Label>
                                 <p class="text-xs text-muted-foreground mb-3">
                                     Toda la tienda usa una talla estándar. Solo indica cuántas unidades hay de este color.

@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\VentaConfig;
 use App\Support\NormalizadorStockTallas;
 use App\Support\PlantillasDatosEmpresa;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Servicio de configuración de empresa
@@ -118,13 +119,10 @@ class ConfiguracionEmpresa
     {
         return [
             'Nombre de empresa' => fn (): bool => ! empty($this->empresaInfo?->company_name),
-            'Celular' => fn (): bool => ! empty($this->empresaInfo?->celular),
-            'Email' => fn (): bool => ! empty($this->empresaInfo?->email),
             'Actividad económica' => fn (): bool => ! empty($this->empresaInfo?->actividad_economica),
             'Personalidad del bot' => fn (): bool => ! empty($this->agente?->personalidad_bot),
             'Saludo inicial' => fn (): bool => ! empty($this->mensajes?->saludo_inicial),
             'Reglas de comunicación' => fn (): bool => ! empty($this->mensajes?->reglas_comunicacion),
-            'Flujo de ventas' => fn (): bool => ! empty($this->mensajes?->flujo_ventas),
             'Métodos de pago' => fn (): bool => ! empty($this->ventas?->metodos_pago),
             'Horario de entregas' => fn (): bool => ! empty($this->horarios?->horario_entregas),
         ];
@@ -170,12 +168,15 @@ class ConfiguracionEmpresa
     {
         return [
             'nombre' => $this->empresaInfo?->company_name ?? '',
+            'vendedor_nombre' => $this->empresaInfo?->vendedor_nombre ?? '',
+            'vendedor_genero' => $this->empresaInfo?->vendedor_genero ?? '',
             'ruc' => $this->empresaInfo?->ruc,
             'razon_social' => $this->empresaInfo?->razon_social,
             'celular' => $this->empresaInfo?->celular,
             'email' => $this->empresaInfo?->email,
             'website' => $this->empresaInfo?->website,
-            'logo_path' => $this->empresaInfo?->logo_path,
+            'descripcion_empresa' => $this->empresaInfo?->descripcion_empresa ?? '',
+            'logo_path' => $this->empresaInfo?->logo_path ? Storage::url($this->empresaInfo->logo_path) : null,
             'direccion' => $this->empresaInfo?->address,
             'standard_size' => $this->horarios?->standard_size ?? NormalizadorStockTallas::defaultSizeKey(),
             'social_networks' => $this->obtenerRedesSociales(),
@@ -224,6 +225,7 @@ class ConfiguracionEmpresa
             'tono' => $this->agente?->tono_bot ?? 'cálido y cercano',
             'estilo' => $this->agente?->estilo_comunicacion ?? 'natural',
             'descripcion' => $this->agente?->personalidad_bot ?? '',
+            'estilo_ventas' => $this->agente?->estilo_ventas ?? '',
             'respuesta_si_es_bot' => $this->agente?->respuesta_si_es_bot ?? '',
         ];
     }
@@ -255,7 +257,6 @@ class ConfiguracionEmpresa
             'horario_atencion' => $this->horarios?->horario_atencion,
             'politica_devoluciones' => $this->horarios?->politica_devoluciones,
             'restricciones_especiales' => $this->horarios?->restricciones_especiales,
-            'informacion_adicional' => $this->empresaInfo?->informacion_adicional,
         ];
     }
 
@@ -276,12 +277,10 @@ class ConfiguracionEmpresa
         return [
             'saludo_inicial' => $this->mensajes?->saludo_inicial ?? '',
             'reglas_comunicacion' => $this->mensajes?->reglas_comunicacion ?? '',
-            'flujo_ventas' => $this->mensajes?->flujo_ventas ?? '',
             'plantillas_datos' => PlantillasDatosEmpresa::normalizar($this->horarios?->plantillas_datos),
             'horario_entregas' => $this->horarios?->horario_entregas ?? '',
             'horario_shalom' => $this->horarios?->horario_shalom ?? '',
             'protocolo_traspaso' => $this->ventas?->protocolo_traspaso ?? '',
-            'formato_registro_venta' => $this->ventas?->formato_registro_venta ?? '',
             'confirmacion_pago' => [
                 'mensaje_comprobante_recibido' => $this->mensajes?->comprobante_recibido ?? '',
                 'mensaje_comprobante_fuera_horario' => $this->mensajes?->comprobante_fuera_horario ?? '',
@@ -298,7 +297,6 @@ class ConfiguracionEmpresa
             'pagos' => [
                 'tarjeta' => [
                     'comision' => $this->ventas?->comision_tarjeta,
-                    'link_pago' => $this->ventas?->link_pago_tarjeta ?? '',
                 ],
             ],
             'entregas' => [
@@ -321,7 +319,6 @@ class ConfiguracionEmpresa
             'horario' => $extra['horario_atencion'],
             'politica_devoluciones' => $extra['politica_devoluciones'],
             'restricciones' => $extra['restricciones_especiales'],
-            'info_extra' => $extra['informacion_adicional'],
         ];
     }
 
