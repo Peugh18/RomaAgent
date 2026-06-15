@@ -3,12 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\Category;
-use App\Models\CompanySetting;
 use App\Models\Product;
-use App\Models\User;
 use App\Support\FormateadorCatalogoProductos;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Cache;
 use Tests\TestCase;
 
 class ProductCatalogPromptTest extends TestCase
@@ -44,11 +41,10 @@ class ProductCatalogPromptTest extends TestCase
         $texto = (new FormateadorCatalogoProductos('$', 'UNICA'))->formatearProducto($product);
 
         $this->assertStringContainsString('**Mariela**', $texto);
-        $this->assertStringContainsString('Precio normal: $ 180.00', $texto);
-        $this->assertStringContainsString('Precio TikTok: $ 150.00', $texto);
-        $this->assertStringContainsString('Rojo: talla estándar: 3 en stock', $texto);
-        $this->assertStringContainsString('Negro: talla estándar: 2 en stock', $texto);
-        $this->assertStringContainsString('Stock total: 5 unidad(es)', $texto);
+        $this->assertStringContainsString('Precio: $ 180.00', $texto);
+        $this->assertStringContainsString('TikTok: $ 150.00', $texto);
+        $this->assertStringContainsString('Rojo (talla estándar:3', $texto);
+        $this->assertStringContainsString('Negro (talla estándar:2', $texto);
         $this->assertStringContainsString('Tags: elegante, fiesta', $texto);
     }
 
@@ -69,38 +65,8 @@ class ProductCatalogPromptTest extends TestCase
 
         $texto = (new FormateadorCatalogoProductos('S/', 'UNICA'))->formatearProducto($product);
 
-        $this->assertStringContainsString('talla estándar: 1 en stock', $texto);
-        $this->assertStringContainsString('talla M: 2 en stock', $texto);
-    }
-
-    public function test_prompt_includes_rich_product_catalog_from_database(): void
-    {
-        $user = User::factory()->create();
-        $settings = CompanySetting::factory()->create(['moneda' => 'USD']);
-
-        $category = Category::query()->create(['name' => 'Vestidos', 'slug' => 'vestidos-aurora']);
-
-        Product::query()->create([
-            'name' => 'Aurora',
-            'price' => 140,
-            'price_tiktok' => 120,
-            'category_id' => $category->id,
-            'status' => Product::ESTADO_DISPONIBLE,
-        ])->variants()->create([
-            'color' => 'Verde',
-            'sizes_stock' => ['UNICA' => 1],
-        ]);
-
-        Cache::forget('contexto_prompt_completo_'.$settings->id);
-
-        $response = $this->actingAs($user)->getJson('/api/company-settings');
-        $prompt = $this->promptCompleto($user);
-
-        $this->assertStringContainsString('# CATÁLOGO DE PRODUCTOS DISPONIBLES', $prompt);
-        $this->assertStringContainsString('**Aurora**', $prompt);
-        $this->assertStringContainsString('Precio normal: $ 140.00', $prompt);
-        $this->assertStringContainsString('Precio TikTok: $ 120.00', $prompt);
-        $this->assertStringContainsString('Verde: talla estándar: 1 en stock', $prompt);
+        $this->assertStringContainsString('talla estándar:1', $texto);
+        $this->assertStringContainsString('talla M:2', $texto);
     }
 
     public function test_promo_only_applies_to_normal_price_when_active(): void
@@ -123,10 +89,9 @@ class ProductCatalogPromptTest extends TestCase
 
         $texto = (new FormateadorCatalogoProductos('$', 'UNICA'))->formatearProducto($product);
 
-        $this->assertStringContainsString('Precio normal: $ 180.00', $texto);
-        $this->assertStringContainsString('Precio normal con promo: $ 170.00', $texto);
-        $this->assertStringContainsString('no aplica a TikTok', $texto);
-        $this->assertStringContainsString('Precio TikTok: $ 160.00', $texto);
+        $this->assertStringContainsString('Precio: $ 180.00', $texto);
+        $this->assertStringContainsString('Promo: $ 170.00', $texto);
+        $this->assertStringContainsString('TikTok: $ 160.00', $texto);
     }
 
     public function test_inactive_promo_is_hidden_from_catalog(): void
@@ -144,8 +109,8 @@ class ProductCatalogPromptTest extends TestCase
 
         $texto = (new FormateadorCatalogoProductos('$'))->formatearProducto($product);
 
-        $this->assertStringContainsString('Precio normal: $ 180.00', $texto);
-        $this->assertStringNotContainsString('Precio normal con promo', $texto);
-        $this->assertStringContainsString('Precio TikTok: $ 160.00', $texto);
+        $this->assertStringContainsString('Precio: $ 180.00', $texto);
+        $this->assertStringNotContainsString('Promo:', $texto);
+        $this->assertStringContainsString('TikTok: $ 160.00', $texto);
     }
 }

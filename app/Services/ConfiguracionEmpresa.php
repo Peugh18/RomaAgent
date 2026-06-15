@@ -12,6 +12,7 @@ use App\Models\Product;
 use App\Models\VentaConfig;
 use App\Support\NormalizadorStockTallas;
 use App\Support\PlantillasDatosEmpresa;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Servicio de configuración de empresa
@@ -167,9 +168,15 @@ class ConfiguracionEmpresa
     {
         return [
             'nombre' => $this->empresaInfo?->company_name ?? '',
+            'vendedor_nombre' => $this->empresaInfo?->vendedor_nombre ?? '',
+            'vendedor_genero' => $this->empresaInfo?->vendedor_genero ?? '',
             'ruc' => $this->empresaInfo?->ruc,
             'razon_social' => $this->empresaInfo?->razon_social,
-            'logo_path' => $this->empresaInfo?->logo_path,
+            'celular' => $this->empresaInfo?->celular,
+            'email' => $this->empresaInfo?->email,
+            'website' => $this->empresaInfo?->website,
+            'descripcion_empresa' => $this->empresaInfo?->descripcion_empresa ?? '',
+            'logo_path' => $this->empresaInfo?->logo_path ? Storage::url($this->empresaInfo->logo_path) : null,
             'direccion' => $this->empresaInfo?->address,
             'standard_size' => $this->horarios?->standard_size ?? NormalizadorStockTallas::defaultSizeKey(),
             'social_networks' => $this->obtenerRedesSociales(),
@@ -218,6 +225,7 @@ class ConfiguracionEmpresa
             'tono' => $this->agente?->tono_bot ?? 'cálido y cercano',
             'estilo' => $this->agente?->estilo_comunicacion ?? 'natural',
             'descripcion' => $this->agente?->personalidad_bot ?? '',
+            'estilo_ventas' => $this->agente?->estilo_ventas ?? '',
             'respuesta_si_es_bot' => $this->agente?->respuesta_si_es_bot ?? '',
         ];
     }

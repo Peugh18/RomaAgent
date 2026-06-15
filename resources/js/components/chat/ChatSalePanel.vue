@@ -18,6 +18,8 @@ import {
 import { CheckCircle, ExternalLink, Loader2, MapPin, Package, Truck } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import { apiJson, getCsrfToken } from '@/composables/useApi';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const props = defineProps<{
     sale: Sale | null;
@@ -36,6 +38,7 @@ const linkModalOpen = ref(false);
 const linkInputValue = ref('');
 const sendingLink = ref(false);
 const linkError = ref<string | null>(null);
+const inputCustomLink = ref('');
 
 const esTarjetaPendiente = computed(
     () => props.sale !== null && saleEsPagoTarjeta(props.sale) && props.sale.status === 'pago_pendiente',
@@ -48,7 +51,7 @@ const abrirModalLink = () => {
 };
 
 const enviarLinkPago = async () => {
-    if (!props.sale || sendingLink.value) {
+    if (!props.sale || sendingLink.value || !inputCustomLink.value.trim()) {
         return;
     }
 
@@ -68,9 +71,11 @@ const enviarLinkPago = async () => {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': getCsrfToken(),
             },
-            body: JSON.stringify({ link }),
+            body: JSON.stringify({
+                link: inputCustomLink.value.trim(),
+            }),
         });
-        linkModalOpen.value = false;
+        inputCustomLink.value = '';
         emit('linkSent');
         emit('refresh');
     } catch (err) {
@@ -171,17 +176,31 @@ const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
             </div>
 
             <div class="flex shrink-0 flex-wrap gap-2">
-                <Button
-                    v-if="esTarjetaPendiente"
-                    size="sm"
-                    variant="secondary"
-                    class="gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
-                    :disabled="sendingLink"
-                    @click="abrirModalLink"
-                >
-                    <ExternalLink class="h-4 w-4" />
-                    Enviar link de pago
-                </Button>
+
+                <div v-if="esTarjetaPendiente" class="flex flex-col gap-1.5 border rounded-lg p-2 bg-indigo-50/50 dark:bg-indigo-950/20 max-w-sm mr-2">
+                    <Label class="text-[11px] font-semibold text-indigo-950 dark:text-indigo-200">
+                        Link de Pago Tarjeta (Manual)
+                    </Label>
+                    <div class="flex gap-1.5">
+                        <Input
+                            v-model="inputCustomLink"
+                            class="h-8 text-xs w-48 bg-background"
+                            placeholder="Pegar link generado..."
+                            :disabled="sendingLink"
+                        />
+                        <Button
+                            size="sm"
+                            variant="secondary"
+                            class="h-8 gap-1 text-xs shrink-0"
+                            :disabled="sendingLink || !inputCustomLink.trim()"
+                            @click="enviarLinkPago"
+                        >
+                            <Loader2 v-if="sendingLink" class="h-3.5 w-3.5 animate-spin" />
+                            <ExternalLink v-else class="h-3.5 w-3.5" />
+                            {{ sendingLink ? 'Enviando…' : 'Enviar' }}
+                        </Button>
+                    </div>
+                </div>
 
                 <Button
                     v-if="canConfirm"

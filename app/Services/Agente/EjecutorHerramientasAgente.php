@@ -89,6 +89,7 @@ class EjecutorHerramientasAgente
                 'parameters' => [
                     'type' => 'object',
                     'properties' => [
+                        'payment_method' => ['type' => 'string', 'description' => 'Método de pago deducido del comprobante (Yape, Plin, BCP, BBVA, etc.)'],
                         'notas' => ['type' => 'string'],
                     ],
                 ],
@@ -127,7 +128,7 @@ class EjecutorHerramientasAgente
         return match ($nombre) {
             'actualizar_pedido' => $this->ejecutarActualizarPedido($customer, $args),
             'enviar_foto_producto' => $this->ejecutarEnviarFoto($customer, $mensajeEntrante, $args),
-            'registrar_comprobante_recibido' => $this->ejecutarComprobante($customer, $mensajeEntrante),
+            'registrar_comprobante_recibido' => $this->ejecutarComprobante($customer, $mensajeEntrante, $args),
             'solicitar_atencion_humana' => $this->ejecutarHumano($customer, $args, $mensajeEntrante),
             'consultar_pedido_activo' => $this->ejecutarConsultarPedido($customer),
             'buscar_productos' => BuscarProductosTool::execute($args),
@@ -219,21 +220,25 @@ class EjecutorHerramientasAgente
             metadataExtra: ['tool' => 'enviar_foto_producto'],
         );
 
-        return array_merge($result, ['enviado' => true]);
+        return array_merge($result, [
+            'enviado' => true,
+            'instruccion_para_ia' => 'La foto ya fue enviada con éxito al cliente con el caption: "'.$caption.'". Tu respuesta de texto final en este turno debe ser extremadamente corta (una sola frase breve) y NO debe repetir el saludo, ni la descripción del producto, ni el caption. Simplemente haz una pregunta corta para continuar la conversación (ej: "¿Qué te parece este color?", "¿Deseas que verifiquemos tu talla?") y no escribas más de una burbuja de texto final.',
+        ]);
     }
 
     /**
+     * @param  array<string, mixed>  $args
      * @return array<string, mixed>
      */
-    private function ejecutarComprobante(Customer $customer, Message $mensajeEntrante): array
+    private function ejecutarComprobante(Customer $customer, Message $mensajeEntrante, array $args = []): array
     {
-        $result = $this->registrarComprobante->handle($customer, $mensajeEntrante);
+        $resultado = $this->registrarComprobante->handle($customer, $mensajeEntrante, $args);
 
         return [
             'ok' => true,
-            'mensaje_sugerido' => $result['mensaje'],
-            'sale_status' => $result['sale']?->status->value,
-            'ia_pausada' => $result['pausado'],
+            'mensaje_sugerido' => $resultado['mensaje'],
+            'sale_status' => $resultado['sale']?->status->value,
+            'ia_pausada' => $resultado['pausado'],
         ];
     }
 

@@ -104,6 +104,45 @@ const probarIA = async () => {
     }
 };
 
+const subiendoLogo = ref(false);
+
+const subirLogo = async (event: Event) => {
+    const target = event.target as HTMLInputElement;
+    if (!target.files || target.files.length === 0) return;
+
+    const file = target.files[0];
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    subiendoLogo.value = true;
+    error.value = null;
+
+    try {
+        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const response = await fetch('/api/company-settings/logo', {
+            method: 'POST',
+            headers: {
+                'X-CSRF-TOKEN': csrfToken,
+                Accept: 'application/json',
+            },
+            body: formData,
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || 'Error al subir el logo');
+        }
+
+        form.logo_path = data.logo_path;
+        success.value = 'Logo subido con éxito. Recuerda guardar los cambios.';
+    } catch (err) {
+        error.value = err instanceof Error ? err.message : 'Error al subir la imagen';
+    } finally {
+        subiendoLogo.value = false;
+        target.value = '';
+    }
+};
+
 provide('companyConfigForm', form);
 
 const pestanaActiva = ref('empresa');
@@ -317,43 +356,36 @@ const heroStats = computed(() => {
                 <!-- FORMULARIO (Izquierda - 2 columnas) -->
                 <div class="lg:col-span-2 space-y-6">
             <Tabs v-model="pestanaActiva" class="w-full">
-                <TabsList class="grid h-auto w-full grid-cols-3 gap-1 rounded-xl border border-border/50 bg-muted/30 p-1 sm:grid-cols-6">
+                <TabsList class="grid h-auto w-full grid-cols-3 gap-1 rounded-xl border border-border/50 bg-muted/30 p-1 sm:grid-cols-5">
                     <!-- 1. Datos Básicos -->
                     <TabsTrigger value="empresa" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <Building2 class="h-4 w-4 mr-1 hidden sm:inline" />
-                        <span class="hidden sm:inline">Empresa</span>
-                        <span class="sm:hidden">Emp</span>
+                        <span class="hidden sm:inline">Empresa y Vendedor</span>
+                        <span class="sm:hidden">Empresa</span>
                     </TabsTrigger>
 
-                    <!-- 2. Contacto y Redes -->
-                    <TabsTrigger value="contacto" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                        <Smartphone class="h-4 w-4 mr-1 hidden sm:inline" />
-                        <span class="hidden sm:inline">Contacto</span>
-                        <span class="sm:hidden">Con</span>
-                    </TabsTrigger>
-
-                    <!-- 3. Personalidad IA -->
+                    <!-- 2. Personalidad IA -->
                     <TabsTrigger value="personalidad" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <MessageSquare class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Personalidad</span>
                         <span class="sm:hidden">Per</span>
                     </TabsTrigger>
 
-                    <!-- 4. Flujo de Ventas -->
+                    <!-- 3. Flujo de Ventas -->
                     <TabsTrigger value="flujo" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <Zap class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Flujo</span>
                         <span class="sm:hidden">Flu</span>
                     </TabsTrigger>
 
-                    <!-- 5. Métodos de Pago -->
+                    <!-- 4. Métodos de Pago -->
                     <TabsTrigger value="pago" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <CreditCard class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Pago</span>
                         <span class="sm:hidden">Pag</span>
                     </TabsTrigger>
 
-                    <!-- 6. Entregas -->
+                    <!-- 5. Entregas -->
                     <TabsTrigger value="entregas" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <Truck class="h-4 w-4 mr-1 hidden sm:inline" />
                         <span class="hidden sm:inline">Entregas</span>
@@ -361,13 +393,13 @@ const heroStats = computed(() => {
                     </TabsTrigger>
                 </TabsList>
 
-                <!-- TAB 1: DATOS DE EMPRESA -->
+                <!-- TAB 1: DATOS DE EMPRESA Y VENDEDOR -->
                 <TabsContent value="empresa" class="mt-6 space-y-6">
                     <CrmPanel>
                         <ConfigSectionHeader
                             :icon="Building2"
-                            title="Datos de la Empresa"
-                            description="Información básica de tu negocio"
+                            title="Datos de la Empresa y Vendedor"
+                            description="Información básica de tu negocio y del asesor"
                         />
                         <div class="space-y-4">
                             <div class="grid gap-4 md:grid-cols-2">
@@ -376,27 +408,42 @@ const heroStats = computed(() => {
                                     <Input id="company_name" v-model="form.company_name" placeholder="Tu Tienda" />
                                 </div>
                                 <div class="space-y-2">
-                                    <Label for="ruc">RUC (Opcional)</Label>
-                                    <Input id="ruc" v-model="form.ruc" placeholder="12345678901" />
-                                </div>
-                                <div class="space-y-2">
-                                    <Label for="razon_social">Razón Social (Opcional)</Label>
-                                    <Input id="razon_social" v-model="form.razon_social" placeholder="Tu Empresa S.A.C." />
-                                </div>
-                                <div class="space-y-2">
                                     <Label for="actividad">Actividad Económica *</Label>
-                                    <select
+                                    <Input
                                         id="actividad"
                                         v-model="form.actividad_economica"
-                                        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        placeholder="Moda y Vestuario"
+                                    />
+                                </div>
+                                <div class="space-y-2">
+                                    <Label for="vendedor_nombre">Nombre del Vendedor (Asesor) *</Label>
+                                    <Input id="vendedor_nombre" v-model="form.vendedor_nombre" placeholder="Roma" />
+                                </div>
+                                <div class="space-y-2">
+                                    <Label for="vendedor_genero">Género del Vendedor (Asesor) *</Label>
+                                    <select
+                                        id="vendedor_genero"
+                                        v-model="form.vendedor_genero"
+                                        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                     >
-                                        <option value="">-- Selecciona una actividad --</option>
-                                        <option v-for="actividad in actividades" :key="actividad" :value="actividad">
-                                            {{ actividad }}
-                                        </option>
+                                        <option value="">-- Selecciona un género --</option>
+                                        <option value="Femenino">Femenino</option>
+                                        <option value="Masculino">Masculino</option>
                                     </select>
                                 </div>
                             </div>
+
+                            <div class="space-y-2">
+                                <Label for="descripcion_empresa">Descripción de la Empresa *</Label>
+                                <Textarea
+                                    id="descripcion_empresa"
+                                    v-model="form.descripcion_empresa"
+                                    placeholder="Describe brevemente a qué se dedica tu empresa (ej. Tienda de ropa de dama online, con entregas rápidas y telas de alta calidad)..."
+                                    :rows="3"
+                                />
+                            </div>
+
+                            <!-- RUC and Razon Social removed -->
 
                             <!-- Logo -->
                             <div class="space-y-2">
@@ -406,8 +453,10 @@ const heroStats = computed(() => {
                                         <img :src="form.logo_path" :alt="form.company_name" class="h-full w-full object-cover" />
                                     </div>
                                     <div class="flex-1">
-                                        <Input id="logo" type="file" accept="image/*" class="cursor-pointer" />
-                                        <p class="text-xs text-muted-foreground mt-1">PNG, JPG o GIF. Máximo 2MB</p>
+                                        <Input id="logo" type="file" accept="image/*" class="cursor-pointer" @change="subirLogo" :disabled="subiendoLogo" />
+                                        <p class="text-xs text-muted-foreground mt-1">
+                                            {{ subiendoLogo ? 'Subiendo logo...' : 'PNG, JPG o GIF. Máximo 2MB' }}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -420,10 +469,15 @@ const heroStats = computed(() => {
                     <CrmPanel>
                         <ConfigSectionHeader
                             :icon="Share2"
-                            title="Redes Sociales / Enlaces"
-                            description="Tus perfiles en redes sociales o tu web (opcional)"
+                            title="Redes Sociales y Sitio Web"
+                            description="Tus perfiles y sitio web oficial (opcional)"
                         />
                         <div class="grid gap-4 md:grid-cols-2">
+                            <div class="space-y-2">
+                                <Label for="website">Sitio Web</Label>
+                                <Input id="website" v-model="form.website" placeholder="https://miempresa.com" />
+                            </div>
+>>>>>>> origin/main
                             <div class="space-y-2">
                                 <Label for="instagram">Instagram</Label>
                                 <Input id="instagram" v-model="form.social_networks.instagram" placeholder="@tuempresa" />
@@ -458,11 +512,24 @@ const heroStats = computed(() => {
                                 <Textarea
                                     id="personalidad_bot"
                                     v-model="form.personalidad_bot"
-                                    placeholder="Ej: Eres una asesora de ventas de moda femenina. Tu trato es amable, cercano, elegante y profesional. Hablas en femenino, de forma natural. Te diriges a la clienta usando tú y palabras cálidas como hermosa o bella. Nunca menciones que eres bot o IA."
-                                    :rows="8"
+                                    placeholder="Ej: Eres una asesora de ventas de moda femenina. Tu trato es amable, cercano, elegante y profesional. Hablas en femenino, de forma natural..."
+                                    :rows="6"
                                 />
                                 <p class="text-xs text-muted-foreground">
-                                    Sé específico: rol, trato, vocabulario, género gramatical, palabras que sí/no usar.
+                                    Sé específico: rol, trato, vocabulario, palabras que sí/no usar.
+                                </p>
+                            </div>
+
+                            <div class="space-y-2">
+                                <Label for="estilo_ventas">Estilo de Ventas (Estrategias y cierre) *</Label>
+                                <Textarea
+                                    id="estilo_ventas"
+                                    v-model="form.estilo_ventas"
+                                    placeholder="Ej: Ofrece siempre promociones sutiles. Procura cerrar la venta solicitando la dirección de entrega de forma amable pero asertiva..."
+                                    :rows="4"
+                                />
+                                <p class="text-xs text-muted-foreground">
+                                    Describe cómo quieres que el bot venda, maneje objeciones o cierre tratos.
                                 </p>
                             </div>
 
@@ -815,7 +882,6 @@ const heroStats = computed(() => {
                     </CrmPanel>
 
 
-
                     <CrmPanel>
                         <ConfigSectionHeader
                             :icon="FileText"
@@ -823,11 +889,6 @@ const heroStats = computed(() => {
                             description="Políticas generales. Los métodos concretos (Yape, tarjeta) se configuran arriba."
                         />
                         <div class="space-y-4">
-                            <div class="space-y-2">
-                                <Label for="horario">Horario de Atención</Label>
-                                <Textarea id="horario" v-model="form.horario_atencion" placeholder="Lunes a Viernes: 9am - 8pm&#10;Sábado: 10am - 6pm&#10;Domingo: Cerrado" :rows="3" />
-                            </div>
-
                             <div class="space-y-2">
                                 <Label for="politica">Política de Devoluciones</Label>
                                 <Textarea id="politica" v-model="form.politica_devoluciones" placeholder="Describe tu política de devoluciones..." :rows="3" />

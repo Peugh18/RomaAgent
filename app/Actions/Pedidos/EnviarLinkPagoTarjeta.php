@@ -17,7 +17,7 @@ class EnviarLinkPagoTarjeta
     /**
      * @return array{link: string, message: Message}
      */
-    public function handle(Sale $sale, string $linkUrl): array
+    public function handle(Sale $sale, ?string $customLink = null): array
     {
         if (! $sale->esPagoTarjeta()) {
             throw new RuntimeException('Este pedido no es pago con tarjeta.');
@@ -28,6 +28,12 @@ class EnviarLinkPagoTarjeta
         }
 
         $sale->loadMissing('items');
+        
+        $link = trim((string) $customLink);
+        if ($link === '') {
+            $settings = CompanySetting::query()->with('ventas')->first();
+            $link = GeneradorLinkPagoTarjeta::construir($settings?->ventas, $sale);
+        }
 
         $listaProductos = "";
 
