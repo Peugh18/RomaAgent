@@ -161,32 +161,6 @@ const plantillaShalomTexto = computed({
         <Card>
             <CardHeader>
                 <CardTitle class="flex items-center gap-2">
-                    <Users class="h-5 w-5" />
-                    Proceso de Venta
-                </CardTitle>
-                <CardDescription>
-                    Solo lógica de venta: identificar producto, stock, catálogo y confirmación. No incluyas horarios, tarifas, pagos, recordatorios ni plantillas de datos.
-                </CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-4">
-                <div class="space-y-2">
-                    <Label for="flujo">Casos y pasos de venta</Label>
-                    <Textarea
-                        id="flujo"
-                        v-model="form.flujo_ventas"
-                        placeholder="Ej: Caso A - clienta envía foto → identificar modelo y stock...&#10;Caso B - consulta por nombre/color...&#10;Caso C - pide catálogo → preguntar qué busca...&#10;Confirmación → preguntar Shalom o motorizado"
-                        :rows="12"
-                    />
-                    <p class="text-xs text-muted-foreground">
-                        Para reclamos o traspaso a humano usa el campo <strong>Protocolo</strong>, no lo dupliques aquí.
-                    </p>
-                </div>
-            </CardContent>
-        </Card>
-
-        <Card>
-            <CardHeader>
-                <CardTitle class="flex items-center gap-2">
                     <AlertCircle class="h-5 w-5" />
                     Recordatorios Automáticos
                 </CardTitle>
@@ -302,22 +276,6 @@ const plantillaShalomTexto = computed({
             </CardContent>
         </Card>
 
-        <Card>
-            <CardHeader>
-                <CardTitle>Formato de registro de venta</CardTitle>
-                <CardDescription>Plantilla interna cuando el pedido esté completo</CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-4">
-                <div class="space-y-2">
-                    <Label for="formato-registro">Datos a registrar</Label>
-                    <Textarea
-                        id="formato-registro"
-                        v-model="form.formato_registro_venta"
-                        placeholder="Ej: Celular, nombre, producto, color, cantidad, envío, monto..."
-                        :rows="8"
-                    />
-                </div>
-            </CardContent>
-        </Card>
+
     </div>
 </template>

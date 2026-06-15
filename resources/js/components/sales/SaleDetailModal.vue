@@ -103,17 +103,35 @@ const onCancel = () => {
                         <Package class="h-4 w-4" />
                         Producto a alistar
                     </h4>
-                    <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                        <dt class="text-muted-foreground">Producto</dt>
-                        <dd class="font-medium">{{ sale.product_name }}</dd>
-                        <dt class="text-muted-foreground">Color</dt>
-                        <dd>{{ sale.color ?? '—' }}</dd>
-                        <dt class="text-muted-foreground">Talla</dt>
-                        <dd>{{ sale.size }}</dd>
-                        <dt class="text-muted-foreground">Cantidad</dt>
-                        <dd>{{ sale.quantity }}</dd>
-                        <dt class="text-muted-foreground">Precio unit.</dt>
-                        <dd>{{ formatMoney(sale.unit_price) }}</dd>
+                    <div class="space-y-3">
+                        <template v-if="sale.items && sale.items.length > 0">
+                            <div v-for="item in sale.items" :key="item.id" class="border-b border-border/50 pb-3 last:border-0 last:pb-0">
+                                <dl class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                                    <dt class="text-muted-foreground">Producto</dt>
+                                    <dd class="font-medium">{{ item.product_name }}</dd>
+                                    <dt class="text-muted-foreground">Color / Talla</dt>
+                                    <dd>{{ item.color ?? '—' }} / {{ item.size }}</dd>
+                                    <dt class="text-muted-foreground">Cant. x Precio</dt>
+                                    <dd>{{ item.quantity }} × {{ formatMoney(item.unit_price) }}</dd>
+                                </dl>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <dl class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm border-b border-border/50 pb-3">
+                                <dt class="text-muted-foreground">Producto</dt>
+                                <dd class="font-medium">{{ sale.product_name }}</dd>
+                                <dt class="text-muted-foreground">Color</dt>
+                                <dd>{{ sale.color ?? '—' }}</dd>
+                                <dt class="text-muted-foreground">Talla</dt>
+                                <dd>{{ sale.size }}</dd>
+                                <dt class="text-muted-foreground">Cantidad</dt>
+                                <dd>{{ sale.quantity }}</dd>
+                                <dt class="text-muted-foreground">Precio unit.</dt>
+                                <dd>{{ formatMoney(sale.unit_price) }}</dd>
+                            </dl>
+                        </template>
+                    </div>
+                    <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-3 pt-3">
                         <dt class="text-muted-foreground">Delivery</dt>
                         <dd>{{ formatMoney(sale.delivery_cost) }}</dd>
                         <dt class="text-muted-foreground font-semibold">Total</dt>

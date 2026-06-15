@@ -10,7 +10,7 @@ use App\Models\HorarioConfig;
  */
 class NormalizadorStockTallas
 {
-    public const DEFAULT_SIZE_KEY = 'UNICA';
+    public const DEFAULT_SIZE_KEY = 'ESTÁNDAR';
 
     public static function defaultSizeKey(): string
     {
@@ -24,7 +24,7 @@ class NormalizadorStockTallas
                 $fromDb = CompanySetting::query()->value('standard_size');
             }
 
-            $key = strtoupper(trim((string) ($fromDb ?: self::DEFAULT_SIZE_KEY)));
+            $key = mb_strtoupper(trim((string) ($fromDb ?: self::DEFAULT_SIZE_KEY)));
 
             return $key !== '' ? $key : self::DEFAULT_SIZE_KEY;
         });
@@ -38,7 +38,7 @@ class NormalizadorStockTallas
     {
         $out = [];
         foreach ($stockBySize as $size => $qty) {
-            $key = strtoupper(trim((string) $size));
+            $key = mb_strtoupper(trim((string) $size));
             if ($key === '') {
                 continue;
             }
@@ -56,9 +56,15 @@ class NormalizadorStockTallas
 
     public static function esTallaEstandar(?string $talla): bool
     {
-        $key = strtoupper(trim((string) ($talla ?? self::defaultSizeKey())));
+        $key = mb_strtoupper(trim((string) ($talla ?? self::defaultSizeKey())));
 
-        return $key === self::defaultSizeKey();
+        if ($key === self::defaultSizeKey()) {
+            return true;
+        }
+
+        return in_array($key, [
+            'ESTÁNDAR', 'ESTANDAR', 'STANDAR', 'TALLA ESTÁNDAR', 'TALLA ESTANDAR', 'TALLA STANDAR', 'UNICA', 'ÚNICA', 'TALLA ÚNICA', 'TALLA UNICA'
+        ], true);
     }
 
     /**
@@ -70,7 +76,7 @@ class NormalizadorStockTallas
             return 'talla estándar';
         }
 
-        $key = strtoupper(trim((string) $talla));
+        $key = mb_strtoupper(trim((string) $talla));
 
         return $key !== '' ? sprintf('talla %s', $key) : 'talla estándar';
     }

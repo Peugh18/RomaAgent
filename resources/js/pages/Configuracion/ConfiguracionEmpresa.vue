@@ -419,35 +419,11 @@ const heroStats = computed(() => {
                 <TabsContent value="contacto" class="mt-6 space-y-6">
                     <CrmPanel>
                         <ConfigSectionHeader
-                            :icon="Smartphone"
-                            title="Información de Contacto"
-                            description="Cómo pueden comunicarse contigo"
-                        />
-                        <div class="space-y-4">
-                            <div class="grid gap-4 md:grid-cols-2">
-                                <div class="space-y-2">
-                                    <Label for="celular">Celular *</Label>
-                                    <Input id="celular" v-model="form.celular" placeholder="959696911" />
-                                </div>
-                                <div class="space-y-2">
-                                    <Label for="email">Email *</Label>
-                                    <Input id="email" v-model="form.email" type="email" placeholder="contacto@empresa.com" />
-                                </div>
-                            </div>
-                            <div class="space-y-2">
-                                <Label for="website">Sitio Web (Opcional)</Label>
-                                <Input id="website" v-model="form.website" placeholder="https://miempresa.com" />
-                            </div>
-                        </div>
-                    </CrmPanel>
-
-                    <CrmPanel>
-                        <ConfigSectionHeader
                             :icon="Share2"
-                            title="Redes Sociales"
-                            description="Tus perfiles en redes sociales (opcional)"
+                            title="Redes Sociales / Enlaces"
+                            description="Tus perfiles en redes sociales o tu web (opcional)"
                         />
-                        <div class="grid gap-4 md:grid-cols-3">
+                        <div class="grid gap-4 md:grid-cols-2">
                             <div class="space-y-2">
                                 <Label for="instagram">Instagram</Label>
                                 <Input id="instagram" v-model="form.social_networks.instagram" placeholder="@tuempresa" />
@@ -459,6 +435,10 @@ const heroStats = computed(() => {
                             <div class="space-y-2">
                                 <Label for="tiktok">TikTok</Label>
                                 <Input id="tiktok" v-model="form.social_networks.tiktok" placeholder="@tuempresa" />
+                            </div>
+                            <div class="space-y-2">
+                                <Label for="website">Sitio Web</Label>
+                                <Input id="website" v-model="form.social_networks.website" placeholder="https://miempresa.com" />
                             </div>
                         </div>
                     </CrmPanel>
@@ -834,30 +814,7 @@ const heroStats = computed(() => {
                         </div>
                     </CrmPanel>
 
-                    <CrmPanel>
-                        <ConfigSectionHeader
-                            :icon="Link2"
-                            title="Link de pago tarjeta"
-                            description="URL que envías desde el chat. El mensaje al cliente es solo el link."
-                        />
-                        <div class="space-y-3">
-                            <div class="space-y-2">
-                                <Label for="link-pago-tarjeta">URL de pago</Label>
-                                <Input
-                                    id="link-pago-tarjeta"
-                                    v-model="form.link_pago_tarjeta"
-                                    type="url"
-                                    placeholder="https://tu-pasarela.com/pagar?monto={total}&pedido={sale_id}"
-                                />
-                            </div>
-                            <p class="text-xs text-muted-foreground">
-                                Variables opcionales:
-                                <code class="rounded bg-muted px-1">{total}</code>,
-                                <code class="rounded bg-muted px-1">{sale_id}</code>,
-                                <code class="rounded bg-muted px-1">{telefono}</code>
-                            </p>
-                        </div>
-                    </CrmPanel>
+
 
                     <CrmPanel>
                         <ConfigSectionHeader

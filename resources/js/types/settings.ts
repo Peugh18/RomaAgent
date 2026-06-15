@@ -2,6 +2,7 @@ export interface SocialNetworksForm {
     instagram: string;
     facebook: string;
     tiktok: string;
+    website?: string;
 }
 
 export interface ConfiguracionAgenteForm {
@@ -31,9 +32,6 @@ export interface CompanySettingsForm {
     company_name: string;
     ruc?: string;
     razon_social?: string;
-    celular?: string;
-    email?: string;
-    website?: string;
     logo_path?: string;
     actividad_economica?: string;
     tono_bot?: string;
@@ -45,13 +43,11 @@ export interface CompanySettingsForm {
     horario_atencion?: string;
     politica_devoluciones?: string;
     restricciones_especiales?: string;
-    informacion_adicional?: string;
     social_networks: SocialNetworksForm;
     address: string;
     standard_size: string;
     saludo_inicial?: string;
     reglas_comunicacion?: string;
-    flujo_ventas?: string;
     plantillas_datos?: { motorizado: Record<string, string>; shalom: Record<string, string> };
     horario_entregas?: string;
     horario_shalom?: string;
@@ -60,13 +56,12 @@ export interface CompanySettingsForm {
     mensaje_recordatorio_15min?: string;
     mensaje_recordatorio_datos?: string;
     comision_tarjeta?: number;
-    formato_registro_venta?: string;
     configuracion_agente?: ConfiguracionAgenteForm;
     [key: string]: unknown;
 }
 
 /** Clave interna de talla estándar en BD (UNICA = talla estándar al cliente; configurable por empresa). */
-export const DEFAULT_STANDARD_SIZE = 'UNICA';
+export const DEFAULT_STANDARD_SIZE = 'ESTÁNDAR';
 
 export interface VariantStockShape {
     sizes_stock: Record<string, number>;

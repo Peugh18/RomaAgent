@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useCurrency } from '@/composables/useCurrency';
 import {
     SALE_STATUS_LABELS,
@@ -29,6 +32,8 @@ const emit = defineEmits<{
     linkSent: [];
 }>();
 
+const linkModalOpen = ref(false);
+const linkInputValue = ref('');
 const sendingLink = ref(false);
 const linkError = ref<string | null>(null);
 
@@ -36,8 +41,20 @@ const esTarjetaPendiente = computed(
     () => props.sale !== null && saleEsPagoTarjeta(props.sale) && props.sale.status === 'pago_pendiente',
 );
 
+const abrirModalLink = () => {
+    linkInputValue.value = '';
+    linkError.value = null;
+    linkModalOpen.value = true;
+};
+
 const enviarLinkPago = async () => {
     if (!props.sale || sendingLink.value) {
+        return;
+    }
+
+    const link = linkInputValue.value.trim();
+    if (!link) {
+        linkError.value = 'El link no puede estar vacío';
         return;
     }
 
@@ -51,8 +68,9 @@ const enviarLinkPago = async () => {
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': getCsrfToken(),
             },
-            body: JSON.stringify({}),
+            body: JSON.stringify({ link }),
         });
+        linkModalOpen.value = false;
         emit('linkSent');
         emit('refresh');
     } catch (err) {
@@ -157,14 +175,14 @@ const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
                     v-if="esTarjetaPendiente"
                     size="sm"
                     variant="secondary"
-                    class="gap-1.5"
+                    class="gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900/50"
                     :disabled="sendingLink"
-                    @click="enviarLinkPago"
+                    @click="abrirModalLink"
                 >
-                    <Loader2 v-if="sendingLink" class="h-4 w-4 animate-spin" />
-                    <ExternalLink v-else class="h-4 w-4" />
-                    {{ sendingLink ? 'Enviando…' : 'Enviar link de pago' }}
+                    <ExternalLink class="h-4 w-4" />
+                    Enviar link de pago
                 </Button>
+
                 <Button
                     v-if="canConfirm"
                     size="sm"
@@ -204,10 +222,8 @@ const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
 
         <p v-if="error" class="mt-2 text-xs text-red-600 dark:text-red-400">{{ error }}</p>
 
-        <p v-if="linkError" class="mt-2 text-xs text-red-600 dark:text-red-400">{{ linkError }}</p>
-
         <p v-if="esTarjetaPendiente" class="mt-2 text-xs text-indigo-700 dark:text-indigo-300">
-            Envía el link con un clic. Cuando la clienta pague y mande comprobante, verifica y confirma.
+            Haz clic en "Enviar link de pago", pega el código y el bot se reactivará automáticamente para validar el voucher.
         </p>
 
         <p v-if="canConfirm" class="mt-2 text-xs text-amber-700 dark:text-amber-400">
@@ -223,4 +239,37 @@ const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
             Marca enviado cuando el pedido salga hacia la clienta.
         </p>
     </div>
+
+    <Dialog v-model:open="linkModalOpen">
+        <DialogContent class="sm:max-w-[425px]">
+            <DialogHeader>
+                <DialogTitle>Enviar Link de Pago</DialogTitle>
+                <DialogDescription>
+                    Ingresa el enlace o código de pago generado para el cliente.
+                </DialogDescription>
+            </DialogHeader>
+            <div class="grid gap-4 py-4">
+                <div class="grid gap-2">
+                    <Label for="link_pago" class="sr-only">Enlace de Pago</Label>
+                    <Input
+                        id="link_pago"
+                        v-model="linkInputValue"
+                        placeholder="ej. https://link.niubiz.com/..."
+                        @keyup.enter="enviarLinkPago"
+                        autocomplete="off"
+                    />
+                    <p v-if="linkError" class="text-xs text-red-500">{{ linkError }}</p>
+                </div>
+            </div>
+            <DialogFooter>
+                <Button type="button" variant="outline" @click="linkModalOpen = false" :disabled="sendingLink">
+                    Cancelar
+                </Button>
+                <Button type="button" @click="enviarLinkPago" :disabled="sendingLink || !linkInputValue.trim()">
+                    <Loader2 v-if="sendingLink" class="mr-2 h-4 w-4 animate-spin" />
+                    Enviar y Reactivar IA
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 </template>

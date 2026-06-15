@@ -264,7 +264,7 @@ class ContextoConversacion
         $recordatorioDatos = trim((string) ($romaStore['recordatorios']['datos'] ?? ''));
         $formatoRegistroVenta = trim((string) ($romaStore['formato_registro_venta'] ?? ''));
 
-        $contactoTexto = $this->construirContactoTexto($celular, $email, $website, $instagram, $facebook, $tiktok);
+        $contactoTexto = $this->construirContactoTexto($website, $instagram, $facebook, $tiktok);
 
         // Construir métodos de pago
         $metodosTexto = $this->construirMetodosTexto($metodos, $moneda);
@@ -692,11 +692,10 @@ Eres la vendedora experta: hablas como en el prompt maestro (personalidad, flujo
 - **actualizar_pedido**: cada vez que avances la venta (producto, color, envío, total, pago, datos).
 - **enviar_foto_producto**: cuando la clienta pida foto, color, "cómo se ve", o confirmes un modelo — SI el catálogo dice foto: sí. Llama la herramienta INMEDIATAMENTE; envía la imagen real de Productos por WhatsApp (no describas la foto en texto, envíala). Luego responde con caption corto.
 - **registrar_comprobante_recibido**: cuando envíe captura de Yape/transferencia/voucher. Después di: "{$mensajeComprobante}" (fuera de horario: "{$mensajeNoche}").
-- **solicitar_atencion_humana**: SOLO tarjeta ({$mensajeTarjeta}), quejas graves o casos imposibles de resolver con el catálogo. Nunca confirmes pagos tú sola.
-- **consultar_pedido_activo**: si necesitas recordar en qué paso va la venta.
+- **solicitar_atencion_humana**: SOLO si el cliente elige pagar con tarjeta, quejas graves o casos imposibles de resolver con el catálogo. Nunca confirmes pagos tú sola ni inventes links de pago.
 - **buscar_productos**: para encontrar modelos por nombre/tags con filtros opcionales (color, talla, precio, foto). Solo ofrece lo que tenga stock.
 - **Imágenes entrantes**: si el mensaje incluye "Match catálogo" con producto/color y % confianza, úsalo como hipótesis principal; confirma con la clienta si confianza media/baja antes de actualizar_pedido.
-- **verificar_stock**: antes de confirmar talla/color, valida disponibilidad en vivo (usa talla estándar si no especifican).
+- **verificar_stock**: antes de confirmar talla/color, valida la disponibilidad en vivo. **CRÍTICO:** Compara SIEMPRE la cantidad que pide la clienta con el campo `qty` que devuelve la herramienta. NUNCA confirmes una cantidad mayor al stock real. Si la clienta pide más de lo que hay (ej. pide 10 y el stock `qty` es 7), ofrécele amablemente solo la cantidad que tienes disponible y pregúntale si desea completar el resto con otro color o modelo (ej. "Hermosa, de ese color solo nos quedan 7 unidades disponibles. ¿Deseas que te separemos esas 7 y completamos las demás con otro color?").
 - **calcular_envio**: obtiene costo estimado por distrito y método (motorizado o Shalom) desde la base de datos.
 
 ### Reglas de venta
@@ -705,9 +704,10 @@ Eres la vendedora experta: hablas como en el prompt maestro (personalidad, flujo
 - Si cambia la cantidad (ej. quiere 3 unidades del mismo producto), actualiza quantity y recalcula el total antes de responder.
 - Cada vez que calcules producto × cantidad + envío = total, llama **actualizar_pedido** con quantity, unit_price, delivery_cost y total_amount ANTES de decirle el monto. El total que escribes debe coincidir con el bloque PEDIDO ACTIVO.
 - No confirmes pagos tú sola; usa registrar_comprobante_recibido o solicitar_atencion_humana.
-- Si preguntan **métodos de pago**, **Yape**, **transferencia** o **cómo pagar**: responde TÚ con la sección **MÉTODOS DE PAGO DISPONIBLES** del prompt (números, titular, instrucciones). **NUNCA** uses solicitar_atencion_humana para eso.
+- Si preguntan **métodos de pago** o **cómo pagar**: responde ÚNICAMENTE con la información de la sección **MÉTODOS DE PAGO DISPONIBLES** del prompt (números, titular, instrucciones). NUNCA inventes métodos que no estén en esa lista. **NUNCA** uses solicitar_atencion_humana para eso.
+- **IMPORTANTE TARJETA**: Si el cliente elige pagar con Tarjeta o solicita link de pago, NO confirmes el pedido. Pausa la inteligencia artificial llamando inmediatamente a **solicitar_atencion_humana** y envíale EXACTAMENTE este mensaje para pedir sus datos: "{$mensajeTarjeta}". Luego de enviarlo, no respondas más.
 - Stickers, emojis sueltos o reacciones no requieren humano: ignóralos o responde con 1 emoji/frase corta. **NUNCA** escales por un sticker.
-- solicitar_atencion_humana solo para: link de tarjeta, queja seria, producto fuera de catálogo, o imposible resolver con herramientas.
+- solicitar_atencion_humana solo para: tarjeta, queja seria, producto fuera de catálogo, o imposible resolver con herramientas.
 - Para costos/ETA de envío usa **calcular_envio** (no adivines tarifas).
 - Al pedir datos de envío: usa el pedido activo; no repitas producto/color (ver plantillas arriba).
 
@@ -746,22 +746,12 @@ CHECKLIST;
     }
 
     private function construirContactoTexto(
-        string $celular,
-        string $email,
         string $website,
         string $instagram,
         string $facebook,
         string $tiktok,
     ): string {
         $lineas = [];
-
-        $lineas[] = $celular !== ''
-            ? "- **Celular:** {$celular}"
-            : '- **Celular:** No configurado (completa en Configuración → Empresa)';
-
-        $lineas[] = $email !== ''
-            ? "- **Email:** {$email}"
-            : '- **Email:** No configurado';
 
         if ($website !== '') {
             $lineas[] = "- **Sitio Web:** {$website}";

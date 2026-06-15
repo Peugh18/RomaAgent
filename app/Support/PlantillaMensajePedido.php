@@ -31,12 +31,24 @@ class PlantillaMensajePedido
             ?? ''
         ));
 
+        $productNames = $sale->product_name;
+        $colors = $sale->color;
+
+        $sale->loadMissing('items');
+        if ($sale->items->isNotEmpty()) {
+            $productNames = $sale->items->map(function ($item) {
+                $talla = \App\Support\NormalizadorStockTallas::etiquetaPublica($item->size);
+                return "{$item->quantity}x {$item->product_name} ({$talla})";
+            })->implode(', ');
+            $colors = $sale->items->pluck('color')->filter()->unique()->implode(', ');
+        }
+
         return str_replace(
             ['{nombre}', '{producto}', '{color}', '{total}', '{distrito}', '{metodo_pago}'],
             [
                 $nombre,
-                $sale->product_name,
-                (string) $sale->color,
+                $productNames,
+                (string) $colors,
                 number_format((float) $sale->total_amount, 2),
                 (string) ($sale->delivery_district ?? ''),
                 (string) ($sale->payment_method ?? ''),
@@ -84,11 +96,23 @@ class PlantillaMensajePedido
             ?? null
         ));
 
+        $productNames = $sale->product_name;
+        $colors = $sale->color;
+
+        $sale->loadMissing('items');
+        if ($sale->items->isNotEmpty()) {
+            $productNames = $sale->items->map(function ($item) {
+                $talla = \App\Support\NormalizadorStockTallas::etiquetaPublica($item->size);
+                return "{$item->quantity}x {$item->product_name} ({$talla})";
+            })->implode(', ');
+            $colors = $sale->items->pluck('color')->filter()->unique()->implode(', ');
+        }
+
         return [
             'nombre' => $nombre !== '' ? $nombre : null,
-            'producto' => $sale->product_name,
-            'color' => $sale->color,
-            'total' => number_format((float) $sale->total_amount, 2),
+            'producto' => $productNames,
+            'color' => $colors,
+            'total' => number_format((float) $sale->total_amount, 2, '.', ''),
             'distrito' => $sale->delivery_district,
             'metodo_pago' => $sale->payment_method,
         ];

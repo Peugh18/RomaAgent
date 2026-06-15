@@ -7,6 +7,7 @@ use Database\Factories\SaleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Sale extends Model
 {
@@ -61,6 +62,11 @@ class Sale extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    public function items(): HasMany
+    {
+        return $this->hasMany(SaleItem::class);
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
@@ -92,7 +98,7 @@ class Sale extends Model
     public function puedeVerificarPago(): bool
     {
         if ($this->esPagoTarjeta()) {
-            return $this->status === SaleStatus::PagoPendiente;
+            return in_array($this->status, [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido], true);
         }
 
         return $this->status === SaleStatus::PagoRecibido;
