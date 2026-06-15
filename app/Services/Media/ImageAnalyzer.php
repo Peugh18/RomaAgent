@@ -6,6 +6,7 @@ use App\Exceptions\GeminiQuotaExceededException;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\ConfiguracionAgente;
+use App\Services\ServicioMediaProducto;
 use App\Services\Vision\OptimizedVisionPrompts;
 use App\Services\Vision\ProductEmbeddingService;
 use App\Support\Vision\ParseadorRespuestaJsonGemini;
@@ -22,7 +23,8 @@ class ImageAnalyzer extends BaseGeminiService
     public function __construct(
         ConfiguracionAgente $configuracion,
         private CargadorBytesMedia $cargador,
-        private ProductEmbeddingService $embeddingService
+        private ProductEmbeddingService $embeddingService,
+        private ServicioMediaProducto $mediaProducto
     ) {
         parent::__construct($configuracion);
     }
@@ -86,6 +88,7 @@ class ImageAnalyzer extends BaseGeminiService
 
         $esPrenda = $resPrenda['inbound_profile']['es_prenda'] ?? false;
         $descripcion = $resPrenda['inbound_profile']['descripcion_vectorial'] ?? null;
+        $colorExtraido = $resPrenda['inbound_profile']['color'] ?? null;
 
         if (! $esPrenda || empty($descripcion)) {
             Log::info('ImageAnalyzer: No se detectó una prenda clara en la imagen o falló la descripción. Usando fallback.');
@@ -111,8 +114,7 @@ class ImageAnalyzer extends BaseGeminiService
             ->with('product')
             ->get();
 
-        $bestSimilarity = -1.0;
-        $bestVariant = null;
+        $resultados = [];
 
         foreach ($variantesActivas as $variante) {
             $stockTotal = is_array($variante->sizes_stock) ? array_sum($variante->sizes_stock) : 0;
@@ -121,44 +123,105 @@ class ImageAnalyzer extends BaseGeminiService
             }
 
             $similarity = $this->cosineSimilarity($embedding, $variante->image_embedding);
-            if ($similarity > $bestSimilarity) {
-                $bestSimilarity = $similarity;
-                $bestVariant = $variante;
+
+            // Penalización de Búsqueda Híbrida: Filtrar por Color
+            if (! empty($colorExtraido) && ! empty($variante->color)) {
+                $colorE = mb_strtolower(trim($colorExtraido));
+                $colorV = mb_strtolower(trim($variante->color));
+
+                // Si no hay coincidencia semántica de color básica, restamos puntaje agresivamente
+                if (strpos($colorE, $colorV) === false && strpos($colorV, $colorE) === false) {
+                    $similarity -= 0.50; // Asegura que nunca llegue a 0.50 de threshold
+                }
+            }
+            $resultados[] = [
+                'variant' => $variante,
+                'similarity' => $similarity,
+            ];
+        }
+
+        usort($resultados, fn ($a, $b) => $b['similarity'] <=> $a['similarity']);
+
+        $umbralExacto = 0.50; // Cambiado de 0.60 a 0.50 para ser más permisivo
+        $umbralSimilar = 0.35; // Cambiado de 0.40 a 0.35
+
+        $exactMatch = null;
+        $similares = [];
+
+        if (! empty($resultados)) {
+            $mejor = $resultados[0];
+            if ($mejor['similarity'] >= $umbralExacto) {
+                $exactMatch = $mejor;
+            } else {
+                // Aquí se define cuántas opciones similares mostrar (cambiado a 2)
+                foreach (array_slice($resultados, 0, 2) as $res) {
+                    if ($res['similarity'] >= $umbralSimilar) {
+                        $similares[] = $res;
+                    }
+                }
             }
         }
 
-        // El umbral para textos suele ser alto porque los textos similares (ej. vestidos) puntúan alto.
-        // Lo ponemos en 0.45 para ser permisivos con los textos.
-        $umbral = 0.45;
-        if ($bestVariant && $bestSimilarity >= $umbral) {
-            Log::info('ImageAnalyzer: Producto encontrado por similitud vectorial de TEXTO', [
-                'id_producto' => $bestVariant->product_id,
-                'similitud' => $bestSimilarity,
+        if ($exactMatch !== null) {
+            $variante = $exactMatch['variant'];
+            Log::info('ImageAnalyzer: Producto encontrado por similitud vectorial EXACTA', [
+                'id_producto' => $variante->product_id,
+                'similitud' => $exactMatch['similarity'],
             ]);
 
             return [
-                'caption' => 'Producto reconocido por vector descriptivo',
+                'caption' => 'Producto reconocido exactamente por vector descriptivo',
                 'inbound_profile' => [
                     'encontrado' => true,
-                    'id_producto' => $bestVariant->product_id,
-                    'nombre_vestido' => $bestVariant->product->name ?? 'Desconocido',
-                    'color' => $bestVariant->color,
+                    'matches' => [[
+                        'id_producto' => $variante->product_id,
+                        'nombre_vestido' => $variante->product->name ?? 'Desconocido',
+                        'color' => $variante->color,
+                        'similitud' => $exactMatch['similarity'],
+                        'image_url' => $this->mediaProducto->resolveAbsolutePublicUrl($variante),
+                    ]],
                     'tipo_mensaje' => 'producto',
-                    'similitud' => $bestSimilarity,
                     'caption_cliente' => $captionCliente,
                 ],
             ];
         }
 
-        Log::info('ImageAnalyzer: No se encontró similitud vectorial aceptable (max: '.$bestSimilarity.'). Se devolverá no encontrado.');
+        if (! empty($similares)) {
+            Log::info('ImageAnalyzer: Productos similares encontrados por similitud vectorial', [
+                'cantidad' => count($similares),
+                'similitud_mejor' => $similares[0]['similarity'],
+            ]);
+
+            $matches = array_map(function ($res) {
+                $variante = $res['variant'];
+
+                return [
+                    'id_producto' => $variante->product_id,
+                    'nombre_vestido' => $variante->product->name ?? 'Desconocido',
+                    'color' => $variante->color,
+                    'similitud' => $res['similarity'],
+                    'image_url' => $this->mediaProducto->resolveAbsolutePublicUrl($variante),
+                ];
+            }, $similares);
+
+            return [
+                'caption' => 'Productos similares reconocidos por vector descriptivo',
+                'inbound_profile' => [
+                    'encontrado' => false,
+                    'matches' => $matches,
+                    'tipo_mensaje' => 'producto',
+                    'caption_cliente' => $captionCliente,
+                ],
+            ];
+        }
+
+        Log::info('ImageAnalyzer: No se encontró similitud vectorial aceptable. Se devolverá no encontrado.');
 
         return [
             'caption' => 'Producto no reconocido con certeza',
             'inbound_profile' => [
                 'encontrado' => false,
-                'id_producto' => null,
-                'nombre_vestido' => null,
-                'color' => null,
+                'matches' => [],
                 'tipo_mensaje' => 'producto',
                 'caption_cliente' => $captionCliente,
             ],

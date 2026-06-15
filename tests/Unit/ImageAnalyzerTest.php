@@ -82,7 +82,7 @@ class ImageAnalyzerTest extends TestCase
 
         // Mock para que ProductEmbeddingService devuelva un embedding muy similar
         $this->mock(ProductEmbeddingService::class, function ($mock) {
-            $mock->shouldReceive('generarEmbeddingImagen')
+            $mock->shouldReceive('generarEmbeddingTexto')
                 ->once()
                 ->andReturn([0.1, 0.2, 0.3, 0.4]); // Mismo embedding, similitud 1.0
         });
@@ -118,10 +118,11 @@ class ImageAnalyzerTest extends TestCase
 
         $this->assertIsArray($result);
         $this->assertTrue($result['inbound_profile']['encontrado'] ?? false);
-        $this->assertSame($variant->product_id, $result['inbound_profile']['id_producto']);
-        $this->assertSame('Rojo', $result['inbound_profile']['color']);
+        $this->assertNotEmpty($result['inbound_profile']['matches']);
+        $this->assertSame($variant->product_id, $result['inbound_profile']['matches'][0]['id_producto']);
+        $this->assertSame('Rojo', $result['inbound_profile']['matches'][0]['color']);
 
         // La similitud debería ser 1.0 o muy cercana
-        $this->assertGreaterThan(0.99, $result['inbound_profile']['similitud']);
+        $this->assertGreaterThan(0.99, $result['inbound_profile']['matches'][0]['similitud']);
     }
 }

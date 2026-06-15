@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Actions\GenerarRespuestaAgente;
+use App\Actions\Mensajes\EnviarMensajeWhatsappSaliente;
 use App\Exceptions\GeminiQuotaExceededException;
 use App\Models\Message;
 use App\Services\EncolarRespuestaAgente;
@@ -272,24 +273,37 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         }
 
         // Respuesta directa!
-        $nombre = $inboundProfile['nombre_vestido'] ?? 'elegido';
-        $color = $inboundProfile['color'] ?? '';
+        $enviarMensaje = app(EnviarMensajeWhatsappSaliente::class);
+        $phone = $message->phone_number;
+        $matches = $inboundProfile['matches'] ?? [];
 
-        if ($encontrado) {
-            $textoRespuesta = "¡Sí lo tenemos disponible en tienda, hermosa! El modelo es el vestido {$nombre} en color {$color}. nos confirmas si deseas realizar el pedido para poder ayudarte hermosa 🤗🛍️";
+        if ($encontrado && ! empty($matches)) {
+            $exacto = $matches[0];
+            $nombre = $exacto['nombre_vestido'] ?? 'elegido';
+            $color = $exacto['color'] ?? '';
+            $imageUrl = $exacto['image_url'] ?? null;
+
+            $enviarMensaje->handle($phone, "¡Claro que sí! Tenemos disponible este vestido: {$nombre}.");
+
+            if ($imageUrl) {
+                $enviarMensaje->handle($phone, "Vestido {$nombre} en color {$color}", null, $imageUrl);
+            }
+        } elseif (! $encontrado && ! empty($matches)) {
+            $enviarMensaje->handle($phone, 'No encontré ese vestido exactamente, pero tengo estas opciones similares que podrían interesarte.');
+
+            foreach ($matches as $match) {
+                $nombre = $match['nombre_vestido'] ?? 'elegido';
+                $color = $match['color'] ?? '';
+                $imageUrl = $match['image_url'] ?? null;
+                if ($imageUrl) {
+                    $enviarMensaje->handle($phone, "Vestido {$nombre} en color {$color}", null, $imageUrl);
+                }
+            }
+
+            $enviarMensaje->handle($phone, '¿Me confirmas si alguno de estos modelitos es el que buscabas, hermosa? Si no, indícame el nombre exacto para ayudarte. ✨');
         } else {
-            $textoRespuesta = 'Hermosa, no logro reconocer muy bien ese modelito por la foto. ¿Me podrías indicar el nombre del vestido y el color que deseas solicitar? ✨';
+            $enviarMensaje->handle($phone, 'No pude encontrar ese modelo. ¿Podrías indicarme el nombre exacto del vestido o brindarme más detalles para ayudarte a encontrarlo?');
         }
-
-        $outbound = Message::create([
-            'message_id' => 'temp_'.uniqid(),
-            'phone_number' => $message->phone_number,
-            'direction' => 'outgoing',
-            'status' => 'pending',
-            'content' => $textoRespuesta,
-        ]);
-
-        SendWhatsappMessageJob::dispatch($outbound);
 
         return true;
     }

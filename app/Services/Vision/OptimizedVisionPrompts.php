@@ -56,7 +56,7 @@ FORMATO JSON OBLIGATORIO (sin markdown, sin comentarios):
   "tipo_prenda": "vestido|blusa|pantalón|etc",
   "color": "color dominante",
   "patron": "diseño o textura visible",
-  "descripcion_vectorial": "frase corta como: Vestido de mujer, patrón zig-zag, color rojo"
+  "descripcion_vectorial": "[tipo_prenda]. [patron visible], [detalles clave]."
 }
 PROMPT;
     }

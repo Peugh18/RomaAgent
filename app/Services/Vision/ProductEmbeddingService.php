@@ -68,8 +68,17 @@ class ProductEmbeddingService extends BaseGeminiService
         $productName = $variant->product->name ?? 'Desconocido';
         $color = $variant->color ?? 'Desconocido';
 
-        // Frase descriptiva que se vectorizará
-        $descripcion = "Prenda de mujer. Tipo: Vestido. Modelo: {$productName}. Color dominante: {$color}.";
+        $patron = 'Diseño original';
+        if ($variant->product && is_array($variant->product->vision_profile)) {
+            $patron = $variant->product->vision_profile['patron'] ?? $patron;
+            // Opcional: añadir más detalles visuales
+            if (isset($variant->product->vision_profile['detalles']) && is_array($variant->product->vision_profile['detalles'])) {
+                $patron .= ' '.implode(', ', array_slice($variant->product->vision_profile['detalles'], 0, 2));
+            }
+        }
+
+        // Frase descriptiva estandarizada pura
+        $descripcion = "Vestido. {$patron}.";
 
         return $this->generarEmbeddingTexto($descripcion);
     }
