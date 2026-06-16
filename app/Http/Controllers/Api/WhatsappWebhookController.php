@@ -6,8 +6,8 @@ use App\Actions\ProcessIncomingMessage;
 use App\Actions\UpdateMessageStatus;
 use App\Http\Controllers\Controller;
 use App\Infrastructure\Whatsapp\MetaWhatsAppSettings;
-use App\Services\Media\DescargadorMediaWhatsapp;
 use App\Support\Whatsapp\NormalizadorWebhookMeta;
+use App\Support\Whatsapp\VerificadorFirmaWebhookMeta;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -18,7 +18,6 @@ class WhatsappWebhookController extends Controller
     public function __construct(
         private ProcessIncomingMessage $processIncoming,
         private UpdateMessageStatus $updateStatus,
-        private DescargadorMediaWhatsapp $descargadorMedia,
     ) {}
 
     public function handle(Request $request): Response|JsonResponse
@@ -45,6 +44,12 @@ class WhatsappWebhookController extends Controller
 
     public function receive(Request $request): JsonResponse
     {
+        if (! VerificadorFirmaWebhookMeta::esFirmaValida($request)) {
+            Log::warning('Firma de webhook de Meta inválida.');
+
+            return response()->json(['error' => 'Invalid signature'], 403);
+        }
+
         $body = $request->all();
 
         if (($body['object'] ?? '') !== 'whatsapp_business_account') {
@@ -81,7 +86,6 @@ class WhatsappWebhookController extends Controller
 
                     $contacts = is_array($value['contacts'] ?? null) ? $value['contacts'] : [];
                     $event = NormalizadorWebhookMeta::normalizarMensaje($message, $metaPhoneId, $contacts);
-                    $event = $this->enriquecerMedia($event);
                     $payload = NormalizadorWebhookMeta::aPayloadCrm($event);
 
                     try {
@@ -120,35 +124,5 @@ class WhatsappWebhookController extends Controller
             'status' => 'success',
             'events_processed' => $processed,
         ]);
-    }
-
-    /**
-     * @param  array<string, mixed>  $event
-     * @return array<string, mixed>
-     */
-    private function enriquecerMedia(array $event): array
-    {
-        $messageType = (string) ($event['message_type'] ?? 'text');
-        if (! $this->descargadorMedia->esDescargable($messageType)) {
-            return $event;
-        }
-
-        $raw = is_array($event['raw'] ?? null) ? $event['raw'] : [];
-        $waId = (string) ($event['wa_id'] ?? '');
-
-        $resolved = $this->descargadorMedia->descargar($waId, $messageType, $raw);
-        if ($resolved === null) {
-            return $event;
-        }
-
-        $event['media_url'] = $resolved['url'];
-        $event['local_url'] = $resolved['local_url'];
-        $event['mime_type'] = $resolved['mime'];
-
-        if (in_array($messageType, ['image', 'sticker'], true)) {
-            $event['image_url'] = $resolved['local_url'] ?? $resolved['url'];
-        }
-
-        return $event;
     }
 }

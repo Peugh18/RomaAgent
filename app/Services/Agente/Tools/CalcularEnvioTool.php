@@ -42,6 +42,35 @@ class CalcularEnvioTool
             ->first();
 
         if ($zone === null) {
+            // Fallback de Provincia: si no encuentra el distrito, buscamos la tarifa genérica de provincia
+            $provinciaZone = DeliveryZone::query()
+                ->where('district', 'LIKE', '%Provincia%')
+                ->first();
+
+            if ($provinciaZone !== null) {
+                // Asumimos Shalom para envíos a provincia por defecto, a menos que especifiquen lo contrario
+                $cost = $method === 'motorizado' && $provinciaZone->cost_motorizado > 0
+                    ? (float) $provinciaZone->cost_motorizado
+                    : (float) $provinciaZone->cost_shalom;
+
+                $methodLabel = $method === 'motorizado' && $provinciaZone->cost_motorizado > 0
+                    ? 'Motorizado (Provincia)'
+                    : 'Shalom (Provincia)';
+
+                $moneda = (new ConfiguracionEmpresa)->obtenerMoneda();
+
+                return [
+                    'ok' => true,
+                    'found' => true,
+                    'method' => $method,
+                    'district' => $provinciaZone->district,
+                    'currency' => $moneda,
+                    'cost' => $cost,
+                    'method_label' => $methodLabel,
+                    'nota' => 'El distrito solicitado no está en la base de datos local. Se aplicó la tarifa general de provincia automáticamente.',
+                ];
+            }
+
             return ['ok' => true, 'found' => false];
         }
 

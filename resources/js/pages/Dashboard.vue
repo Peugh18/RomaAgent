@@ -53,6 +53,11 @@ const props = defineProps<{
     pedidosRecientes: RecentOrder[];
     chartData: ChartDataPoint[];
     pipelineOverview: PipelineSlice[];
+    lowStockProducts: {
+        id: number;
+        name: string;
+        stock: number;
+    }[];
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: '/dashboard' }];
@@ -123,6 +128,33 @@ const statCards = computed(() => [
                     <Button as-child variant="secondary" class="shrink-0 gap-2">
                         <Link href="/pipeline">
                             Ir al pipeline
+                            <ArrowRight class="h-4 w-4" />
+                        </Link>
+                    </Button>
+                </div>
+            </CrmAlert>
+
+            <CrmAlert v-if="lowStockProducts && lowStockProducts.length > 0" variant="destructive" class="!border-red-500/30 !bg-red-500/10">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div class="flex items-start gap-3">
+                        <AlertCircle class="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+                        <div>
+                            <p class="font-medium text-red-800 dark:text-red-300">
+                                {{ lowStockProducts.length }} producto{{ lowStockProducts.length === 1 ? '' : 's' }} con stock bajo (menos de 5)
+                            </p>
+                            <p class="mt-0.5 text-sm text-red-700/90 dark:text-red-400/90">
+                                <span v-for="(p, index) in lowStockProducts.slice(0, 3)" :key="p.id">
+                                    {{ p.name }} (Quedan: {{ p.stock }}){{ index < Math.min(lowStockProducts.length, 3) - 1 ? ', ' : '' }}
+                                </span>
+                                <span v-if="lowStockProducts.length > 3">
+                                    y {{ lowStockProducts.length - 3 }} más...
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                    <Button as-child variant="outline" class="shrink-0 gap-2 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950">
+                        <Link href="/productos">
+                            Ver catálogo
                             <ArrowRight class="h-4 w-4" />
                         </Link>
                     </Button>

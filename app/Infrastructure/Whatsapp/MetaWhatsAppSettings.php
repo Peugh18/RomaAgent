@@ -24,6 +24,11 @@ class MetaWhatsAppSettings
         return trim((string) config('services.whatsapp.verify_token'));
     }
 
+    public static function appSecret(): string
+    {
+        return trim((string) config('services.whatsapp.app_secret'));
+    }
+
     public static function graphVersion(): string
     {
         return trim((string) config('services.whatsapp.graph_version', 'v21.0')) ?: 'v21.0';

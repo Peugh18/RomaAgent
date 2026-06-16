@@ -85,6 +85,7 @@ class CompanySettingController extends Controller
         $this->actualizarHorarioConfig($companySetting, $validated);
 
         Cache::forget('contexto_prompt_completo_'.$configId);
+        Cache::forget('contexto_prompt_secciones_'.$configId);
 
         return response()->json($this->buildSettingsResponse(new ConfiguracionEmpresa));
     }

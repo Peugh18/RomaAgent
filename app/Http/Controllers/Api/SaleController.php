@@ -169,7 +169,7 @@ class SaleController extends Controller
         }
 
         $settings = CompanySetting::query()->with('mensajes')->first();
-        $sale->loadMissing('customer');
+        $sale->loadMissing(['customer', 'items']);
 
         return response()->json([
             'transition' => $transition->value,
@@ -198,7 +198,7 @@ class SaleController extends Controller
         }
 
         $settings = CompanySetting::query()->with('mensajes')->first();
-        $sale->loadMissing('customer');
+        $sale->loadMissing(['customer', 'items']);
 
         try {
             $sale = $confirmarPago->handle(

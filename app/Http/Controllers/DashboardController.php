@@ -111,6 +111,23 @@ class DashboardController extends Controller
             ->values()
             ->all();
 
+        $lowStockProducts = Product::query()
+            ->with('variants')
+            ->where('status', '!=', Product::ESTADO_OCULTO)
+            ->get()
+            ->map(function (Product $product): array {
+                return [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'stock' => $product->stockTotal(),
+                ];
+            })
+            ->filter(fn (array $p): bool => $p['stock'] < 5)
+            ->sortBy('stock')
+            ->values()
+            ->take(10)
+            ->all();
+
         return Inertia::render('Dashboard', [
             'stats' => [
                 'conversaciones_hoy' => $conversacionesHoy,
@@ -125,6 +142,7 @@ class DashboardController extends Controller
             'pedidosRecientes' => $pedidosRecientes,
             'chartData' => $chart,
             'pipelineOverview' => $pipelineOverview,
+            'lowStockProducts' => $lowStockProducts,
         ]);
     }
 
