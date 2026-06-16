@@ -141,12 +141,21 @@ const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
     >
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 space-y-1">
-                <div class="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <template v-if="sale.items && sale.items.length > 0">
+                    <div v-for="item in sale.items" :key="item.id" class="flex items-center gap-2 text-sm font-semibold text-foreground">
+                        <Package class="h-4 w-4 shrink-0 text-primary" />
+                        <span class="truncate">{{ item.quantity }}x {{ item.product_name }}</span>
+                        <span v-if="item.size" class="font-normal text-muted-foreground">· {{ item.size }}</span>
+                        <span v-if="item.color" class="font-normal text-muted-foreground">· {{ item.color }}</span>
+                    </div>
+                </template>
+                <div v-else class="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <Package class="h-4 w-4 shrink-0 text-primary" />
                     <span class="truncate">{{ sale.quantity }}x {{ sale.product_name }}</span>
                     <span v-if="sale.size" class="font-normal text-muted-foreground">· {{ sale.size }}</span>
                     <span v-if="sale.color" class="font-normal text-muted-foreground">· {{ sale.color }}</span>
                 </div>
+
                 <p class="text-xs text-muted-foreground">
                     <span v-if="customerName">{{ customerName }} · </span>
                     {{ statusLabel }}
@@ -168,7 +177,10 @@ const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
                 </p>
                 <p class="text-sm font-medium text-foreground">
                     Total: {{ formatMoney(sale.total_amount) }}
-                    <span class="text-xs font-normal text-muted-foreground">
+                    <span v-if="sale.items && sale.items.length > 0" class="text-xs font-normal text-muted-foreground">
+                        ({{ sale.items.length }} artículos + envío {{ formatMoney(sale.delivery_cost) }})
+                    </span>
+                    <span v-else class="text-xs font-normal text-muted-foreground">
                         (producto {{ formatMoney(sale.unit_price) }} + envío {{ formatMoney(sale.delivery_cost) }})
                     </span>
                 </p>

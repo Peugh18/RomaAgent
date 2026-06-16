@@ -43,7 +43,7 @@ class EjecutorHerramientasAgente
                     'properties' => [
                         'items' => [
                             'type' => 'array',
-                            'description' => 'Lista de productos en el carrito. Agrega cada nuevo producto que la clienta pida. Si cambia cantidades, actualiza la lista.',
+                            'description' => 'Lista de productos en el carrito. Envía SIEMPRE la lista FINAL de productos deseados. Si el cliente agrega, manda los viejos + el nuevo. Si el cliente elimina algo, manda la lista SIN el eliminado.',
                             'items' => [
                                 'type' => 'object',
                                 'properties' => [

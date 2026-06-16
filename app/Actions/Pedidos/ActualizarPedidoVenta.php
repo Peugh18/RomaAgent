@@ -46,11 +46,37 @@ class ActualizarPedidoVenta
 
             $quantity = max(1, (int) ($datos['quantity'] ?? $sale->quantity));
 
-            $status = isset($datos['status'])
-                ? SaleStatus::from($datos['status'])
-                : ($sale->exists ? $sale->status : SaleStatus::Cotizando);
+            $newStatus = isset($datos['status']) ? SaleStatus::from($datos['status']) : null;
+            
+            // Prevent downgrading the status if it's already PagoRecibido or further
+            if ($newStatus === SaleStatus::DatosListos || $newStatus === SaleStatus::Cotizando || $newStatus === SaleStatus::Consultando) {
+                if ($sale->exists && in_array($sale->status, [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido, SaleStatus::Confirmado, SaleStatus::Enviado, SaleStatus::Entregado], true)) {
+                    $status = $sale->status; // Keep current advanced status
+                } else {
+                    $status = $newStatus ?? ($sale->exists ? $sale->status : SaleStatus::Cotizando);
+                }
+            } else {
+                $status = $newStatus ?? ($sale->exists ? $sale->status : SaleStatus::Cotizando);
+            }
 
-            $total = ValidadorPrecioPedido::calcularTotal($unitPrice, $quantity, $deliveryCost);
+            // Calculate total correctly by summing up all items if they exist
+            $itemsToCalculate = (! empty($items) && is_array($items)) ? $items : ($sale->exists ? $sale->items->map(fn($i) => ['product_name' => $i->product_name, 'quantity' => $i->quantity, 'unit_price' => $i->unit_price])->toArray() : []);
+            
+            if (! empty($itemsToCalculate) && is_array($itemsToCalculate)) {
+                $itemsSubtotal = 0;
+                $totalQuantity = 0;
+                foreach ($itemsToCalculate as $itemData) {
+                    $itemProduct = $this->resolverProducto($itemData['product_name'] ?? null);
+                    $itemQty = max(1, (int) ($itemData['quantity'] ?? 1));
+                    $itemPrice = ValidadorPrecioPedido::resolverPrecioUnitario($itemProduct, $itemData['unit_price'] ?? null);
+                    $itemsSubtotal += ($itemQty * $itemPrice);
+                    $totalQuantity += $itemQty;
+                }
+                $quantity = $totalQuantity > 0 ? $totalQuantity : $quantity;
+                $total = $itemsSubtotal + $deliveryCost;
+            } else {
+                $total = ValidadorPrecioPedido::calcularTotal($unitPrice, $quantity, $deliveryCost);
+            }
 
             $payload = [
                 'phone_number' => $customer->phone_number,

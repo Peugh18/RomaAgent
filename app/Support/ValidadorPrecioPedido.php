@@ -15,16 +15,32 @@ class ValidadorPrecioPedido
             return max(0, (float) ($sugeridoPorAgente ?? 0));
         }
 
-        $precio = (float) $product->price;
-
+        $sugerido = $sugeridoPorAgente !== null ? (float) $sugeridoPorAgente : null;
+        $precioCatalogo = (float) $product->price;
+        $precioTikTok = $product->price_tiktok !== null ? (float) $product->price_tiktok : null;
+        
+        $promo = null;
         if ($product->descuentoPromoActivo()) {
             $promo = $product->precioNormalConPromo();
-            if ($promo !== null) {
-                $precio = $promo;
+        }
+
+        if ($sugerido !== null) {
+            $sugeridoRedondeado = round($sugerido, 2);
+            $esValido = $sugeridoRedondeado === round($precioCatalogo, 2)
+                || ($precioTikTok !== null && $sugeridoRedondeado === round($precioTikTok, 2))
+                || ($promo !== null && $sugeridoRedondeado === round($promo, 2));
+
+            if ($esValido) {
+                return max(0, $sugeridoRedondeado);
             }
         }
 
-        return round(max(0, $precio), 2);
+        $precioFinal = $precioCatalogo;
+        if ($promo !== null) {
+            $precioFinal = $promo;
+        }
+
+        return round(max(0, $precioFinal), 2);
     }
 
     public static function calcularTotal(float $unitPrice, int $quantity, float $deliveryCost): float

@@ -26,11 +26,21 @@ class ConfirmarPagoPedido
         }
 
         return DB::transaction(function () use ($sale, $user, $mensaje): Sale {
-            $this->servicioStock->decrementarPorVentaConfirmada(
-                $sale->product_variant_id,
-                $sale->size,
-                $sale->quantity,
-            );
+            if ($sale->items->isNotEmpty()) {
+                foreach ($sale->items as $item) {
+                    $this->servicioStock->decrementarPorVentaConfirmada(
+                        $item->product_variant_id,
+                        $item->size,
+                        $item->quantity,
+                    );
+                }
+            } else {
+                $this->servicioStock->decrementarPorVentaConfirmada(
+                    $sale->product_variant_id,
+                    $sale->size,
+                    $sale->quantity,
+                );
+            }
 
             $sale->update([
                 'status' => SaleStatus::Confirmado,

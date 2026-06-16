@@ -31,15 +31,24 @@ class PlantillaMensajePedido
             ?? ''
         ));
 
-        $talla = NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
-        $productNames = "{$sale->quantity}x {$sale->product_name} (talla {$talla})";
+        if ($sale->relationLoaded('items') && $sale->items->isNotEmpty()) {
+            $productNames = $sale->items->map(function ($item) {
+                $t = NormalizadorStockTallas::etiquetaPublica((string) $item->size);
+                return "{$item->quantity}x {$item->product_name} (talla {$t})";
+            })->implode(' y ');
+            $color = $sale->items->pluck('color')->filter()->unique()->implode(' y ');
+        } else {
+            $talla = NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
+            $productNames = "{$sale->quantity}x {$sale->product_name} (talla {$talla})";
+            $color = (string) $sale->color;
+        }
 
         return str_replace(
             ['{nombre}', '{producto}', '{color}', '{total}', '{distrito}', '{metodo_pago}'],
             [
                 $nombre,
                 $productNames,
-                (string) $sale->color,
+                $color,
                 number_format((float) $sale->total_amount, 2),
                 (string) ($sale->delivery_district ?? ''),
                 (string) ($sale->payment_method ?? ''),
@@ -87,13 +96,22 @@ class PlantillaMensajePedido
             ?? null
         ));
 
-        $talla = NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
-        $productNames = "{$sale->quantity}x {$sale->product_name} (talla {$talla})";
+        if ($sale->relationLoaded('items') && $sale->items->isNotEmpty()) {
+            $productNames = $sale->items->map(function ($item) {
+                $t = NormalizadorStockTallas::etiquetaPublica((string) $item->size);
+                return "{$item->quantity}x {$item->product_name} (talla {$t})";
+            })->implode(' y ');
+            $color = $sale->items->pluck('color')->filter()->unique()->implode(' y ');
+        } else {
+            $talla = NormalizadorStockTallas::etiquetaPublica((string) $sale->size);
+            $productNames = "{$sale->quantity}x {$sale->product_name} (talla {$talla})";
+            $color = $sale->color;
+        }
 
         return [
             'nombre' => $nombre !== '' ? $nombre : null,
             'producto' => $productNames,
-            'color' => $sale->color,
+            'color' => $color,
             'total' => $sale->total_amount,
             'distrito' => $sale->delivery_district,
             'metodo_pago' => $sale->payment_method,

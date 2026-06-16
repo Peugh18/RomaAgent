@@ -20,30 +20,49 @@ BLOQUE;
         }
 
         $simbolo = FormateadorCatalogoProductos::simboloDesdeMoneda($moneda);
-        $quantity = max(1, (int) $sale->quantity);
-        $unitPrice = (float) $sale->unit_price;
         $deliveryCost = (float) $sale->delivery_cost;
         $total = (float) $sale->total_amount;
-        $subtotal = $unitPrice * $quantity;
-        $talla = NormalizadorStockTallas::etiquetaPublica($sale->size);
 
-        $producto = trim((string) $sale->product_name) !== '' ? $sale->product_name : 'Sin producto';
-        $color = trim((string) ($sale->color ?? '')) !== '' ? $sale->color : 'Sin color';
         $envio = trim((string) ($sale->delivery_type ?? '')) !== ''
             ? $sale->delivery_type.($sale->delivery_district ? " ({$sale->delivery_district})" : '')
             : 'Sin definir';
 
-        $lineasDesglose = [
-            sprintf('- Producto: %s | Color: %s | %s', $producto, $color, $talla),
-            sprintf('- Cantidad: %d unidad(es)', $quantity),
-            sprintf('- Precio unitario: %s %.2f', $simbolo, $unitPrice),
-            sprintf('- Subtotal producto: %s %.2f (%d × %s %.2f)', $simbolo, $subtotal, $quantity, $simbolo, $unitPrice),
-            sprintf('- Costo envío: %s %.2f', $simbolo, $deliveryCost),
-            sprintf('- **TOTAL A COBRAR: %s %.2f**', $simbolo, $total),
-            sprintf('- Estado: %s', $sale->status->value),
-            sprintf('- Método pago: %s', $sale->payment_method ?: 'Sin definir'),
-            sprintf('- Envío: %s', $envio),
-        ];
+        $lineasDesglose = [];
+        $totalQuantity = 0;
+
+        if ($sale->items && $sale->items->isNotEmpty()) {
+            $lineasDesglose[] = '**PRODUCTOS EN EL CARRITO:**';
+            foreach ($sale->items as $item) {
+                $qty = max(1, (int) $item->quantity);
+                $totalQuantity += $qty;
+                $talla = NormalizadorStockTallas::etiquetaPublica($item->size);
+                $producto = trim((string) $item->product_name) !== '' ? $item->product_name : 'Sin producto';
+                $color = trim((string) ($item->color ?? '')) !== '' ? $item->color : 'Sin color';
+                $unitPrice = (float) $item->unit_price;
+
+                $lineasDesglose[] = sprintf('- %dx %s | Color: %s | %s | Unitario: %s %.2f',
+                    $qty, $producto, $color, $talla, $simbolo, $unitPrice);
+            }
+        } else {
+            // Fallback legacy
+            $qty = max(1, (int) $sale->quantity);
+            $totalQuantity += $qty;
+            $talla = NormalizadorStockTallas::etiquetaPublica($sale->size);
+            $producto = trim((string) $sale->product_name) !== '' ? $sale->product_name : 'Sin producto';
+            $color = trim((string) ($sale->color ?? '')) !== '' ? $sale->color : 'Sin color';
+            $unitPrice = (float) $sale->unit_price;
+
+            $lineasDesglose[] = '**PRODUCTO EN EL CARRITO:**';
+            $lineasDesglose[] = sprintf('- %dx %s | Color: %s | %s | Unitario: %s %.2f',
+                $qty, $producto, $color, $talla, $simbolo, $unitPrice);
+        }
+
+        $lineasDesglose[] = '';
+        $lineasDesglose[] = sprintf('- Costo envío: %s %.2f', $simbolo, $deliveryCost);
+        $lineasDesglose[] = sprintf('- **TOTAL A COBRAR: %s %.2f**', $simbolo, $total);
+        $lineasDesglose[] = sprintf('- Estado: %s', $sale->status->value);
+        $lineasDesglose[] = sprintf('- Método pago: %s', $sale->payment_method ?: 'Sin definir');
+        $lineasDesglose[] = sprintf('- Envío: %s', $envio);
 
         $datosCliente = $sale->customer_data ?? [];
         if ($datosCliente !== []) {
@@ -60,7 +79,7 @@ Usa EXACTAMENTE estos datos al hablar de cantidades, precios y totales. No recal
 
 **Reglas:**
 - Si la clienta cambia cantidad, color o envío, llama **actualizar_pedido** ANTES de decirle el nuevo total.
-- El total que escribes al cliente DEBE ser **{$simbolo} {$total}** (cantidad {$quantity}, no asumas 1 unidad).
+- El total que escribes al cliente DEBE ser **{$simbolo} {$total}** (total artículos: {$totalQuantity}).
 - Producto y color ya confirmados: no volver a pedirlos salvo que la clienta quiera cambiar.
 BLOQUE;
     }
