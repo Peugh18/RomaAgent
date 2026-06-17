@@ -28,13 +28,13 @@ const filteredConversations = computed(() => {
         return props.conversations.filter((c) => c.pending_payment);
     }
     if (activeFilter.value === 'asesor') {
-        return props.conversations.filter((c) => c.ia_paused);
+        return props.conversations.filter((c) => c.ia_paused && !c.pending_payment);
     }
     return props.conversations;
 });
 
 const pendingCount = computed(() => props.conversations.filter((c) => c.pending_payment).length);
-const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused).length);
+const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused && !c.pending_payment).length);
 </script>
 
 <template>
