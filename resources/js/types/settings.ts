@@ -45,6 +45,7 @@ export interface CompanySettingsForm {
     personalidad_bot?: string;
     estilo_ventas?: string;
     respuesta_si_es_bot?: string;
+    reglas_venta_criticas?: string;
     moneda?: string;
     metodos_pago?: MetodoPago[];
     horario_atencion?: string;

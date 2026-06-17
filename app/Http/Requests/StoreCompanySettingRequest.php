@@ -27,6 +27,7 @@ class StoreCompanySettingRequest extends FormRequest
             'personalidad_bot' => 'nullable|string',
             'estilo_ventas' => 'nullable|string',
             'respuesta_si_es_bot' => 'nullable|string',
+            'reglas_venta_criticas' => 'nullable|string',
             'moneda' => 'nullable|string|max:3',
             'metodos_pago' => 'nullable|array',
             'horario_atencion' => 'nullable|string',

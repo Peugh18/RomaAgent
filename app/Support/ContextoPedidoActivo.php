@@ -31,30 +31,41 @@ BLOQUE;
         $totalQuantity = 0;
 
         if ($sale->items && $sale->items->isNotEmpty()) {
-            $lineasDesglose[] = '**PRODUCTOS EN EL CARRITO:**';
-            foreach ($sale->items as $item) {
-                $qty = max(1, (int) $item->quantity);
-                $totalQuantity += $qty;
-                $talla = NormalizadorStockTallas::etiquetaPublica($item->size);
-                $producto = trim((string) $item->product_name) !== '' ? $item->product_name : 'Sin producto';
-                $color = trim((string) ($item->color ?? '')) !== '' ? $item->color : 'Sin color';
-                $unitPrice = (float) $item->unit_price;
+            // Verificar si el único item es el placeholder por defecto
+            if ($sale->items->count() === 1 && $sale->items->first()->product_name === 'Pedido' && (float)$sale->items->first()->unit_price === 0.0) {
+                $lineasDesglose[] = '**PRODUCTOS EN EL CARRITO:**';
+                $lineasDesglose[] = '- (Vacío - Esperando confirmación de prendas por parte del cliente)';
+            } else {
+                $lineasDesglose[] = '**PRODUCTOS EN EL CARRITO:**';
+                foreach ($sale->items as $item) {
+                    $qty = max(1, (int) $item->quantity);
+                    $totalQuantity += $qty;
+                    $talla = NormalizadorStockTallas::etiquetaPublica($item->size);
+                    $producto = trim((string) $item->product_name) !== '' ? $item->product_name : 'Sin producto';
+                    $color = trim((string) ($item->color ?? '')) !== '' ? $item->color : 'Sin color';
+                    $unitPrice = (float) $item->unit_price;
 
-                $lineasDesglose[] = sprintf('- %dx %s | Color: %s | %s | Unitario: %s %.2f',
-                    $qty, $producto, $color, $talla, $simbolo, $unitPrice);
+                    $lineasDesglose[] = sprintf('- %dx %s | Color: %s | %s | Unitario: %s %.2f',
+                        $qty, $producto, $color, $talla, $simbolo, $unitPrice);
+                }
             }
         } else {
             // Fallback legacy
-            $qty = max(1, (int) $sale->quantity);
-            $totalQuantity += $qty;
-            $talla = NormalizadorStockTallas::etiquetaPublica($sale->size);
-            $producto = trim((string) $sale->product_name) !== '' ? $sale->product_name : 'Sin producto';
-            $color = trim((string) ($sale->color ?? '')) !== '' ? $sale->color : 'Sin color';
-            $unitPrice = (float) $sale->unit_price;
+            if ($sale->product_name === 'Pedido' && (float)$sale->unit_price === 0.0) {
+                $lineasDesglose[] = '**PRODUCTOS EN EL CARRITO:**';
+                $lineasDesglose[] = '- (Vacío - Esperando confirmación de prendas por parte del cliente)';
+            } else {
+                $qty = max(1, (int) $sale->quantity);
+                $totalQuantity += $qty;
+                $talla = NormalizadorStockTallas::etiquetaPublica($sale->size);
+                $producto = trim((string) $sale->product_name) !== '' ? $sale->product_name : 'Sin producto';
+                $color = trim((string) ($sale->color ?? '')) !== '' ? $sale->color : 'Sin color';
+                $unitPrice = (float) $sale->unit_price;
 
-            $lineasDesglose[] = '**PRODUCTO EN EL CARRITO:**';
-            $lineasDesglose[] = sprintf('- %dx %s | Color: %s | %s | Unitario: %s %.2f',
-                $qty, $producto, $color, $talla, $simbolo, $unitPrice);
+                $lineasDesglose[] = '**PRODUCTO EN EL CARRITO:**';
+                $lineasDesglose[] = sprintf('- %dx %s | Color: %s | %s | Unitario: %s %.2f',
+                    $qty, $producto, $color, $talla, $simbolo, $unitPrice);
+            }
         }
 
         $lineasDesglose[] = '';

@@ -28,6 +28,7 @@ class AgenteConfig extends Model
         'personalidad_bot',
         'estilo_ventas',
         'respuesta_si_es_bot',
+        'reglas_venta_criticas',
     ];
 
     protected function casts(): array

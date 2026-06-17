@@ -2,10 +2,8 @@
 
 namespace App\Actions;
 
-use App\Jobs\ProcessMediaThenRespondJob;
 use App\Models\Customer;
 use App\Models\Message;
-use App\Services\EncolarRespuestaAgente;
 use App\Services\ServicioResolucionMediaEntrante;
 use App\Support\ContratoMensajeWhatsapp;
 use App\Support\MessageBroadcaster;
@@ -20,7 +18,6 @@ class ProcessIncomingMessage
 
     public function __construct(
         private ServicioResolucionMediaEntrante $mediaService,
-        private GenerarRespuestaAgente $generarRespuestaAgente,
     ) {}
 
     public function execute(array $payload): Message
@@ -78,36 +75,10 @@ class ProcessIncomingMessage
 
         // Solo procesar IA en mensajes entrantes nuevos (idempotencia ante reintentos del webhook)
         if ($esMensajeNuevo && $message->direction === 'incoming') {
-            $tipo = is_array($message->metadata) ? ($message->metadata['type'] ?? 'text') : 'text';
-            if ($tipo === 'sticker') {
-                Log::info('Sticker entrante: no se encola respuesta IA', [
-                    'phone' => $phoneNumber,
-                ]);
-            } elseif (in_array($tipo, ['image', 'audio'], true)) {
-                ProcessMediaThenRespondJob::dispatch($message->id);
-            } else {
-                $this->generarRespuestaIA($message);
-            }
+            event(new \App\Events\InboundMessageReceived($message, $esMensajeNuevo));
         }
 
         return $message;
-    }
-
-    /**
-     * Genera respuesta automática con IA si está activado y es aplicable.
-     */
-    private function generarRespuestaIA(Message $mensaje): void
-    {
-        try {
-            if ($this->generarRespuestaAgente->debeResponder($mensaje)) {
-                app(EncolarRespuestaAgente::class)->despachar($mensaje);
-            }
-        } catch (\Exception $e) {
-            Log::error('Error encolando respuesta IA', [
-                'error' => $e->getMessage(),
-                'phone' => $mensaje->phone_number,
-            ]);
-        }
     }
 
     public function isStatusUpdate(array $payload): bool

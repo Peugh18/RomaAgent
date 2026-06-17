@@ -137,6 +137,7 @@ class CompanySettingController extends Controller
             'personalidad_bot' => 'personalidad_bot',
             'estilo_ventas' => 'estilo_ventas',
             'respuesta_si_es_bot' => 'respuesta_si_es_bot',
+            'reglas_venta_criticas' => 'reglas_venta_criticas',
         ];
 
         $agenteData = [];

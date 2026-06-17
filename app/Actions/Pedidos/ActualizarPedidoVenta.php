@@ -118,26 +118,35 @@ class ActualizarPedidoVenta
 
             // Sync SaleItems if provided
             if (! empty($items) && is_array($items)) {
-                $sale->items()->delete();
-                foreach ($items as $itemData) {
-                    $itemProduct = $this->resolverProducto($itemData['product_name'] ?? null);
-                    $itemVariant = $this->resolverVariante($itemProduct, $itemData['color'] ?? null);
+                // Filtrar el placeholder "Pedido" que puede enviar el AI si lee el carrito vacío
+                $itemsReales = array_filter($items, function ($itemData) {
+                    $name = $itemData['product_name'] ?? '';
+                    $price = (float)($itemData['unit_price'] ?? 0);
+                    return !($name === 'Pedido' && $price === 0.0);
+                });
 
-                    $itemQty = max(1, (int) ($itemData['quantity'] ?? 1));
-                    $itemPrice = ValidadorPrecioPedido::resolverPrecioUnitario($itemProduct, $itemData['unit_price'] ?? null);
+                if (!empty($itemsReales) || empty($sale->items) || $sale->items->isEmpty()) {
+                    $sale->items()->delete();
+                    foreach ($itemsReales as $itemData) {
+                        $itemProduct = $this->resolverProducto($itemData['product_name'] ?? null);
+                        $itemVariant = $this->resolverVariante($itemProduct, $itemData['color'] ?? null);
 
-                    $sale->items()->create([
-                        'product_id' => $itemProduct?->id,
-                        'product_variant_id' => $itemVariant?->id,
-                        'product_name' => $itemProduct?->name ?? (string) ($itemData['product_name'] ?? 'Pedido'),
-                        'color' => $itemVariant?->color ?? ($itemData['color'] ?? null),
-                        'size' => NormalizadorStockTallas::esTallaEstandar((string) ($itemData['size'] ?? ''))
-                            ? NormalizadorStockTallas::defaultSizeKey()
-                            : mb_strtoupper(trim((string) ($itemData['size'] ?? '')), 'UTF-8'),
-                        'quantity' => $itemQty,
-                        'unit_price' => $itemPrice,
-                        'subtotal' => $itemQty * $itemPrice,
-                    ]);
+                        $itemQty = max(1, (int) ($itemData['quantity'] ?? 1));
+                        $itemPrice = ValidadorPrecioPedido::resolverPrecioUnitario($itemProduct, $itemData['unit_price'] ?? null);
+
+                        $sale->items()->create([
+                            'product_id' => $itemProduct?->id,
+                            'product_variant_id' => $itemVariant?->id,
+                            'product_name' => $itemProduct?->name ?? (string) ($itemData['product_name'] ?? 'Pedido'),
+                            'color' => $itemVariant?->color ?? ($itemData['color'] ?? null),
+                            'size' => NormalizadorStockTallas::esTallaEstandar((string) ($itemData['size'] ?? ''))
+                                ? NormalizadorStockTallas::defaultSizeKey()
+                                : mb_strtoupper(trim((string) ($itemData['size'] ?? '')), 'UTF-8'),
+                            'quantity' => $itemQty,
+                            'unit_price' => $itemPrice,
+                            'subtotal' => $itemQty * $itemPrice,
+                        ]);
+                    }
                 }
             }
 

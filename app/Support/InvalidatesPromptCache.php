@@ -13,6 +13,7 @@ trait InvalidatesPromptCache
 
         if ($settingsId !== null) {
             Cache::forget('contexto_prompt_completo_'.$settingsId);
+            Cache::forget('contexto_prompt_secciones_'.$settingsId);
         }
     }
 }
