@@ -143,6 +143,7 @@ class ConfiguracionAgente
             'estilo_comunicacion' => $this->obtenerEstiloComunicacion(),
             'personalidad_bot' => $this->obtenerPersonalidad(),
             'respuesta_si_es_bot' => $this->obtenerRespuestaSiEsBot(),
+            'reglas_venta_criticas' => $this->agenteConfig?->reglas_venta_criticas ?? '',
         ];
     }
 

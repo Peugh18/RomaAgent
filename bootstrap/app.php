@@ -29,7 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->booted(function () {
         RateLimiter::for('roma-webhook', function ($request) {
-            return Limit::perMinute(30)->by($request->ip());
+            return Limit::none();
         });
 
         RateLimiter::for('api', function ($request) {

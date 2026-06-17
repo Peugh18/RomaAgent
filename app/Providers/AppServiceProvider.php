@@ -6,12 +6,14 @@ use App\Models\AgenteConfig;
 use App\Models\EmpresaInfoConfig;
 use App\Models\HorarioConfig;
 use App\Models\MensajeConfig;
+use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\VentaConfig;
 use App\Observers\AgenteConfigObserver;
 use App\Observers\EmpresaInfoConfigObserver;
 use App\Observers\HorarioConfigObserver;
 use App\Observers\MensajeConfigObserver;
+use App\Observers\ProductObserver;
 use App\Observers\ProductVariantObserver;
 use App\Observers\VentaConfigObserver;
 use Illuminate\Support\Facades\URL;
@@ -33,6 +35,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         // Observers de productos
+        Product::observe(ProductObserver::class);
         ProductVariant::observe(ProductVariantObserver::class);
 
         // Observers de configuraciones (invalidación de caché sin Redis)

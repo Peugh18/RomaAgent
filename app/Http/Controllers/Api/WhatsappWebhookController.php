@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Actions\ProcessIncomingMessage;
 use App\Actions\UpdateMessageStatus;
 use App\Http\Controllers\Controller;
 use App\Infrastructure\Whatsapp\MetaWhatsAppSettings;
@@ -16,7 +15,6 @@ use Illuminate\Support\Facades\Log;
 class WhatsappWebhookController extends Controller
 {
     public function __construct(
-        private ProcessIncomingMessage $processIncoming,
         private UpdateMessageStatus $updateStatus,
     ) {}
 
@@ -89,10 +87,10 @@ class WhatsappWebhookController extends Controller
                     $payload = NormalizadorWebhookMeta::aPayloadCrm($event);
 
                     try {
-                        $this->processIncoming->execute($payload);
+                        \App\Jobs\ProcessWebhookPayloadJob::dispatch($payload);
                         $processed++;
                     } catch (\Throwable $e) {
-                        Log::error('WhatsappWebhook: inbound failed', [
+                        Log::error('WhatsappWebhook: failed to dispatch job', [
                             'wa_id' => $payload['wa_id'] ?? null,
                             'error' => $e->getMessage(),
                         ]);
