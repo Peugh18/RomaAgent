@@ -60,7 +60,7 @@ const filteredConversations = computed(() => {
 });
 
 const pendingCount = computed(() => props.conversations.filter((c) => c.pending_payment).length);
-const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused).length);
+const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused && !c.pending_payment).length);
 </script>
 
 <template>
