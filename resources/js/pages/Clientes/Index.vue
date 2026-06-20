@@ -30,7 +30,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { getInitials } from '@/composables/useInitials';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Users, MessageCircle, Edit, Save, X, Loader2, ShoppingBag, Eye } from 'lucide-vue-next';
+import { Users, MessageCircle, Edit, Save, X, Loader2, ShoppingBag, Eye, Truck, CreditCard } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Clientes', href: '/clientes' }];
 
@@ -40,6 +40,10 @@ interface Sale {
     total_amount: number;
     status: string;
     created_at: string;
+    payment_method?: string | null;
+    delivery_type?: string | null;
+    delivery_district?: string | null;
+    customer_data?: Record<string, any> | null;
 }
 
 interface Customer {
@@ -395,45 +399,80 @@ onMounted(() => {
 
         <!-- View Sales History Modal -->
         <Dialog :open="!!viewingCustomer" @update:open="!$event && closeViewSalesModal()">
-            <DialogContent class="sm:max-w-xl">
+            <DialogContent class="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle class="flex items-center gap-2">
                         <ShoppingBag class="h-5 w-5" />
-                        Historial de compras
+                        Perfil e Historial de compras
                     </DialogTitle>
                     <DialogDescription v-if="viewingCustomer">
                         {{ viewingCustomer.name || 'Sin nombre' }} — {{ viewingCustomer.phone_number }}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div v-if="viewingCustomer" class="py-4">
+                <div v-if="viewingCustomer" class="py-4 space-y-6">
+                    <!-- Perfil General (Extraído del último pedido) -->
+                    <div v-if="viewingCustomer.recent_sales?.length && viewingCustomer.recent_sales[0].customer_data" class="rounded-lg border bg-muted/20 p-4">
+                        <h4 class="text-sm font-semibold mb-3 flex items-center gap-1.5">
+                            <Users class="h-4 w-4 text-primary" />
+                            Últimos datos de contacto conocidos
+                        </h4>
+                        <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                            <template v-for="([k, v]) in Object.entries(viewingCustomer.recent_sales[0].customer_data).filter(([k, v]) => !['nombre', 'name', 'maps_url', 'latitude', 'longitude'].includes(k) && v)" :key="k">
+                                <dt class="text-muted-foreground capitalize">{{ k.replace(/_/g, ' ') }}</dt>
+                                <dd class="font-medium break-words">{{ v }}</dd>
+                            </template>
+                        </dl>
+                    </div>
+
                     <!-- Stats -->
-                    <div class="mb-4 flex gap-4">
-                        <div class="rounded-lg border bg-muted/50 px-4 py-2">
+                    <div class="flex gap-4">
+                        <div class="flex-1 rounded-lg border bg-muted/50 px-4 py-3">
                             <p class="text-xs text-muted-foreground">Total compras</p>
-                            <p class="text-lg font-semibold">{{ viewingCustomer.sales_count }}</p>
+                            <p class="text-2xl font-semibold">{{ viewingCustomer.sales_count }}</p>
                         </div>
-                        <div class="rounded-lg border bg-muted/50 px-4 py-2">
+                        <div class="flex-1 rounded-lg border bg-muted/50 px-4 py-3">
                             <p class="text-xs text-muted-foreground">Total gastado</p>
-                            <p class="text-lg font-semibold">S/ {{ viewingCustomer.total_spent?.toFixed(2) || '0.00' }}</p>
+                            <p class="text-2xl font-semibold text-emerald-600 dark:text-emerald-400">S/ {{ viewingCustomer.total_spent?.toFixed(2) || '0.00' }}</p>
                         </div>
                     </div>
 
                     <!-- Sales List -->
-                    <div v-if="viewingCustomer.recent_sales?.length" class="space-y-2">
-                        <p class="text-xs font-medium text-muted-foreground">Últimas compras</p>
+                    <div v-if="viewingCustomer.recent_sales?.length" class="space-y-3">
+                        <p class="text-sm font-medium text-muted-foreground">Últimas compras</p>
                         <div
                             v-for="sale in viewingCustomer.recent_sales"
                             :key="sale.id"
-                            class="flex items-center justify-between rounded-lg border p-3"
+                            class="flex flex-col gap-2 rounded-lg border p-4 hover:bg-muted/30 transition-colors"
                         >
-                            <div>
-                                <p class="font-medium">{{ sale.product_name }}</p>
-                                <p class="text-xs text-muted-foreground">{{ formatDate(sale.created_at) }}</p>
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <p class="font-semibold text-base">{{ sale.product_name }}</p>
+                                    <p class="text-xs text-muted-foreground">{{ formatDate(sale.created_at) }}</p>
+                                </div>
+                                <div class="text-right flex flex-col items-end gap-1">
+                                    <p class="font-bold text-lg">S/ {{ sale.total_amount?.toFixed(2) }}</p>
+                                    <Badge variant="outline" class="text-[10px]">{{ sale.status }}</Badge>
+                                </div>
                             </div>
-                            <div class="text-right">
-                                <p class="font-semibold">S/ {{ sale.total_amount?.toFixed(2) }}</p>
-                                <Badge variant="outline" class="text-[10px]">{{ sale.status }}</Badge>
+                            
+                            <!-- Detalles de Envío y Pago -->
+                            <div class="mt-2 grid grid-cols-2 gap-2 text-xs border-t pt-3">
+                                <div>
+                                    <span class="text-muted-foreground block mb-0.5">Envío:</span>
+                                    <span class="font-medium inline-flex items-center gap-1">
+                                        <Truck class="h-3 w-3" />
+                                        {{ sale.delivery_type || 'No especificado' }} 
+                                        <span v-if="sale.delivery_district" class="text-muted-foreground font-normal">({{ sale.delivery_district }})</span>
+                                    </span>
+                                </div>
+                                <div>
+                                    <span class="text-muted-foreground block mb-0.5">Método de pago:</span>
+                                    <span class="font-medium inline-flex items-center gap-1">
+                                        <CreditCard class="h-3 w-3" />
+                                        {{ sale.payment_method || 'No especificado' }}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>

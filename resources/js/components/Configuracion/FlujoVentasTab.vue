@@ -6,11 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MessageSquare, Zap, Users, AlertCircle, Info } from 'lucide-vue-next';
 import type { CompanySettingsForm } from '@/types/settings';
-import { PLANTILLAS_DATOS_DEFECTO } from '@/lib/plantillasDatos';
 import PlantillaMensajeEditor from '@/components/Configuracion/PlantillaMensajeEditor.vue';
-
-const plantillaMotorizadoDefault = Object.values(PLANTILLAS_DATOS_DEFECTO.motorizado).join('\n');
-const plantillaShalomDefault = Object.values(PLANTILLAS_DATOS_DEFECTO.shalom).join('\n');
+import DeliveryMethodsManager from '@/components/Configuracion/DeliveryMethodsManager.vue';
 
 const form = inject('companyConfigForm') as CompanySettingsForm & Record<string, unknown>;
 
@@ -18,53 +15,7 @@ if (!form) {
     throw new Error('companyConfigForm no está disponible');
 }
 
-const plantillaMotorizadoTexto = computed({
-    get: (): string => {
-        const motorizado = form.plantillas_datos?.motorizado;
-        if (motorizado && Object.keys(motorizado).length > 0) {
-            return Object.values(motorizado).join('\n');
-        }
 
-        return plantillaMotorizadoDefault;
-    },
-    set: (value: string) => {
-        const campos = value.split('\n').filter((linea) => linea.trim());
-        const motorizado: Record<string, string> = {};
-        campos.forEach((campo, idx) => {
-            motorizado[`campo_${idx}`] = campo;
-        });
-
-        if (!form.plantillas_datos) {
-            form.plantillas_datos = { motorizado: {}, shalom: {} };
-        }
-
-        form.plantillas_datos.motorizado = motorizado;
-    },
-});
-
-const plantillaShalomTexto = computed({
-    get: (): string => {
-        const shalom = form.plantillas_datos?.shalom;
-        if (shalom && Object.keys(shalom).length > 0) {
-            return Object.values(shalom).join('\n');
-        }
-
-        return plantillaShalomDefault;
-    },
-    set: (value: string) => {
-        const campos = value.split('\n').filter((linea) => linea.trim());
-        const shalom: Record<string, string> = {};
-        campos.forEach((campo, idx) => {
-            shalom[`campo_${idx}`] = campo;
-        });
-
-        if (!form.plantillas_datos) {
-            form.plantillas_datos = { motorizado: {}, shalom: {} };
-        }
-
-        form.plantillas_datos.shalom = shalom;
-    },
-});
 </script>
 
 <template>
@@ -129,34 +80,7 @@ const plantillaShalomTexto = computed({
             </CardContent>
         </Card>
 
-        <Card>
-            <CardHeader>
-                <CardTitle>Plantillas de recolección de datos</CardTitle>
-                <CardDescription>Lista de campos a pedir según tipo de envío</CardDescription>
-            </CardHeader>
-            <CardContent class="space-y-4">
-                <Tabs default-value="motorizado" class="w-full">
-                    <TabsList class="grid w-full grid-cols-2">
-                        <TabsTrigger value="motorizado">Motorizado</TabsTrigger>
-                        <TabsTrigger value="shalom">Shalom</TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="motorizado" class="space-y-4">
-                        <div class="space-y-2">
-                            <Label>Campos motorizado (uno por línea)</Label>
-                            <Textarea v-model="plantillaMotorizadoTexto" :rows="5" />
-                        </div>
-                    </TabsContent>
-
-                    <TabsContent value="shalom" class="space-y-4">
-                        <div class="space-y-2">
-                            <Label>Campos Shalom (uno por línea)</Label>
-                            <Textarea v-model="plantillaShalomTexto" :rows="5" />
-                        </div>
-                    </TabsContent>
-                </Tabs>
-            </CardContent>
-        </Card>
+        <DeliveryMethodsManager />
 
 
         <Card>

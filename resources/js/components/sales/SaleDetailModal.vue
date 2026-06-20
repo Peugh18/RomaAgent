@@ -156,8 +156,18 @@ const onCancel = () => {
                         <dd class="line-clamp-3">{{ displayAddress ?? '—' }}</dd>
                         <dt class="text-muted-foreground">Distrito</dt>
                         <dd>{{ sale.delivery_district ?? '—' }}</dd>
+                        <dt class="text-muted-foreground">Tipo de entrega</dt>
+                        <dd>{{ sale.delivery_type ?? '—' }}</dd>
                         <dt class="text-muted-foreground">Método de pago</dt>
                         <dd>{{ sale.payment_method ?? '—' }}</dd>
+                        
+                        <!-- Extra data from customer_data -->
+                        <template v-if="sale.customer_data && Object.keys(sale.customer_data).length > 0">
+                            <template v-for="([k, v]) in Object.entries(sale.customer_data).filter(([k, v]) => !['nombre', 'name', 'direccion', 'address', 'maps_url', 'ubicacion_actual', 'latitude', 'longitude'].includes(k) && v)" :key="k">
+                                <dt class="text-muted-foreground capitalize">{{ k.replace(/_/g, ' ') }}</dt>
+                                <dd class="break-words">{{ v }}</dd>
+                            </template>
+                        </template>
                     </dl>
                     <div v-if="sale.maps_url" class="mt-2">
                         <a

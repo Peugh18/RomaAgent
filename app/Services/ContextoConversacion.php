@@ -281,7 +281,7 @@ class ContextoConversacion
         // Construir tarifario
 
         // Plantillas de datos (dinámicas)
-        $plantillasTexto = $this->construirPlantillasTexto($romaStore['plantillas_datos'] ?? []);
+        $plantillasTexto = $this->construirPlantillasTexto();
 
         $informacionAdicionalTexto = $this->construirInformacionAdicionalTexto(
             $tarjetaHabilitada ? (float) $comisionTarjeta : 0.0,
@@ -498,28 +498,24 @@ PROMPT;
     /**
      * Construye las plantillas de recolección de datos dinámicamente.
      */
-    private function construirPlantillasTexto(array $plantillas): string
+    private function construirPlantillasTexto(): string
     {
-        $plantillas = PlantillasDatosEmpresa::normalizar($plantillas);
+        $methods = \App\Models\DeliveryMethod::with('fields')->where('is_active', true)->orderBy('sort_order')->get();
 
         $texto = '';
 
-        if (! empty($plantillas['motorizado'])) {
-            $texto .= "**Para Motorizado:**\n";
-            foreach ($plantillas['motorizado'] as $etiqueta) {
-                $texto .= "- {$etiqueta}\n";
-            }
-            $texto .= "\n";
-        }
-
-        if (! empty($plantillas['shalom'])) {
-            $texto .= "**Para Shalom:**\n";
-            foreach ($plantillas['shalom'] as $etiqueta) {
-                $texto .= "- {$etiqueta}\n";
+        foreach ($methods as $method) {
+            if ($method->fields->isNotEmpty()) {
+                $texto .= "**Para {$method->name}:**\n";
+                foreach ($method->fields as $field) {
+                    $req = $field->is_required ? '(Obligatorio)' : '(Opcional)';
+                    $texto .= "- {$field->name} {$req}\n";
+                }
+                $texto .= "\n";
             }
         }
 
-        return $texto;
+        return trim($texto);
     }
 
     /**

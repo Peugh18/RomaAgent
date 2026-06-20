@@ -85,7 +85,18 @@ const onColumnAdd = (event: SortableEvent) => {
         ]"
     >
         <CardHeader class="space-y-3 pb-3">
-            <div class="flex items-center justify-between">
+            <div class="text-center w-full">
+                <p v-if="status === 'confirmado'" class="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Pedido por Preparar
+                </p>
+                <p v-else-if="status === 'enviado'" class="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Pedido Preparado
+                </p>
+                <p v-else-if="status === 'entregado'" class="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    Pedido Entregado
+                </p>
+            </div>
+            <div class="flex items-center justify-between mt-1">
                 <Badge variant="secondary" :class="['font-medium', statusConfig[status].badge]">
                     {{ badgeCount }}
                 </Badge>
