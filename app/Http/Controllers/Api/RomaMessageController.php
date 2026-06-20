@@ -119,7 +119,7 @@ class RomaMessageController extends Controller
 
         return Customer::query()
             ->whereIn('phone_number', $phones)
-            ->with('activeSale')
+            ->with(['activeSale', 'labels'])
             ->get()
             ->keyBy('phone_number');
     }
@@ -138,6 +138,7 @@ class RomaMessageController extends Controller
                 'ia_pause_reason' => null,
                 'pending_payment' => false,
                 'active_sale_status' => null,
+                'labels' => [],
             ];
         }
 
@@ -157,6 +158,7 @@ class RomaMessageController extends Controller
             'ia_pause_reason' => $customer->ia_pause_reason,
             'pending_payment' => $activeSale !== null && $activeSale->puedeVerificarPago(),
             'active_sale_status' => $status,
+            'labels' => $customer->labels->map(fn ($l) => ['id' => $l->id, 'name' => $l->name, 'color' => $l->color])->toArray(),
         ];
     }
 

@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryZoneController;
 use App\Http\Controllers\MediaProxyController;
 use App\Http\Controllers\ProductController;
+use App\Models\Label;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -34,6 +35,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('categorias', [CategoryController::class, 'index'])->name('categorias.index');
     Route::get('zonas-delivery', [DeliveryZoneController::class, 'index'])->name('zonas-delivery.index');
+
+    Route::get('etiquetas', function () {
+        return Inertia::render('Etiquetas/Index', [
+            'labels' => Label::withCount('customers')->orderBy('name')->get(),
+        ]);
+    })->name('etiquetas.index');
     Route::get('configuracion', fn () => redirect()->route('configuracion.empresa'))->name('configuracion.index');
     Route::get('configuracion/empresa', fn () => Inertia::render('Configuracion/ConfiguracionEmpresa'))->name('configuracion.empresa');
 

@@ -15,7 +15,7 @@ export function mapConfiguracionAgenteDesdeApi(
 ): ConfiguracionAgenteForm {
     return {
         agente_ia_activado: api?.activado ?? actual?.agente_ia_activado ?? false,
-        agente_ia_modelo: api?.modelo ?? actual?.agente_ia_modelo ?? 'gemini-2.5-flash',
+        agente_ia_modelo: api?.modelo ?? actual?.agente_ia_modelo ?? 'gemini-2.5-flash-lite',
         agente_ia_temperatura: api?.temperatura ?? actual?.agente_ia_temperatura ?? 0.7,
         agente_ia_api_key: '',
         api_key_configurada: api?.api_key_configurada ?? actual?.api_key_configurada ?? false,

@@ -2,8 +2,10 @@
 import { formatChatTime } from '@/lib/chatFormatting';
 import { getInitials } from '@/composables/useInitials';
 import type { ChatConversation } from '@/types/chat';
-import { Bot, Clock, Loader2, MessageSquare, UserRound, CreditCard } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { Bot, Clock, Loader2, MessageSquare, UserRound, CreditCard, Tag, ChevronDown } from 'lucide-vue-next';
+import { computed, ref, onMounted } from 'vue';
+import axios from 'axios';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 const props = defineProps<{
     conversations: ChatConversation[];
@@ -23,14 +25,38 @@ const filters = [
     { id: 'asesor' as const, label: 'Humano' },
 ];
 
+const activeLabelId = ref<number | null>(null);
+const labelCatalog = ref<any[]>([]);
+
+onMounted(async () => {
+    try {
+        const { data } = await axios.get('/api/labels');
+        labelCatalog.value = data;
+    } catch (e) {
+        console.error('Error cargando etiquetas para filtro', e);
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const labelParam = params.get('label');
+    if (labelParam) {
+        activeLabelId.value = parseInt(labelParam, 10);
+    }
+});
+
 const filteredConversations = computed(() => {
+    let result = props.conversations;
+
     if (activeFilter.value === 'pagos') {
-        return props.conversations.filter((c) => c.pending_payment);
+        result = result.filter((c) => c.pending_payment);
+    } else if (activeFilter.value === 'asesor') {
+        result = result.filter((c) => c.ia_paused);
     }
-    if (activeFilter.value === 'asesor') {
-        return props.conversations.filter((c) => c.ia_paused);
+
+    if (activeLabelId.value) {
+        result = result.filter((c) => c.labels && c.labels.some((l: any) => l.id === activeLabelId.value));
     }
-    return props.conversations;
+
+    return result;
 });
 
 const pendingCount = computed(() => props.conversations.filter((c) => c.pending_payment).length);
@@ -61,12 +87,12 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused)
                 </div>
             </div>
 
-            <div class="flex gap-1 rounded-lg bg-background p-1">
+            <div class="flex gap-1 flex-wrap rounded-lg bg-background p-1">
                 <button
                     v-for="filter in filters"
                     :key="filter.id"
                     type="button"
-                    class="flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition"
+                    class="rounded-md px-2 py-1.5 text-xs font-medium transition"
                     :class="
                         activeFilter === filter.id
                             ? 'bg-emerald-600 text-white shadow-sm'
@@ -76,6 +102,36 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused)
                 >
                     {{ filter.label }}
                 </button>
+
+                <div class="ml-auto">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button class="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium transition border border-transparent hover:bg-muted focus:outline-none focus:bg-muted"
+                                :class="activeLabelId ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800' : 'text-muted-foreground'"
+                            >
+                                <Tag class="h-3 w-3" />
+                                <span>{{ activeLabelId ? labelCatalog.find(l => l.id === activeLabelId)?.name || 'Etiqueta' : 'Etiquetas' }}</span>
+                                <ChevronDown class="h-3 w-3 opacity-50" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" class="w-48">
+                            <DropdownMenuItem @click="activeLabelId = null" :class="{ 'bg-muted': activeLabelId === null }">
+                                Todas las etiquetas
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator v-if="labelCatalog.length > 0" />
+                            <DropdownMenuItem 
+                                v-for="label in labelCatalog" 
+                                :key="label.id"
+                                @click="activeLabelId = activeLabelId === label.id ? null : label.id"
+                                class="flex items-center gap-2 cursor-pointer"
+                                :class="{ 'bg-muted': activeLabelId === label.id }"
+                            >
+                                <div class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: label.color }"></div>
+                                {{ label.name }}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
         </div>
 
@@ -144,6 +200,16 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused)
                         >
                             <Bot class="h-3 w-3" />
                             IA activa
+                        </span>
+                    </div>
+                    <div v-if="conversation.labels && conversation.labels.length > 0" class="mt-1 flex flex-wrap gap-1">
+                        <span
+                            v-for="label in conversation.labels"
+                            :key="label.id"
+                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium text-white shadow-sm border border-black/10"
+                            :style="{ backgroundColor: label.color }"
+                        >
+                            {{ label.name }}
                         </span>
                     </div>
                 </div>

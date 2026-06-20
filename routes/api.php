@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CompanySettingController as ApiCompanySettingContro
 use App\Http\Controllers\Api\CustomerController;
 use App\Http\Controllers\Api\DeliveryZoneController as ApiDeliveryZoneController;
 use App\Http\Controllers\Api\EstadoIAController;
+use App\Http\Controllers\Api\LabelController;
 use App\Http\Controllers\Api\ProductController as ApiProductController;
 use App\Http\Controllers\Api\ProductoSimilarController;
 use App\Http\Controllers\Api\ProductVariantPhotoController;
@@ -82,5 +83,9 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
 
     Route::get('estado-ia', [EstadoIAController::class, 'verificar']);
     Route::get('alerta-cuota-gemini', [EstadoIAController::class, 'alertaCuota']);
+
+    Route::apiResource('labels', LabelController::class);
+    Route::post('customers/{phoneNumber}/labels', [CustomerController::class, 'syncLabels'])
+        ->where('phoneNumber', '[0-9+]+');
 
 });

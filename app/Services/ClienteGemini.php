@@ -20,7 +20,7 @@ class ClienteGemini
 
     private const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
-    public function __construct(string $apiKey, string $modelo = 'gemini-2.5-flash', float $temperatura = 0.7)
+    public function __construct(string $apiKey, string $modelo = 'gemini-2.5-flash-lite', float $temperatura = 0.7)
     {
         $this->apiKey = $apiKey;
         $this->modelo = $modelo;

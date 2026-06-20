@@ -69,7 +69,7 @@ class CompanySettingFactory extends Factory
             // Crear AgenteConfig
             $companySetting->agente()->create([
                 'activado' => false,
-                'modelo' => 'gemini-2.5-flash',
+                'modelo' => 'gemini-2.5-flash-lite',
                 'temperatura' => 0.7,
                 'tono_bot' => 'cálido y cercano',
                 'estilo_comunicacion' => 'natural',

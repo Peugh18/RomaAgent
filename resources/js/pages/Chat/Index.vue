@@ -73,6 +73,12 @@ const onTransitionCompleted = async (sale: Sale) => {
     await loadActiveSale();
 };
 
+const updateLabels = (labels: any[]) => {
+    if (activeConversation.value) {
+        activeConversation.value.labels = labels;
+    }
+};
+
 const openTransition = (transition: SaleTransition) => {
     activeTransition.value = transition;
     transitionOpen.value = true;
@@ -116,6 +122,7 @@ const openTransition = (transition: SaleTransition) => {
                     :name="activeConversation?.name ?? null"
                     :phone="selectedPhone"
                     @mode-change="chatMode = $event"
+                    @labels-updated="updateLabels"
                 />
 
                 <ChatSalePanel

@@ -43,31 +43,52 @@ class CustomerController extends Controller
         return response()->json($customer->fresh());
     }
 
-    public function updateIaMode(Request $request, string $phoneNumber): JsonResponse
+    public function updateIaMode(Request $request, string $phoneNumber)
     {
+        $customer = Customer::where('phone_number', $phoneNumber)->firstOrFail();
+
         $validated = $request->validate([
             'ia_paused' => 'required|boolean',
-            'reason' => 'nullable|string|max:255',
         ]);
 
-        $customer = Customer::query()->firstOrCreate(
-            ['phone_number' => $phoneNumber],
-        );
-
         if ($validated['ia_paused']) {
-            $customer->pausarIa($validated['reason'] ?? 'Pausado manualmente desde el panel');
+            $customer->pausarIa('Pausado manualmente por el asesor desde el panel.');
         } else {
             $customer->reanudarIa();
         }
 
-        return response()->json($customer->fresh());
+        return response()->json([
+            'message' => 'Modo IA actualizado correctamente',
+            'customer' => [
+                'id' => $customer->id,
+                'phone_number' => $customer->phone_number,
+                'ia_paused' => $customer->ia_paused,
+            ],
+        ]);
+    }
+
+    public function syncLabels(Request $request, string $phoneNumber)
+    {
+        $customer = Customer::where('phone_number', $phoneNumber)->firstOrFail();
+
+        $validated = $request->validate([
+            'label_ids' => 'array',
+            'label_ids.*' => 'exists:labels,id',
+        ]);
+
+        $customer->labels()->sync($validated['label_ids'] ?? []);
+
+        return response()->json([
+            'message' => 'Etiquetas actualizadas',
+            'labels' => $customer->labels()->get(),
+        ]);
     }
 
     public function show(string $phoneNumber): JsonResponse
     {
         $customer = Customer::query()
             ->where('phone_number', $phoneNumber)
-            ->with('activeSale')
+            ->with(['activeSale', 'labels'])
             ->first();
 
         return response()->json($customer);

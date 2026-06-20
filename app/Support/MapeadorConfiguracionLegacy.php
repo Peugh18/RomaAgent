@@ -35,7 +35,7 @@ class MapeadorConfiguracionLegacy
             'personalidad_bot' => null,
             'respuesta_si_es_bot' => null,
             'agente_ia_activado' => false,
-            'agente_ia_modelo' => 'gemini-2.5-flash',
+            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
             'agente_ia_api_key_encrypted' => null,
             'agente_ia_temperatura' => 0.7,
             'saludo_inicial' => null,

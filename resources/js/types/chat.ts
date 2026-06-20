@@ -23,4 +23,5 @@ export interface ChatConversation {
     ia_pause_reason?: string | null;
     pending_payment?: boolean;
     active_sale_status?: string | null;
+    labels?: { id: number; name: string; color: string }[];
 }

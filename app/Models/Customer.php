@@ -45,6 +45,11 @@ class Customer extends Model
         return $this->belongsTo(Sale::class, 'active_sale_id');
     }
 
+    public function labels()
+    {
+        return $this->belongsToMany(Label::class);
+    }
+
     public static function resolverDesdeMensaje(string $phoneNumber, ?string $name = null): self
     {
         $customer = self::query()->firstOrCreate(
