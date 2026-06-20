@@ -49,7 +49,7 @@ const filteredConversations = computed(() => {
     if (activeFilter.value === 'pagos') {
         result = result.filter((c) => c.pending_payment);
     } else if (activeFilter.value === 'asesor') {
-        result = result.filter((c) => c.ia_paused);
+        result = result.filter((c) => c.ia_paused && !c.pending_payment);
     }
 
     if (activeLabelId.value) {
