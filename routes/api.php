@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\ProductVariantPhotoController;
 use App\Http\Controllers\Api\RomaMessageController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\WhatsappWebhookController;
+use App\Http\Controllers\Api\DeliveryMethodController;
 use Illuminate\Support\Facades\Route;
 
 Route::match(['get', 'post'], '/whatsapp/webhook', [WhatsappWebhookController::class, 'handle'])
@@ -84,6 +85,8 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
     Route::get('estado-ia', [EstadoIAController::class, 'verificar']);
     Route::get('alerta-cuota-gemini', [EstadoIAController::class, 'alertaCuota']);
 
+    Route::apiResource('users', UserController::class);
+    Route::apiResource('delivery-methods', DeliveryMethodController::class);
     Route::apiResource('labels', LabelController::class);
     Route::post('customers/{phoneNumber}/labels', [CustomerController::class, 'syncLabels'])
         ->where('phoneNumber', '[0-9+]+');

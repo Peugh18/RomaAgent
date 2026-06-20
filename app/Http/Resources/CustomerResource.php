@@ -36,9 +36,13 @@ class CustomerResource extends JsonResource
                 fn () => $this->sales->sortByDesc('created_at')->take(5)->map(fn ($sale) => [
                     'id' => $sale->id,
                     'product_name' => $sale->product_name,
-                    'total_amount' => $sale->total_amount,
+                    'total_amount' => (float) $sale->total_amount,
                     'status' => $sale->status->value ?? $sale->status,
                     'created_at' => $sale->created_at,
+                    'payment_method' => $sale->payment_method,
+                    'delivery_type' => $sale->delivery_type,
+                    'delivery_district' => $sale->delivery_district,
+                    'customer_data' => $sale->customer_data,
                 ])->values()
             ),
         ];
