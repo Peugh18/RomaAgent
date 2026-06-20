@@ -18,7 +18,7 @@ class GenerarRespuestaAgenteJobTest extends TestCase
     public function test_generates_and_queues_whatsapp_reply_on_success(): void
     {
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash',
+            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
         ]);
 
         Http::fake([
@@ -65,7 +65,7 @@ class GenerarRespuestaAgenteJobTest extends TestCase
     public function test_logs_error_when_gemini_returns_empty_response(): void
     {
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-pro',
+            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
         ]);
 
         Http::fake([

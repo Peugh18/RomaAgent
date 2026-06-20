@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::table('company_settings', function (Blueprint $table) {
             $table->boolean('agente_ia_activado')->default(false)->after('sales_closing_cta');
-            $table->string('agente_ia_modelo')->default('gemini-2.5-pro')->after('agente_ia_activado');
+            $table->string('agente_ia_modelo')->default('gemini-2.5-flash-lite')->after('agente_ia_activado');
             $table->text('agente_ia_api_key_encrypted')->nullable()->after('agente_ia_modelo');
             $table->decimal('agente_ia_temperatura', 3, 2)->default(0.7)->after('agente_ia_api_key_encrypted');
         });

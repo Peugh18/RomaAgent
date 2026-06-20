@@ -7,6 +7,7 @@ import {
     Package,
     Settings2,
     Users,
+    Tags,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 
@@ -42,6 +43,7 @@ export const primaryNavGroups: AppNavGroup[] = [
         label: 'Operaciones',
         items: [
             { title: 'Clientes', href: '/clientes', icon: Users },
+            { title: 'Etiquetas', href: '/etiquetas', icon: Tags },
             { title: 'Zonas de delivery', href: '/zonas-delivery', icon: MapPin },
         ],
     },

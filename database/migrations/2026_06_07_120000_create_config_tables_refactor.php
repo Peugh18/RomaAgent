@@ -21,7 +21,7 @@ return new class extends Migration
 
             // Configuración IA
             $table->boolean('activado')->default(false);
-            $table->string('modelo')->default('gemini-2.5-flash');
+            $table->string('modelo')->default('gemini-2.5-flash-lite');
             $table->text('api_key_encrypted')->nullable();
             $table->decimal('temperatura', 3, 2)->default(0.70);
 

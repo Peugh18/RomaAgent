@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { apiJson, getCsrfToken } from '@/composables/useApi';
+import ChatLabelManager from './ChatLabelManager.vue';
 import { Bot, Sparkles, UserRound, Loader2 } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 
@@ -13,6 +14,7 @@ const toggling = ref(false);
 
 const emit = defineEmits<{
     'mode-change': [mode: 'bot' | 'human'];
+    'labels-updated': [labels: any[]];
 }>();
 
 const loadMode = async () => {
@@ -107,6 +109,11 @@ watch(() => props.phone, () => {
                     </button>
                 </div>
             </div>
+            
+            <ChatLabelManager 
+                :phone="phone" 
+                @labels-updated="$emit('labels-updated', $event)" 
+            />
 
             <span
                 class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"

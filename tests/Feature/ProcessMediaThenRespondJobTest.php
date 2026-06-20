@@ -25,7 +25,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash',
+            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
         ]);
 
         $relativePath = 'inbound-media/audio-job.ogg';
@@ -74,7 +74,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([EsperarRespuestaAgenteJob::class, SendWhatsappMessageJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash',
+            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
         ]);
 
         $relativePath = 'inbound-media/comprobante.jpg';
@@ -130,7 +130,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([EsperarRespuestaAgenteJob::class, SendWhatsappMessageJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash',
+            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
         ]);
 
         $relativePath = 'inbound-media/vestido-retry.jpg';
@@ -219,7 +219,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash',
+            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
         ]);
 
         config([
@@ -272,7 +272,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash',
+            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
         ]);
 
         $relativePath = 'inbound-media/audio-503.ogg';

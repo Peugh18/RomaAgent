@@ -23,7 +23,7 @@ class AudioTranscriberTest extends TestCase
         file_put_contents($fullPath, 'fake-ogg-bytes');
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash',
+            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
         ]);
 
         Http::fake([

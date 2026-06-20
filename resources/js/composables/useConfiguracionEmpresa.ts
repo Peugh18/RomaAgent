@@ -63,7 +63,7 @@ export function useConfiguracionEmpresa() {
         mensaje_espera_link_tarjeta: '',
         configuracion_agente: {
             agente_ia_activado: false,
-            agente_ia_modelo: 'gemini-2.5-flash',
+            agente_ia_modelo: 'gemini-2.5-flash-lite',
             agente_ia_api_key: '',
             agente_ia_temperatura: 0.7,
             api_key_configurada: false,
