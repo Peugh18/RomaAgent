@@ -2,9 +2,11 @@
 
 namespace App\Listeners;
 
+use App\Actions\GenerarRespuestaAgente;
 use App\Events\InboundMessageReceived;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
+use App\Jobs\ProcessMediaThenRespondJob;
+use App\Services\EncolarRespuestaAgente;
+use Illuminate\Support\Facades\Log;
 
 class TriggerAIResponse
 {
@@ -12,7 +14,7 @@ class TriggerAIResponse
      * Create the event listener.
      */
     public function __construct(
-        private \App\Actions\GenerarRespuestaAgente $generarRespuestaAgente
+        private GenerarRespuestaAgente $generarRespuestaAgente
     ) {}
 
     /**
@@ -25,18 +27,18 @@ class TriggerAIResponse
         if ($event->esMensajeNuevo && $message->direction === 'incoming') {
             $tipo = is_array($message->metadata) ? ($message->metadata['type'] ?? 'text') : 'text';
             if ($tipo === 'sticker') {
-                \Illuminate\Support\Facades\Log::info('Sticker entrante: no se encola respuesta IA', [
+                Log::info('Sticker entrante: no se encola respuesta IA', [
                     'phone' => $message->phone_number,
                 ]);
             } elseif (in_array($tipo, ['image', 'audio'], true)) {
-                \App\Jobs\ProcessMediaThenRespondJob::dispatch($message->id);
+                ProcessMediaThenRespondJob::dispatch($message->id);
             } else {
                 try {
                     if ($this->generarRespuestaAgente->debeResponder($message)) {
-                        app(\App\Services\EncolarRespuestaAgente::class)->despachar($message);
+                        app(EncolarRespuestaAgente::class)->despachar($message);
                     }
                 } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error('Error encolando respuesta IA', [
+                    Log::error('Error encolando respuesta IA', [
                         'error' => $e->getMessage(),
                         'phone' => $message->phone_number,
                     ]);

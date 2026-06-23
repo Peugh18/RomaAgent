@@ -3,7 +3,6 @@
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DeliveryZoneController;
 use App\Http\Controllers\MediaProxyController;
 use App\Http\Controllers\ProductController;
 use App\Models\Label;
@@ -34,7 +33,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('productos/{producto}/edit', [ProductController::class, 'edit'])->name('productos.edit');
 
     Route::get('categorias', [CategoryController::class, 'index'])->name('categorias.index');
-    Route::get('zonas-delivery', [DeliveryZoneController::class, 'index'])->name('zonas-delivery.index');
 
     Route::get('etiquetas', function () {
         return Inertia::render('Etiquetas/Index', [
@@ -43,6 +41,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('etiquetas.index');
     Route::get('configuracion', fn () => redirect()->route('configuracion.empresa'))->name('configuracion.index');
     Route::get('configuracion/empresa', fn () => Inertia::render('Configuracion/ConfiguracionEmpresa'))->name('configuracion.empresa');
+    Route::get('configuracion/zonas-envio', fn () => Inertia::render('Configuracion/ZonasEnvio/Index'))->name('configuracion.zonas_envio');
 
     Route::get('media/proxy', MediaProxyController::class)->name('media.proxy');
 

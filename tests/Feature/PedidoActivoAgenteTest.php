@@ -25,7 +25,6 @@ class PedidoActivoAgenteTest extends TestCase
             'size' => 'UNICA',
             'quantity' => 3,
             'unit_price' => 180,
-            'delivery_cost' => 0,
             'total_amount' => 540,
         ]);
         $customer->asignarPedidoActivo($sale);
@@ -60,7 +59,7 @@ class PedidoActivoAgenteTest extends TestCase
         $prompt = app(ContextoConversacion::class)->construirPromptParaAgenteConPedido($customer->fresh());
 
         $this->assertStringContainsString('PEDIDO ACTIVO (FUENTE DE VERDAD', $prompt);
-        $this->assertStringContainsString('Cantidad: 3 unidad(es)', $prompt);
+        $this->assertStringContainsString('total artículos: 3', $prompt);
         $this->assertStringContainsString('TOTAL A COBRAR: S/ 540.00', $prompt);
     }
 }

@@ -6,6 +6,7 @@ use App\Actions\GenerarRespuestaAgente;
 use App\Actions\Mensajes\EnviarMensajeWhatsappSaliente;
 use App\Exceptions\GeminiQuotaExceededException;
 use App\Models\Message;
+use App\Models\Product;
 use App\Services\EncolarRespuestaAgente;
 use App\Services\Media\AudioTranscriber;
 use App\Services\Media\DescargadorMediaWhatsapp;
@@ -147,7 +148,31 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         // Flujo directo de Roma Store para optimizar conversión y asegurar adherencia a la marca:
         // Si el mensaje es una imagen y ya se resolvió y respondió directamente,
         // saltamos el agente de IA para evitar respuestas redundantes.
-        if ($type === 'image' && $enriquecido && ($message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? '') !== 'comprobante') {
+        $esComprobante = ($message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? '') === 'comprobante';
+
+        if ($type === 'image' && $enriquecido && ! $esComprobante) {
+            return;
+        }
+
+        // Si es un comprobante detectado en imagen, enviamos directamente sin debounce
+        // para evitar que un mensaje de texto posterior "pise" el comprobante en el debounce.
+        if ($type === 'image' && $esComprobante) {
+            if (! $agente->debeResponder($message)) {
+                Log::info('ProcessMediaThenRespondJob: IA no responde a comprobante (IA pausada o no aplica)', [
+                    'msg' => $this->messageId,
+                    'phone' => $message->phone_number,
+                ]);
+
+                return;
+            }
+
+            Log::info('ProcessMediaThenRespondJob: comprobante detectado, disparando agente directo (sin debounce)', [
+                'msg' => $this->messageId,
+                'phone' => $message->phone_number,
+            ]);
+
+            GenerarRespuestaAgenteJob::dispatch($message);
+
             return;
         }
 
@@ -282,8 +307,17 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
             $nombre = $exacto['nombre_vestido'] ?? 'elegido';
             $color = $exacto['color'] ?? '';
             $imageUrl = $exacto['image_url'] ?? null;
+            $productId = $exacto['id_producto'] ?? null;
 
-            $enviarMensaje->handle($phone, "¡Claro que sí! Tenemos disponible este vestido: {$nombre}.");
+            $precioStr = '';
+            if ($productId) {
+                $product = Product::find($productId);
+                if ($product) {
+                    $precioStr = ' (Precio: S/ '.number_format((float) $product->price, 2).')';
+                }
+            }
+
+            $enviarMensaje->handle($phone, "¡Claro que sí! Tenemos disponible este vestido: {$nombre}{$precioStr}.");
 
             if ($imageUrl) {
                 $enviarMensaje->handle($phone, "Vestido {$nombre} en color {$color}", null, $imageUrl);
@@ -295,8 +329,18 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
                 $nombre = $match['nombre_vestido'] ?? 'elegido';
                 $color = $match['color'] ?? '';
                 $imageUrl = $match['image_url'] ?? null;
+                $productId = $match['id_producto'] ?? null;
+
+                $precioStr = '';
+                if ($productId) {
+                    $product = Product::find($productId);
+                    if ($product) {
+                        $precioStr = ' - S/ '.number_format((float) $product->price, 2);
+                    }
+                }
+
                 if ($imageUrl) {
-                    $enviarMensaje->handle($phone, "Vestido {$nombre} en color {$color}", null, $imageUrl);
+                    $enviarMensaje->handle($phone, "Vestido {$nombre} en color {$color}{$precioStr}", null, $imageUrl);
                 }
             }
 

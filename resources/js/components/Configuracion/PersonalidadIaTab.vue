@@ -60,19 +60,7 @@ if (!form) {
                         :rows="3"
                     />
                 </div>
-                <div class="space-y-2 border-t pt-4 mt-4">
-                    <Label for="reglas_venta_criticas">Reglas de Venta Críticas (Prompt de Reglas) *</Label>
-                    <Textarea
-                        id="reglas_venta_criticas"
-                        v-model="form.reglas_venta_criticas"
-                        placeholder="Aquí va el bloque completo de reglas ultra-críticas de venta..."
-                        :rows="12"
-                        class="font-mono text-xs"
-                    />
-                    <p class="text-xs text-muted-foreground">
-                        Soporta variables dinámicas como <code>{mensajeComprobante}</code> o <code>{instruccionMoneda}</code>. Si se deja en blanco, usará las reglas maestras por defecto del sistema.
-                    </p>
-                </div>
+
             </div>
         </CrmPanel>
 

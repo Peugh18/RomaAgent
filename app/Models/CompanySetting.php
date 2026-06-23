@@ -96,9 +96,10 @@ class CompanySetting extends Model
 
     public function obtenerOCrearEmpresaInfo(): EmpresaInfoConfig
     {
-        return $this->empresaInfo()->firstOrCreate([
-            'company_setting_id' => $this->id,
-        ]);
+        return $this->empresaInfo()->firstOrCreate(
+            ['company_setting_id' => $this->id],
+            ['company_name' => '']
+        );
     }
 
     public function obtenerOCrearHorarios(): HorarioConfig

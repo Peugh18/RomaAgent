@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Actions\GenerarRespuestaAgente;
 use App\Exceptions\GeminiQuotaExceededException;
+use App\Exceptions\GeminiTransientException;
 use App\Models\Message;
 use App\Services\AlertaCuotaGemini;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -64,6 +65,15 @@ class GenerarRespuestaAgenteJob implements ShouldBeUnique, ShouldQueue
 
                 return;
             }
+
+            throw $e;
+        } catch (GeminiTransientException $e) {
+            Log::warning('GenerarRespuestaAgenteJob: error temporal Gemini (5xx), Laravel reintentará automáticamente', [
+                'message_id' => $this->mensajeEntrante->id,
+                'phone' => $this->mensajeEntrante->phone_number,
+                'attempt' => $this->attempts(),
+                'error' => $e->getMessage(),
+            ]);
 
             throw $e;
         }

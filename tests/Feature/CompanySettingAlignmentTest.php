@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Models\CompanySetting;
-use App\Models\DeliveryZone;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,7 +59,7 @@ class CompanySettingAlignmentTest extends TestCase
         $prompt = $this->promptCompleto($user);
 
         $this->assertStringContainsString('Moda y Vestuario', $prompt);
-        $this->assertStringContainsString('dólares ($)', $prompt);
+        $this->assertStringContainsString('soles peruanos', $prompt);
         $this->assertStringContainsString('@romastore', $prompt);
         $this->assertStringContainsString('HOLA LINDA WAPA', $prompt);
         $this->assertStringContainsString('asesora de ventas', $prompt);
@@ -83,13 +82,6 @@ class CompanySettingAlignmentTest extends TestCase
             'price' => 39.90,
             'status' => Product::ESTADO_AGOTADO,
         ]);
-
-        DeliveryZone::query()->create([
-            'district' => 'Miraflores',
-            'cost_motorizado' => 10,
-            'cost_shalom' => 12,
-        ]);
-
         Cache::forget('contexto_prompt_completo_'.$settings->id);
 
         $response = $this->actingAs($user)->getJson('/api/company-settings');
@@ -102,7 +94,6 @@ class CompanySettingAlignmentTest extends TestCase
         $this->assertSame([], $estadisticas['campos_faltantes']);
         $this->assertTrue($estadisticas['esta_lista']);
         $this->assertSame(1, $estadisticas['productos_activos']);
-        $this->assertSame(1, $estadisticas['zonas_delivery']);
         $this->assertSame(1, $estadisticas['metodos_pago_count']);
     }
 
@@ -134,7 +125,7 @@ class CompanySettingAlignmentTest extends TestCase
         $prompt = $this->promptCompleto($user);
 
         $this->assertStringContainsString('Moda y Vestuario', $prompt);
-        $this->assertStringContainsString('dólares ($)', $prompt);
+        $this->assertStringContainsString('soles peruanos', $prompt);
         $this->assertStringContainsString('@nueva_cuenta', $prompt);
         $this->assertStringContainsString('https://new-website.com', $prompt);
         $this->assertSame('Moda y Vestuario', $response->json('actividad'));
@@ -177,20 +168,10 @@ class CompanySettingAlignmentTest extends TestCase
         $user = User::factory()->create();
         $settings = CompanySetting::factory()->create([
             ...$this->configuracionCompleta(),
-            'plantillas_datos' => [
-                'motorizado' => ['direccion' => 'Plantilla datos cliente'],
-            ],
             'mensaje_recordatorio_datos' => 'Recuerda enviarme tu dirección',
             'protocolo_traspaso' => 'Te derivo con el equipo',
             'formato_registro_venta' => 'Venta: {producto}',
-            'horario_shalom' => 'Lunes a viernes',
             'comision_tarjeta' => 3.5,
-        ]);
-
-        DeliveryZone::query()->create([
-            'district' => 'San Isidro',
-            'cost_motorizado' => 12,
-            'cost_shalom' => 14,
         ]);
 
         Cache::forget('contexto_prompt_completo_'.$settings->id);
@@ -202,7 +183,6 @@ class CompanySettingAlignmentTest extends TestCase
         $this->assertStringContainsString('INFORMACIÓN DE CONTACTO', $prompt);
         $this->assertStringContainsString('SALUDO INICIAL', $prompt);
         $this->assertStringContainsString('REGLAS DE COMUNICACIÓN', $prompt);
-        $this->assertStringContainsString('Plantilla datos cliente', $prompt);
         $this->assertStringContainsString('Recuerda enviarme tu dirección', $prompt);
         $this->assertStringContainsString('Te derivo con el equipo', $prompt);
         $this->assertStringContainsString('Yape', $prompt);
@@ -239,31 +219,5 @@ class CompanySettingAlignmentTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonMissing(['prompt_maestro', 'instrucciones_sistema', 'yape_number']);
-    }
-
-    public function test_api_normalizes_empty_plantillas_datos_from_database(): void
-    {
-        $user = User::factory()->create();
-        $settings = CompanySetting::factory()->create([
-            ...$this->configuracionCompleta(),
-            'plantillas_datos' => [],
-        ]);
-
-        Cache::forget('contexto_prompt_completo_'.$settings->id);
-
-        $response = $this->actingAs($user)->getJson('/api/company-settings');
-
-        $response->assertOk();
-
-        $motorizado = $response->json('flujo.plantillas_datos.motorizado');
-        $shalom = $response->json('flujo.plantillas_datos.shalom');
-
-        $this->assertNotEmpty($motorizado);
-        $this->assertNotEmpty($shalom);
-        $this->assertStringContainsString('DNI', implode(' ', $shalom));
-
-        $prompt = $this->promptCompleto($user);
-        $this->assertStringContainsString('Para Shalom', $prompt);
-        $this->assertStringContainsString('AGENTE VENDEDOR', $prompt);
     }
 }

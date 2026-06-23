@@ -94,7 +94,6 @@ class SaleLogisticsTransitionTest extends TestCase
         $sale = Sale::factory()->create([
             'product_name' => 'Vestido Aurora',
             'total_amount' => 140,
-            'delivery_district' => 'Miraflores',
             'payment_method' => 'yape',
         ]);
 

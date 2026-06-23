@@ -8,7 +8,6 @@ use App\Http\Requests\StoreCompanySettingRequest;
 use App\Models\CompanySetting;
 use App\Services\ConfiguracionEmpresa;
 use App\Support\NormalizadorStockTallas;
-use App\Support\PlantillasDatosEmpresa;
 use App\Support\SanitizadorMetodosPago;
 use App\Support\ValidadorPlantillaMensaje;
 use Illuminate\Http\JsonResponse;
@@ -59,10 +58,6 @@ class CompanySettingController extends Controller
         // Normalizar datos especiales
         if (isset($validated['standard_size'])) {
             $validated['standard_size'] = strtoupper(trim($validated['standard_size'])) ?: NormalizadorStockTallas::DEFAULT_SIZE_KEY;
-        }
-
-        if (array_key_exists('plantillas_datos', $validated)) {
-            $validated['plantillas_datos'] = PlantillasDatosEmpresa::normalizar($validated['plantillas_datos']);
         }
 
         if (array_key_exists('metodos_pago', $validated)) {
@@ -137,7 +132,6 @@ class CompanySettingController extends Controller
             'personalidad_bot' => 'personalidad_bot',
             'estilo_ventas' => 'estilo_ventas',
             'respuesta_si_es_bot' => 'respuesta_si_es_bot',
-            'reglas_venta_criticas' => 'reglas_venta_criticas',
         ];
 
         $agenteData = [];
@@ -176,7 +170,6 @@ class CompanySettingController extends Controller
             'mensaje_pedido_entregado' => 'pedido_entregado',
             'mensaje_comprobante_recibido' => 'comprobante_recibido',
             'mensaje_comprobante_fuera_horario' => 'comprobante_fuera_horario',
-            'mensaje_espera_link_tarjeta' => 'espera_link_tarjeta',
         ];
 
         $mensajeData = [];
@@ -203,10 +196,9 @@ class CompanySettingController extends Controller
     private function actualizarVentaConfig(CompanySetting $companySetting, array $datos): void
     {
         $ventaFields = [
-            'moneda' => 'moneda',
             'metodos_pago' => 'metodos_pago',
-            'comision_tarjeta' => 'comision_tarjeta',
             'protocolo_traspaso' => 'protocolo_traspaso',
+            'moneda' => 'moneda',
         ];
 
         $ventaData = [];
@@ -216,10 +208,18 @@ class CompanySettingController extends Controller
             }
         }
 
-        if (! empty($ventaData)) {
-            $ventaConfig = $companySetting->obtenerOCrearVentas();
-            $ventaConfig->update($ventaData);
+        // Por defecto es PEN si no se especifica
+        if (! isset($ventaData['moneda'])) {
+            $ventaData['moneda'] = 'PEN';
         }
+
+        // Calcular comisión por tarjeta (5% si está activa, 0 si no)
+        $metodos = $datos['metodos_pago'] ?? [];
+        $tarjetaActiva = collect($metodos)->contains(fn ($m) => strtolower($m['nombre'] ?? '') === 'tarjeta');
+        $ventaData['comision_tarjeta'] = $tarjetaActiva ? 5.00 : 0.00;
+
+        $ventaConfig = $companySetting->obtenerOCrearVentas();
+        $ventaConfig->update($ventaData);
     }
 
     /**
@@ -231,11 +231,8 @@ class CompanySettingController extends Controller
     {
         $horarioFields = [
             'horario_atencion' => 'horario_atencion',
-            'horario_entregas' => 'horario_entregas',
-            'horario_shalom' => 'horario_shalom',
             'politica_devoluciones' => 'politica_devoluciones',
             'restricciones_especiales' => 'restricciones_especiales',
-            'plantillas_datos' => 'plantillas_datos',
             'standard_size' => 'standard_size',
         ];
 

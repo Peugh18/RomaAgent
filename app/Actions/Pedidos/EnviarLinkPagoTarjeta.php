@@ -56,14 +56,10 @@ class EnviarLinkPagoTarjeta
             $precioFmt = number_format((float) $sale->unit_price, 2, '.', '');
             $listaProductos .= "- {$sale->quantity} x {$nombreItem} (S/ {$precioFmt})\n";
         }
-
         $totalOriginal = (float) $sale->total_amount;
-        $envio = (float) $sale->delivery_cost;
-
         $recargoTarjeta = round($totalOriginal * 0.05, 2);
         $totalAPagar = $totalOriginal + $recargoTarjeta;
 
-        $envioFmt = number_format($envio, 2, '.', '');
         $recargoFmt = number_format($recargoTarjeta, 2, '.', '');
         $totalFinalFmt = number_format($totalAPagar, 2, '.', '');
 
@@ -71,7 +67,6 @@ class EnviarLinkPagoTarjeta
             ."🛍️ *Tus productos:*\n"
             ."{$listaProductos}"
             ."-------------------------\n"
-            ."🚚 *Envío:* S/ {$envioFmt}\n"
             ."💳 *Recargo por tarjeta (5%):* S/ {$recargoFmt}\n"
             ."=========================\n"
             ."💰 *TOTAL A PAGAR:* S/ {$totalFinalFmt}\n\n"

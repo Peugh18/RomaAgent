@@ -26,7 +26,7 @@ interface SaleSummary {
     producto?: string | null;
     color?: string | null;
     total?: string | null;
-    distrito?: string | null;
+
     metodo_pago?: string | null;
 }
 
@@ -57,10 +57,7 @@ const error = ref<string | null>(null);
 
 const esConfirmacionPago = computed(() => props.transition === 'confirm_payment');
 
-const isShalomDelivery = computed(() => {
-    const type = props.sale?.delivery_type?.toLowerCase() ?? '';
-    return type.includes('shalom') || type.includes('shalon');
-});
+
 
 const modalCopy = computed(() => {
     switch (props.transition) {
@@ -73,7 +70,7 @@ const modalCopy = computed(() => {
         case 'mark_shipped':
             return {
                 title: 'Marcar enviado',
-                description: 'Avisa a la clienta que el pedido salió. Opcionalmente adjunta la boleta o guía (Shalom).',
+                description: 'Avisa a la clienta que el pedido salió. Opcionalmente adjunta la boleta.',
                 submit: 'Enviar y marcar enviado',
             };
         case 'mark_delivered':
@@ -242,10 +239,7 @@ const submit = async () => {
                             {{ formatMoney(saleSummary.total) }}
                         </dd>
                     </template>
-                    <template v-if="saleSummary.distrito">
-                        <dt class="text-muted-foreground">Distrito</dt>
-                        <dd>{{ saleSummary.distrito }}</dd>
-                    </template>
+
                     <template v-if="saleSummary.metodo_pago">
                         <dt class="text-muted-foreground">Pago</dt>
                         <dd>{{ saleSummary.metodo_pago }}</dd>
@@ -284,7 +278,7 @@ const submit = async () => {
                     Generado desde Configuración con los datos del pedido. Solo confirma y envía.
                 </p>
                 <p v-else class="text-xs text-muted-foreground">
-                    Variables: {nombre}, {producto}, {color}, {total}, {distrito}, {metodo_pago}
+                    Variables: {nombre}, {producto}, {color}, {total}, {metodo_pago}
                 </p>
 
                 <div v-if="transition === 'mark_shipped'" class="space-y-2 rounded-lg border bg-muted/30 p-3">
@@ -298,9 +292,7 @@ const submit = async () => {
                         class="text-xs"
                         @change="onReceiptSelected"
                     />
-                    <p v-if="isShalomDelivery" class="text-[11px] text-muted-foreground">
-                        Envío por Shalom: adjunta la boleta o captura de la guía.
-                    </p>
+
                     <img
                         v-if="receiptPreviewUrl"
                         :src="receiptPreviewUrl"

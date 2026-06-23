@@ -3,7 +3,6 @@
 use App\Http\Controllers\Api\CategoryController as ApiCategoryController;
 use App\Http\Controllers\Api\CompanySettingController as ApiCompanySettingController;
 use App\Http\Controllers\Api\CustomerController;
-use App\Http\Controllers\Api\DeliveryZoneController as ApiDeliveryZoneController;
 use App\Http\Controllers\Api\EstadoIAController;
 use App\Http\Controllers\Api\LabelController;
 use App\Http\Controllers\Api\ProductController as ApiProductController;
@@ -12,7 +11,7 @@ use App\Http\Controllers\Api\ProductVariantPhotoController;
 use App\Http\Controllers\Api\RomaMessageController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\WhatsappWebhookController;
-use App\Http\Controllers\Api\DeliveryMethodController;
+use App\Http\Controllers\Api\ZonaEnvioController;
 use Illuminate\Support\Facades\Route;
 
 Route::match(['get', 'post'], '/whatsapp/webhook', [WhatsappWebhookController::class, 'handle'])
@@ -44,9 +43,6 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
     Route::post('product-variants/{variant}/photo', [ProductVariantPhotoController::class, 'store']);
 
     Route::apiResource('categories', ApiCategoryController::class);
-
-    Route::apiResource('delivery-zones', ApiDeliveryZoneController::class);
-    Route::post('delivery-zones/import-roma-store', [ApiDeliveryZoneController::class, 'importRomaStore']);
 
     Route::get('products/{product}/similares', [ProductoSimilarController::class, 'show']);
 
@@ -85,10 +81,10 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
     Route::get('estado-ia', [EstadoIAController::class, 'verificar']);
     Route::get('alerta-cuota-gemini', [EstadoIAController::class, 'alertaCuota']);
 
-    Route::apiResource('users', UserController::class);
-    Route::apiResource('delivery-methods', DeliveryMethodController::class);
     Route::apiResource('labels', LabelController::class);
     Route::post('customers/{phoneNumber}/labels', [CustomerController::class, 'syncLabels'])
         ->where('phoneNumber', '[0-9+]+');
 
+    Route::apiResource('zonas-envio', ZonaEnvioController::class);
+    Route::post('zonas-envio/{zona_envio}/toggle', [ZonaEnvioController::class, 'toggle']);
 });

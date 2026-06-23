@@ -2,8 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Actions\ProcessIncomingMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
 
 class ProcessWebhookPayloadJob implements ShouldQueue
 {
@@ -19,12 +21,12 @@ class ProcessWebhookPayloadJob implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(\App\Actions\ProcessIncomingMessage $processIncoming): void
+    public function handle(ProcessIncomingMessage $processIncoming): void
     {
         try {
             $processIncoming->execute($this->payload);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('WhatsappWebhook: inbound failed in Queue', [
+            Log::error('WhatsappWebhook: inbound failed in Queue', [
                 'wa_id' => $this->payload['wa_id'] ?? null,
                 'error' => $e->getMessage(),
             ]);

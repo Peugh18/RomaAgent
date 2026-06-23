@@ -14,7 +14,6 @@ import EmpresaVendedorTab from '@/components/Configuracion/EmpresaVendedorTab.vu
 import MetodosPagoTab from '@/components/Configuracion/MetodosPagoTab.vue';
 import PersonalidadIaTab from '@/components/Configuracion/PersonalidadIaTab.vue';
 import FlujoVentasTab from '@/components/Configuracion/FlujoVentasTab.vue';
-import EntregasTab from '@/components/Configuracion/EntregasTab.vue';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -209,7 +208,7 @@ const heroStats = computed(() => {
                 <!-- FORMULARIO (Izquierda - 2 columnas) -->
                 <div class="lg:col-span-2 space-y-6">
             <Tabs v-model="pestanaActiva" class="w-full">
-                <TabsList class="grid h-auto w-full grid-cols-3 gap-1 rounded-xl border border-border/50 bg-muted/30 p-1 sm:grid-cols-5">
+                <TabsList class="grid h-auto w-full grid-cols-3 gap-1 rounded-xl border border-border/50 bg-muted/30 p-1 sm:grid-cols-4">
                     <!-- 1. Datos Básicos -->
                     <TabsTrigger value="empresa" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <Building2 class="h-4 w-4 mr-1 hidden sm:inline" />
@@ -237,13 +236,6 @@ const heroStats = computed(() => {
                         <span class="hidden sm:inline">Pago</span>
                         <span class="sm:hidden">Pag</span>
                     </TabsTrigger>
-
-                    <!-- 5. Entregas -->
-                    <TabsTrigger value="entregas" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                        <Truck class="h-4 w-4 mr-1 hidden sm:inline" />
-                        <span class="hidden sm:inline">Entregas</span>
-                        <span class="sm:hidden">Ent</span>
-                    </TabsTrigger>
                 </TabsList>
 
                 <!-- TAB 1: DATOS DE EMPRESA Y VENDEDOR -->
@@ -266,11 +258,6 @@ const heroStats = computed(() => {
                     <FlujoVentasTab />
                 </TabsContent>
 
-                <!-- TAB 6: ENTREGAS -->
-                <TabsContent value="entregas" class="mt-6 space-y-6">
-                    <EntregasTab />
-                </TabsContent>
-
             </Tabs>
 
                     <CrmStickySaveBar
@@ -284,7 +271,7 @@ const heroStats = computed(() => {
                         <ConfigSectionHeader
                             :icon="AlertTriangle"
                             title="Zona peligrosa"
-                            description="Borra empresa, personalidad, pagos, flujo de ventas, zonas de delivery, API key de IA e historial de logs IA. No elimina productos, categorías ni conversaciones de WhatsApp."
+                            description="Borra empresa, personalidad, pagos, flujo de ventas, API key de IA e historial de logs IA. No elimina productos, categorías ni conversaciones de WhatsApp."
                         />
                         <Button
                             variant="destructive"

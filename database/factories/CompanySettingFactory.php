@@ -99,8 +99,6 @@ class CompanySettingFactory extends Factory
             // Crear HorarioConfig
             $companySetting->horarios()->create([
                 'horario_atencion' => 'Lunes a Sábado 9:00 - 18:00',
-                'horario_entregas' => 'Lunes a Sábado 10:00 - 20:00',
-                'horario_shalom' => 'Lunes a Viernes 9:00 - 17:00',
                 'politica_devoluciones' => 'Cambios hasta 7 días con ticket.',
                 'standard_size' => 'UNICA',
             ]);

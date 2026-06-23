@@ -2,63 +2,30 @@
 
 namespace App\Support;
 
+/**
+ * @deprecated Esta clase se mantiene por compatibilidad. Las plantillas de datos
+ * de envío han sido eliminadas. Se reimplementará junto al nuevo sistema de envíos.
+ */
 class PlantillasDatosEmpresa
 {
     /**
-     * @return array{motorizado: array<string, string>, shalom: array<string, string>}
+     * @return array<string, mixed>
      */
     public static function porDefecto(): array
     {
-        return [
-            'motorizado' => [
-                'campo_0' => '✅ NOMBRE COMPLETO',
-                'campo_1' => '✅ CELULAR',
-                'campo_2' => '✅ DIRECCIÓN',
-                'campo_3' => '✅ UBICACIÓN ACTUAL',
-            ],
-            'shalom' => [
-                'campo_0' => '✅ Nombre completo',
-                'campo_1' => '✅ Número de DNI',
-                'campo_2' => '✅ Número de celular',
-                'campo_3' => '✅ Sede exacta de shalom',
-            ],
-        ];
+        return [];
     }
 
     /**
-     * @return array{motorizado: array<string, string>, shalom: array<string, string>}
+     * @return array<string, mixed>
      */
     public static function normalizar(mixed $plantillas): array
     {
-        $defecto = self::porDefecto();
-
-        if (! is_array($plantillas) || $plantillas === []) {
-            return $defecto;
-        }
-
-        $motorizado = is_array($plantillas['motorizado'] ?? null) ? $plantillas['motorizado'] : [];
-        $shalom = is_array($plantillas['shalom'] ?? null) ? $plantillas['shalom'] : [];
-
-        if ($motorizado === [] && $shalom === []) {
-            return $defecto;
-        }
-
-        return [
-            'motorizado' => $motorizado !== [] ? $motorizado : $defecto['motorizado'],
-            'shalom' => $shalom !== [] ? $shalom : $defecto['shalom'],
-        ];
+        return [];
     }
 
     public static function estaVacia(mixed $plantillas): bool
     {
-        if (! is_array($plantillas) || $plantillas === []) {
-            return true;
-        }
-
-        $motorizado = $plantillas['motorizado'] ?? [];
-        $shalom = $plantillas['shalom'] ?? [];
-
-        return (! is_array($motorizado) || $motorizado === [])
-            && (! is_array($shalom) || $shalom === []);
+        return true;
     }
 }

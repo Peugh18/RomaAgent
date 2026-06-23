@@ -2,12 +2,12 @@ import {
     FolderTree,
     Kanban,
     LayoutGrid,
-    MapPin,
     MessageSquare,
     Package,
     Settings2,
     Users,
     Tags,
+    MapPin,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 
@@ -44,14 +44,16 @@ export const primaryNavGroups: AppNavGroup[] = [
         items: [
             { title: 'Clientes', href: '/clientes', icon: Users },
             { title: 'Etiquetas', href: '/etiquetas', icon: Tags },
-            { title: 'Zonas de delivery', href: '/zonas-delivery', icon: MapPin },
         ],
     },
 ];
 
 export const systemNavGroup: AppNavGroup = {
     label: 'Sistema',
-    items: [{ title: 'Configuración', href: '/configuracion', icon: Settings2 }],
+    items: [
+        { title: 'Configuración', href: '/configuracion', icon: Settings2 },
+        { title: 'Zonas de Envío', href: '/configuracion/zonas-envio', icon: MapPin },
+    ],
 };
 
 

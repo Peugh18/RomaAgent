@@ -13,7 +13,7 @@ use App\Models\Message;
 use App\Models\Sale;
 use App\Models\VentaConfig;
 use App\Services\Agente\Tools\BuscarProductosTool;
-use App\Services\Agente\Tools\CalcularEnvioTool;
+use App\Services\Agente\Tools\ConsultarCoberturaTool;
 use App\Services\Agente\Tools\VerificarStockTool;
 use App\Support\FormateadorCatalogoProductos;
 use App\Support\MensajesEmpresaDefaults;
@@ -43,7 +43,7 @@ class EjecutorHerramientasAgente
                     'properties' => [
                         'items' => [
                             'type' => 'array',
-                            'description' => 'Lista de productos en el carrito. Envía SIEMPRE la lista FINAL de productos deseados. Si el cliente agrega, manda los viejos + el nuevo. Si el cliente elimina algo, manda la lista SIN el eliminado.',
+                            'description' => 'Lista de productos. OPCIONAL. Si el cliente solo está dando sus datos de envío/pago y NO está agregando ni cambiando productos en este momento, NO envíes este parámetro o envíalo vacío para conservar los productos que ya están guardados.',
                             'items' => [
                                 'type' => 'object',
                                 'properties' => [
@@ -56,17 +56,16 @@ class EjecutorHerramientasAgente
                                 'required' => ['product_name', 'quantity'],
                             ],
                         ],
-                        'delivery_cost' => ['type' => 'number'],
                         'total_amount' => ['type' => 'number'],
                         'payment_method' => ['type' => 'string', 'description' => 'Método de pago utilizado (ej. yape, plin, depósito, etc., DEBE coincidir con el método configurado en la tienda)'],
-                        'delivery_type' => ['type' => 'string', 'description' => 'motorizado o shalom'],
-                        'delivery_district' => ['type' => 'string'],
                         'status' => [
                             'type' => 'string',
                             'enum' => ['consultando', 'cotizando', 'datos_listos', 'pago_pendiente', 'pago_recibido'],
                         ],
-                        'customer_data' => ['type' => 'object', 'description' => 'nombre, dirección, dni, celular, etc.'],
-                        'notes' => ['type' => 'string'],
+                        'customer_data' => [
+                            'type' => 'object',
+                            'description' => 'Guarda todos los datos logísticos y de contacto aquí. OBLIGATORIO incluir SIEMPRE la clave "tipo_envio" (valores válidos: "motorizado" o "shalom") si guardas algún dato de envío. Para motorizado: nombre_completo, celular, direccion, distrito, costo_referencial. Para shalom: nombre_completo, celular, distrito, provincia, dni, sede_shalom.',
+                        ],
                     ],
                 ],
             ],
@@ -91,21 +90,6 @@ class EjecutorHerramientasAgente
                     'properties' => [
                         'payment_method' => ['type' => 'string', 'description' => 'Método de pago deducido del comprobante (Yape, Plin, BCP, BBVA, etc.)'],
                         'notas' => ['type' => 'string'],
-                        'items' => [
-                            'type' => 'array',
-                            'description' => 'Lista de productos si la clienta los confirma junto con el pago.',
-                            'items' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'product_name' => ['type' => 'string'],
-                                    'color' => ['type' => 'string'],
-                                    'size' => ['type' => 'string'],
-                                    'quantity' => ['type' => 'integer'],
-                                    'unit_price' => ['type' => 'number'],
-                                ],
-                                'required' => ['product_name', 'quantity'],
-                            ],
-                        ],
                     ],
                 ],
             ],
@@ -128,9 +112,9 @@ class EjecutorHerramientasAgente
                     'properties' => new \stdClass,
                 ],
             ],
+            ConsultarCoberturaTool::definition(),
             BuscarProductosTool::definition(),
             VerificarStockTool::definition(),
-            CalcularEnvioTool::definition(),
         ];
     }
 
@@ -140,6 +124,16 @@ class EjecutorHerramientasAgente
      */
     public function ejecutar(string $nombre, array $args, Customer $customer, Message $mensajeEntrante): array
     {
+        $meta = is_array($mensajeEntrante->metadata) ? $mensajeEntrante->metadata : [];
+        $esComprobante = (($meta['vision']['inbound_profile']['tipo_mensaje'] ?? '') === 'comprobante');
+
+        if ($esComprobante && in_array($nombre, ['enviar_foto_producto', 'buscar_productos'], true)) {
+            return [
+                'ok' => false,
+                'error' => 'Se ha detectado un comprobante de pago en el mensaje entrante. Está estrictamente PROHIBIDO recomendar productos o enviar fotos en este momento. Debes registrar el comprobante inmediatamente usando "registrar_comprobante_recibido" (si tienes los datos de envío completos) o pedir los datos de envío faltantes al cliente.',
+            ];
+        }
+
         return match ($nombre) {
             'actualizar_pedido' => $this->ejecutarActualizarPedido($customer, $args),
             'enviar_foto_producto' => $this->ejecutarEnviarFoto($customer, $mensajeEntrante, $args),
@@ -148,7 +142,7 @@ class EjecutorHerramientasAgente
             'consultar_pedido_activo' => $this->ejecutarConsultarPedido($customer),
             'buscar_productos' => BuscarProductosTool::execute($args),
             'verificar_stock' => VerificarStockTool::execute($args),
-            'calcular_envio' => CalcularEnvioTool::execute($args),
+            'consultar_cobertura' => ConsultarCoberturaTool::execute($args),
             default => ['ok' => false, 'error' => "Herramienta desconocida: {$nombre}"],
         };
     }
@@ -159,9 +153,16 @@ class EjecutorHerramientasAgente
      */
     private function ejecutarActualizarPedido(Customer $customer, array $args): array
     {
-        $sale = $this->actualizarPedido->handle($customer, $args);
+        try {
+            $sale = $this->actualizarPedido->handle($customer, $args);
 
-        return $this->formatearRespuestaPedido($sale);
+            return $this->formatearRespuestaPedido($sale);
+        } catch (\InvalidArgumentException $e) {
+            return [
+                'ok' => false,
+                'error' => $e->getMessage(),
+            ];
+        }
     }
 
     /**
@@ -173,7 +174,6 @@ class EjecutorHerramientasAgente
             ?? CompanySetting::query()->value('moneda')
             ?? 'PEN';
         $simbolo = FormateadorCatalogoProductos::simboloDesdeMoneda((string) $moneda);
-        $deliveryCost = (float) $sale->delivery_cost;
         $total = (float) $sale->total_amount;
         $items = $sale->items;
 
@@ -188,17 +188,15 @@ class EjecutorHerramientasAgente
             'sale_id' => $sale->id,
             'status' => $sale->status->value,
             'items_count' => $items->count(),
-            'delivery_cost' => $deliveryCost,
             'total_amount' => $total,
             'moneda' => $simbolo,
             'desglose' => sprintf(
-                'Productos: [%s] + Envío %s %.2f = Total %s %.2f',
+                'Productos: [%s] = Total %s %.2f',
                 $desgloseItems,
-                $simbolo,
-                $deliveryCost,
                 $simbolo,
                 $total,
             ),
+            'instruccion_para_ia' => 'Pedido guardado. IMPORTANTE: Revisa el último mensaje del cliente. Si el cliente ya te indicó su distrito o ciudad (ej. Trujillo, Piura, Comas), DEBES llamar a la herramienta `consultar_cobertura` INMEDIATAMENTE. NO le vuelvas a preguntar el distrito si ya te lo dio.',
         ];
     }
 
@@ -248,10 +246,6 @@ class EjecutorHerramientasAgente
      */
     private function ejecutarComprobante(Customer $customer, Message $mensajeEntrante, array $args = []): array
     {
-        if (! empty($args['items'])) {
-            // Update the sale first with the provided items
-            $this->ejecutarActualizarPedido($customer, $args);
-        }
 
         $resultado = $this->registrarComprobante->handle($customer, $mensajeEntrante, $args);
 
@@ -287,9 +281,7 @@ class EjecutorHerramientasAgente
 
         $customer->pausarIa($motivo);
 
-        $settings = CompanySetting::query()->with('mensajes')->first();
-        $mensajeTarjeta = $settings?->mensajes?->espera_link_tarjeta
-            ?: MensajesEmpresaDefaults::esperaLinkTarjeta();
+        $mensajeTarjeta = MensajesEmpresaDefaults::esperaLinkTarjeta();
 
         $esTarjeta = str_contains(mb_strtolower($motivo), 'tarjeta');
 
@@ -384,7 +376,6 @@ class EjecutorHerramientasAgente
             ?? CompanySetting::query()->value('moneda')
             ?? 'PEN';
         $simbolo = FormateadorCatalogoProductos::simboloDesdeMoneda((string) $moneda);
-        $deliveryCost = (float) $sale->delivery_cost;
         $total = (float) $sale->total_amount;
         $items = $sale->items;
 
@@ -420,21 +411,16 @@ class EjecutorHerramientasAgente
                     'quantity' => max(1, (int) $i->quantity),
                     'unit_price' => (float) $i->unit_price,
                 ])->toArray(),
-                'delivery_cost' => $deliveryCost,
                 'total_amount' => $total,
                 'moneda' => $simbolo,
                 'desglose' => sprintf(
-                    'Productos: [%s] + Envío %s %.2f = Total %s %.2f',
+                    'Productos: [%s] = Total %s %.2f',
                     $desgloseItems,
-                    $simbolo,
-                    $deliveryCost,
                     $simbolo,
                     $total,
                 ),
                 'status' => $sale->status->value,
                 'payment_method' => $sale->payment_method,
-                'delivery_type' => $sale->delivery_type,
-                'delivery_district' => $sale->delivery_district,
                 'customer_data' => $sale->customer_data ?? [],
                 'nota' => 'Productos, colores y cantidades ya confirmados; no volver a pedirlos salvo cambio de la clienta.',
             ],

@@ -27,8 +27,10 @@ import {
     Phone,
     Truck,
     X,
+    Copy,
+    ClipboardCheck,
 } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps<{
     open: boolean;
@@ -44,7 +46,20 @@ const emit = defineEmits<{
 const { format: formatMoney } = useCurrency();
 
 const displayName = computed(() =>
-    props.sale?.customer_name ?? props.sale?.customer?.name ?? props.sale?.phone_number ?? '',
+    props.sale?.customer_name
+    ?? props.sale?.customer?.name
+    ?? props.sale?.customer_data?.nombre_completo
+    ?? props.sale?.customer_data?.nombre
+    ?? props.sale?.customer_data?.name
+    ?? props.sale?.phone_number
+    ?? '',
+);
+
+const displayPhone = computed(() =>
+    props.sale?.customer_data?.celular
+    ?? props.sale?.customer_data?.phone
+    ?? props.sale?.phone_number
+    ?? '',
 );
 
 const displayAddress = computed(() =>
@@ -53,6 +68,50 @@ const displayAddress = computed(() =>
     ?? props.sale?.customer_data?.address
     ?? null,
 );
+
+const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
+const tipoEnvio = computed(() => props.sale?.customer_data?.tipo_envio ?? null);
+const costoReferencial = computed(() => props.sale?.customer_data?.costo_referencial ?? null);
+const deliveryDistrito = computed(() => props.sale?.customer_data?.distrito ?? null);
+const deliveryProvincia = computed(() => props.sale?.customer_data?.provincia ?? null);
+const deliverySedeShalom = computed(() => props.sale?.customer_data?.sede_shalom ?? null);
+const deliveryDni = computed(() => props.sale?.customer_data?.dni ?? null);
+
+const hasDispatchData = computed(() => 
+    tipoEnvio.value || deliveryDistrito.value || displayAddress.value || 
+    deliveryProvincia.value || deliverySedeShalom.value || mapsUrl.value
+);
+
+const copied = ref(false);
+
+const generateLabelText = () => {
+    if (!props.sale) return '';
+    let text = `📦 RÓTULO DE ENVÍO\n`;
+    text += `Destinatario: ${displayName.value}\n`;
+    text += `Celular: ${displayPhone.value}\n`;
+    
+    if (tipoEnvio.value === 'motorizado') {
+        text += `Envío por: Motorizado\n`;
+        text += `Distrito: ${deliveryDistrito.value || ''}\n`;
+        text += `Dirección: ${displayAddress.value || ''}\n`;
+    } else if (tipoEnvio.value === 'shalom') {
+        text += `Envío por: Shalom\n`;
+        text += `Destino: ${deliveryDistrito.value || ''} - ${deliveryProvincia.value || ''}\n`;
+        text += `Agencia: ${deliverySedeShalom.value || ''}\n`;
+        text += `DNI: ${deliveryDni.value || ''}\n`;
+    }
+    return text;
+};
+
+const copyLabel = async () => {
+    try {
+        await navigator.clipboard.writeText(generateLabelText());
+        copied.value = true;
+        setTimeout(() => copied.value = false, 2000);
+    } catch (err) {
+        console.error('Error al copiar el rótulo:', err);
+    }
+};
 
 const actionButton = computed(() => {
     if (!props.sale) return null;
@@ -132,8 +191,6 @@ const onCancel = () => {
                         </template>
                     </div>
                     <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mt-3 pt-3">
-                        <dt class="text-muted-foreground">Delivery</dt>
-                        <dd>{{ formatMoney(sale.delivery_cost) }}</dd>
                         <dt class="text-muted-foreground font-semibold">Total</dt>
                         <dd class="font-semibold text-emerald-700 dark:text-emerald-300">
                             {{ formatMoney(sale.total_amount) }}
@@ -151,34 +208,67 @@ const onCancel = () => {
                         <dt class="text-muted-foreground">Nombre</dt>
                         <dd class="font-medium">{{ displayName }}</dd>
                         <dt class="text-muted-foreground">Teléfono</dt>
-                        <dd>{{ sale.phone_number }}</dd>
-                        <dt class="text-muted-foreground">Dirección</dt>
-                        <dd class="line-clamp-3">{{ displayAddress ?? '—' }}</dd>
-                        <dt class="text-muted-foreground">Distrito</dt>
-                        <dd>{{ sale.delivery_district ?? '—' }}</dd>
-                        <dt class="text-muted-foreground">Tipo de entrega</dt>
-                        <dd>{{ sale.delivery_type ?? '—' }}</dd>
+                        <dd>{{ displayPhone }}</dd>
                         <dt class="text-muted-foreground">Método de pago</dt>
                         <dd>{{ sale.payment_method ?? '—' }}</dd>
                         
                         <!-- Extra data from customer_data -->
                         <template v-if="sale.customer_data && Object.keys(sale.customer_data).length > 0">
-                            <template v-for="([k, v]) in Object.entries(sale.customer_data).filter(([k, v]) => !['nombre', 'name', 'direccion', 'address', 'maps_url', 'ubicacion_actual', 'latitude', 'longitude'].includes(k) && v)" :key="k">
+                            <template v-for="([k, v]) in Object.entries(sale.customer_data).filter(([k, v]) => !['nombre', 'name', 'nombre_completo', 'celular', 'phone', 'direccion', 'address', 'maps_url', 'ubicacion_actual', 'latitude', 'longitude', 'tipo_envio', 'costo_referencial', 'distrito', 'provincia', 'departamento', 'sede_shalom', 'dni'].includes(k) && v)" :key="k">
                                 <dt class="text-muted-foreground capitalize">{{ k.replace(/_/g, ' ') }}</dt>
                                 <dd class="break-words">{{ v }}</dd>
                             </template>
                         </template>
                     </dl>
-                    <div v-if="sale.maps_url" class="mt-2">
-                        <a
-                            :href="sale.maps_url"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="inline-flex items-center gap-1 text-xs text-primary hover:underline"
-                        >
-                            <MapPin class="h-3 w-3" />
-                            Ver ubicación en Google Maps
-                        </a>
+                    
+                    <!-- Dispatch Info Block -->
+                    <div v-if="hasDispatchData" class="mt-4 rounded-md border border-border/60 bg-muted/20 p-3">
+                        <div class="flex items-center justify-between mb-2 pb-1.5 border-b border-border/60">
+                            <h5 class="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                                📦 Información de Despacho
+                            </h5>
+                            <Button variant="outline" size="sm" class="h-6 text-xs px-2" @click="copyLabel">
+                                <ClipboardCheck v-if="copied" class="h-3 w-3 mr-1 text-emerald-500" />
+                                <Copy v-else class="h-3 w-3 mr-1" />
+                                {{ copied ? 'Copiado!' : 'Copiar rótulo' }}
+                            </Button>
+                        </div>
+                        
+                        <template v-if="tipoEnvio === 'motorizado' || (!tipoEnvio && displayAddress)">
+                            <dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm mt-2">
+                                <dt class="text-muted-foreground">Envío</dt>
+                                <dd class="font-medium flex items-center gap-1">🛵 Motorizado <span v-if="costoReferencial" class="text-xs text-muted-foreground font-normal">(S/ {{ costoReferencial }})</span><span v-else-if="!tipoEnvio" class="text-xs text-amber-600 font-normal">(Inferido)</span></dd>
+                                <dt v-if="deliveryDistrito" class="text-muted-foreground">Distrito</dt>
+                                <dd v-if="deliveryDistrito">{{ deliveryDistrito }}</dd>
+                                <dt v-if="displayAddress" class="text-muted-foreground">Dirección</dt>
+                                <dd v-if="displayAddress">{{ displayAddress }}</dd>
+                            </dl>
+                        </template>
+                        
+                        <template v-else-if="tipoEnvio === 'shalom' || (!tipoEnvio && (deliveryProvincia || deliverySedeShalom))">
+                            <dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm mt-2">
+                                <dt class="text-muted-foreground">Envío</dt>
+                                <dd class="font-medium flex items-center gap-1">🚚 Shalom <span class="text-xs text-muted-foreground font-normal">(Destino)</span><span v-if="!tipoEnvio" class="text-xs text-amber-600 font-normal ml-1">(Inferido)</span></dd>
+                                <dt v-if="deliveryDistrito" class="text-muted-foreground">Destino</dt>
+                                <dd v-if="deliveryDistrito">{{ deliveryDistrito }} <span v-if="deliveryProvincia">- {{ deliveryProvincia }}</span></dd>
+                                <dt v-if="deliverySedeShalom" class="text-muted-foreground">Agencia</dt>
+                                <dd v-if="deliverySedeShalom">{{ deliverySedeShalom }}</dd>
+                                <dt v-if="deliveryDni" class="text-muted-foreground">DNI</dt>
+                                <dd v-if="deliveryDni">{{ deliveryDni }}</dd>
+                            </dl>
+                        </template>
+
+                        <div v-if="mapsUrl" class="mt-3">
+                            <a
+                                :href="mapsUrl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="inline-flex items-center justify-center gap-1.5 w-full rounded-md bg-secondary/80 px-3 py-2 text-xs font-medium text-secondary-foreground hover:bg-secondary transition-colors"
+                            >
+                                <MapPin class="h-3.5 w-3.5" />
+                                Abrir Ubicación en Google Maps
+                            </a>
+                        </div>
                     </div>
                 </div>
 

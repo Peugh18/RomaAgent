@@ -18,20 +18,18 @@ class PlantillaMensajePedidoTest extends TestCase
             'product_name' => 'Mariela',
             'color' => 'Lila',
             'total_amount' => 190,
-            'delivery_district' => 'Ate',
             'payment_method' => 'yape',
             'customer_data' => ['nombre' => 'Ana'],
         ]);
 
         $resultado = PlantillaMensajePedido::render(
-            'Hola {nombre}, {producto} {color} S/ {total} en {distrito} via {metodo_pago}',
+            'Hola {nombre}, {producto} {color} S/ {total} via {metodo_pago}',
             $sale,
         );
 
         $this->assertStringContainsString('Ana', $resultado);
         $this->assertStringContainsString('Mariela', $resultado);
         $this->assertStringContainsString('190.00', $resultado);
-        $this->assertStringContainsString('Ate', $resultado);
         $this->assertStringContainsString('yape', $resultado);
     }
 
@@ -41,7 +39,6 @@ class PlantillaMensajePedidoTest extends TestCase
             'product_name' => 'Mariela',
             'color' => 'Lila',
             'total_amount' => 190,
-            'delivery_district' => 'Ate',
             'payment_method' => 'yape',
             'customer_data' => ['nombre' => 'Ana'],
         ]);

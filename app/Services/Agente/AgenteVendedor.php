@@ -3,6 +3,7 @@
 namespace App\Services\Agente;
 
 use App\Exceptions\GeminiQuotaExceededException;
+use App\Exceptions\GeminiTransientException;
 use App\Models\Customer;
 use App\Models\LogIA;
 use App\Models\Message;
@@ -102,6 +103,10 @@ class AgenteVendedor
 
                     throw new GeminiQuotaExceededException($mensajeCuota, $reintento);
                 }
+
+                if ((int) ($error['http_status'] ?? 0) >= 500) {
+                    throw new GeminiTransientException((string) ($error['mensaje'] ?? 'Error temporal en Gemini (5xx)'));
+                }
             }
 
             return null;
@@ -142,12 +147,19 @@ class AgenteVendedor
 
             if (($inboundProfile['tipo_mensaje'] ?? '') === 'comprobante') {
                 $detalle = 'posible comprobante de pago';
+                $metodo = $inboundProfile['metodo_pago'] ?? 'no especificado';
+                $monto = $inboundProfile['monto'] ?? 'no especificado';
+                $titular = $inboundProfile['nombre_titular'] ?? 'no especificado';
 
-                return '[La clienta envió un comprobante/imagen de pago]. '.$detalle.
-                       ' Usa registrar_comprobante_recibido si corresponde.';
+                return "[La clienta envió una IMAGEN/CAPTURA que parece ser un COMPROBANTE DE PAGO].\n".
+                       "Datos extraídos por el sistema:\n".
+                       "- Método: {$metodo}\n".
+                       "- Monto visible: {$monto}\n".
+                       "- Titular visible: {$titular}\n".
+                       'INSTRUCCIÓN OBLIGATORIA: Si ya tienes TODOS los datos de envío (Para Motorizado: Nombre, Celular, Distrito, Dirección. Para Shalom: Nombre, DNI, Celular, Provincia/Distrito, Agencia), usa `registrar_comprobante_recibido` AHORA MISMO. Si FALTAN datos, usa `actualizar_pedido` y PÍDELOS en tu respuesta ANTES de registrar el comprobante. NUNCA asumas que esto es una prenda de ropa.';
             }
 
-            return '[La clienta envió una imagen]';
+            return '[La clienta envió una imagen]. Si la imagen parece un voucher o captura de pago (yape, transferencia, etc), usa `registrar_comprobante_recibido` SOLO si ya tienes sus datos de envío completos. NUNCA asumas que esto es una prenda de ropa.';
         }
 
         if ($tipo === 'audio') {

@@ -28,7 +28,7 @@ INSTRUCCIONES CRÍTICAS:
 2. Compara la prenda de la imagen con la lista de "INVENTARIO ACTIVO DISPONIBLE".
 3. Si la prenda de la imagen COINCIDE claramente con alguno de los vestidos en stock activo, marca encontrado=true y extrae los datos.
 4. Si NO coincide, marca encontrado=false.
-5. Si es un comprobante de pago, marca encontrado=false y tipo_mensaje=comprobante.
+5. Si es un comprobante de pago o voucher, marca encontrado=false y tipo_mensaje=comprobante. Extrae método de pago, monto y nombre del titular si están visibles.
 
 FORMATO JSON OBLIGATORIO (sin markdown, sin comentarios):
 {
@@ -36,7 +36,10 @@ FORMATO JSON OBLIGATORIO (sin markdown, sin comentarios):
   "id_producto": X (id del producto si fue encontrado, o null),
   "nombre_vestido": "Nombre exacto del catálogo o null",
   "color": "Color exacto del catálogo o null",
-  "tipo_mensaje": "producto|comprobante|otro"
+  "tipo_mensaje": "producto|comprobante|otro",
+  "metodo_pago": "Yape|Plin|BCP|BBVA|Interbank|etc o null si no aplica",
+  "monto": "monto numérico en texto o null",
+  "nombre_titular": "nombre de quien recibe o envía el pago o null"
 }
 PROMPT;
     }

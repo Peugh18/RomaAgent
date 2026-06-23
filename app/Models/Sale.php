@@ -24,11 +24,8 @@ class Sale extends Model
         'size',
         'quantity',
         'unit_price',
-        'delivery_cost',
         'total_amount',
         'payment_method',
-        'delivery_type',
-        'delivery_district',
         'status',
         'customer_data',
         'notes',
@@ -47,7 +44,6 @@ class Sale extends Model
             'customer_data' => 'array',
             'agent_metadata' => 'array',
             'unit_price' => 'decimal:2',
-            'delivery_cost' => 'decimal:2',
             'total_amount' => 'decimal:2',
             'quantity' => 'integer',
             'payment_received_at' => 'datetime',
@@ -97,11 +93,7 @@ class Sale extends Model
 
     public function puedeVerificarPago(): bool
     {
-        if ($this->esPagoTarjeta()) {
-            return in_array($this->status, [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido], true);
-        }
-
-        return $this->status === SaleStatus::PagoRecibido;
+        return in_array($this->status, [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido], true);
     }
 
     public function puedeMarcarEnviado(): bool
@@ -130,20 +122,5 @@ class Sale extends Model
     {
         return $this->status->esPipelineAbierto()
             && ! in_array($this->status, [SaleStatus::Confirmado, SaleStatus::Enviado, SaleStatus::Entregado], true);
-    }
-
-    /**
-     * @return array{nombre: string|null, direccion: string|null, maps_url: string|null}
-     */
-    public function datosEntregaResumen(): array
-    {
-        $data = $this->customer_data ?? [];
-
-        return [
-            'nombre' => $this->customer?->name
-                ?? ($data['nombre'] ?? $data['name'] ?? null),
-            'direccion' => $data['direccion'] ?? $data['address'] ?? $data['ubicacion_actual'] ?? null,
-            'maps_url' => $data['maps_url'] ?? null,
-        ];
     }
 }

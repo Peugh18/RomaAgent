@@ -36,20 +36,19 @@ class NormalizadorRespuestaAgenteTest extends TestCase
         $sale = new Sale([
             'quantity' => 3,
             'unit_price' => 180,
-            'delivery_cost' => 10,
             'total_amount' => 550,
             'status' => SaleStatus::DatosListos,
         ]);
 
         $normalizador = new NormalizadorRespuestaAgente;
         $texto = $normalizador->procesar(
-            'Hermosa, tu total es S/ 190.00 (producto + envío).',
+            'Hermosa, tu total es S/ 180.00 (producto + envío).',
             'PEN',
             $sale,
         );
 
         $this->assertStringContainsString('550.00', $texto);
-        $this->assertStringNotContainsString('190.00', $texto);
+        $this->assertStringNotContainsString('180.00', $texto);
     }
 
     public function test_parte_mensajes_por_separador_split(): void

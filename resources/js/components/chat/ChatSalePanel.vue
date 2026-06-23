@@ -111,6 +111,7 @@ const hint = computed(() =>
 
 const customerName = computed(() =>
     props.sale?.customer?.name
+    ?? props.sale?.customer_data?.nombre_completo
     ?? props.sale?.customer_data?.nombre
     ?? props.sale?.customer_data?.name
     ?? null,
@@ -124,6 +125,18 @@ const deliveryAddress = computed(() =>
 );
 
 const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
+
+const tipoEnvio = computed(() => props.sale?.customer_data?.tipo_envio ?? null);
+const costoReferencial = computed(() => props.sale?.customer_data?.costo_referencial ?? null);
+const deliveryDistrito = computed(() => props.sale?.customer_data?.distrito ?? null);
+const deliverySedeShalom = computed(() => props.sale?.customer_data?.sede_shalom ?? null);
+const deliveryDni = computed(() => props.sale?.customer_data?.dni ?? null);
+const deliveryProvincia = computed(() => props.sale?.customer_data?.provincia ?? null);
+
+const hasDispatchData = computed(() => 
+    tipoEnvio.value || deliveryDistrito.value || deliveryAddress.value || 
+    deliveryProvincia.value || deliverySedeShalom.value || mapsUrl.value
+);
 </script>
 
 <template>
@@ -160,30 +173,74 @@ const mapsUrl = computed(() => props.sale?.customer_data?.maps_url ?? null);
                     <span v-if="customerName">{{ customerName }} · </span>
                     {{ statusLabel }}
                     <span v-if="sale.payment_method"> · {{ sale.payment_method }}</span>
-                    <span v-if="sale.delivery_district"> · {{ sale.delivery_district }}</span>
-                </p>
-                <p v-if="deliveryAddress" class="text-xs text-muted-foreground">
-                    {{ deliveryAddress }}
-                    <a
-                        v-if="mapsUrl"
-                        :href="mapsUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="ml-1 inline-flex items-center gap-0.5 text-primary hover:underline"
-                    >
-                        <MapPin class="h-3 w-3" />
-                        GPS
-                    </a>
                 </p>
                 <p class="text-sm font-medium text-foreground">
                     Total: {{ formatMoney(sale.total_amount) }}
                     <span v-if="sale.items && sale.items.length > 0" class="text-xs font-normal text-muted-foreground">
-                        ({{ sale.items.length }} artículos + envío {{ formatMoney(sale.delivery_cost) }})
+                        ({{ sale.items.length }} artículos)
                     </span>
                     <span v-else class="text-xs font-normal text-muted-foreground">
-                        (producto {{ formatMoney(sale.unit_price) }} + envío {{ formatMoney(sale.delivery_cost) }})
+                        ({{ formatMoney(sale.unit_price) }} x {{ sale.quantity }})
                     </span>
                 </p>
+                
+                <!-- Dispatch Info Block -->
+                <div v-if="hasDispatchData" class="mt-4 rounded-md border border-border/60 bg-muted/20 p-3 space-y-2">
+                    <h5 class="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2 border-b pb-1.5">
+                        📦 Información de Despacho
+                    </h5>
+                    
+                    <template v-if="tipoEnvio === 'motorizado' || (!tipoEnvio && deliveryAddress)">
+                        <p class="text-xs flex items-center gap-1.5 font-medium">
+                            <span class="text-lg leading-none">🛵</span> 
+                            Motorizado
+                            <span v-if="costoReferencial" class="text-muted-foreground font-normal ml-1">
+                                (Costo ref: {{ formatMoney(costoReferencial) }})
+                            </span>
+                            <span v-else-if="!tipoEnvio" class="text-amber-600 font-normal ml-1">(Inferido)</span>
+                        </p>
+                        <p v-if="deliveryDistrito" class="text-xs text-muted-foreground ml-6">
+                            <strong class="text-foreground font-medium">Distrito:</strong> {{ deliveryDistrito }}
+                        </p>
+                        <p v-if="deliveryAddress" class="text-xs text-muted-foreground ml-6">
+                            <strong class="text-foreground font-medium">Dirección:</strong> {{ deliveryAddress }}
+                        </p>
+                        <p v-if="customerName" class="text-xs text-muted-foreground ml-6">
+                            <strong class="text-foreground font-medium">Recibe:</strong> {{ customerName }}
+                        </p>
+                    </template>
+                    
+                    <template v-else-if="tipoEnvio === 'shalom' || (!tipoEnvio && (deliveryProvincia || deliverySedeShalom))">
+                        <p class="text-xs flex items-center gap-1.5 font-medium">
+                            <span class="text-lg leading-none">🚚</span> 
+                            Shalom 
+                            <span v-if="tipoEnvio" class="text-muted-foreground font-normal ml-1">(Pago en destino)</span>
+                            <span v-else class="text-amber-600 font-normal ml-1">(Inferido)</span>
+                        </p>
+                        <p v-if="deliveryDistrito" class="text-xs text-muted-foreground ml-6">
+                            <strong class="text-foreground font-medium">Destino:</strong> {{ deliveryDistrito }} <span v-if="deliveryProvincia">- {{ deliveryProvincia }}</span>
+                        </p>
+                        <p v-if="deliverySedeShalom" class="text-xs text-muted-foreground ml-6">
+                            <strong class="text-foreground font-medium">Agencia:</strong> {{ deliverySedeShalom }}
+                        </p>
+                        <p v-if="customerName" class="text-xs text-muted-foreground ml-6">
+                            <strong class="text-foreground font-medium">Recoge:</strong> {{ customerName }} 
+                            <span v-if="deliveryDni">- DNI: {{ deliveryDni }}</span>
+                        </p>
+                    </template>
+
+                    <div v-if="mapsUrl" class="ml-6 mt-1.5">
+                        <a
+                            :href="mapsUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="inline-flex items-center gap-1 rounded bg-secondary px-2 py-1 text-[11px] font-medium text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                        >
+                            <MapPin class="h-3 w-3" />
+                            Abrir Ubicación
+                        </a>
+                    </div>
+                </div>
             </div>
 
             <div class="flex shrink-0 flex-wrap gap-2">

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Actions\UpdateMessageStatus;
 use App\Http\Controllers\Controller;
 use App\Infrastructure\Whatsapp\MetaWhatsAppSettings;
+use App\Jobs\ProcessWebhookPayloadJob;
 use App\Support\Whatsapp\NormalizadorWebhookMeta;
 use App\Support\Whatsapp\VerificadorFirmaWebhookMeta;
 use Illuminate\Http\JsonResponse;
@@ -87,7 +88,7 @@ class WhatsappWebhookController extends Controller
                     $payload = NormalizadorWebhookMeta::aPayloadCrm($event);
 
                     try {
-                        \App\Jobs\ProcessWebhookPayloadJob::dispatch($payload);
+                        ProcessWebhookPayloadJob::dispatch($payload);
                         $processed++;
                     } catch (\Throwable $e) {
                         Log::error('WhatsappWebhook: failed to dispatch job', [
