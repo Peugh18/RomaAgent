@@ -33,6 +33,15 @@ class ActualizarPedidoVenta
             }
 
             $product = $this->resolverProducto($datos['product_name'] ?? $sale->product_name);
+
+            if ($product !== null && $product->name !== 'Pedido') {
+                $colorToValidate = $datos['color'] ?? $sale->color;
+                $sizeToValidate = $datos['size'] ?? $sale->size ?? NormalizadorStockTallas::defaultSizeKey();
+                $qtyToValidate = max(1, (int) ($datos['quantity'] ?? $sale->quantity ?? 1));
+
+                $this->validarVarianteYStock($product, $colorToValidate, $sizeToValidate, $qtyToValidate);
+            }
+
             $variant = $this->resolverVariante($product, $datos['color'] ?? $sale->color);
 
             $unitPrice = ValidadorPrecioPedido::resolverPrecioUnitario(
@@ -40,14 +49,10 @@ class ActualizarPedidoVenta
                 $datos['unit_price'] ?? null,
             );
 
-            $deliveryCost = isset($datos['delivery_cost'])
-                ? max(0, (float) $datos['delivery_cost'])
-                : (float) $sale->delivery_cost;
-
             $quantity = max(1, (int) ($datos['quantity'] ?? $sale->quantity));
 
             $newStatus = isset($datos['status']) ? SaleStatus::from($datos['status']) : null;
-            
+
             // Prevent downgrading the status if it's already PagoRecibido or further
             if ($newStatus === SaleStatus::DatosListos || $newStatus === SaleStatus::Cotizando || $newStatus === SaleStatus::Consultando) {
                 if ($sale->exists && in_array($sale->status, [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido, SaleStatus::Confirmado, SaleStatus::Enviado, SaleStatus::Entregado], true)) {
@@ -60,8 +65,8 @@ class ActualizarPedidoVenta
             }
 
             // Calculate total correctly by summing up all items if they exist
-            $itemsToCalculate = (! empty($items) && is_array($items)) ? $items : ($sale->exists ? $sale->items->map(fn($i) => ['product_name' => $i->product_name, 'quantity' => $i->quantity, 'unit_price' => $i->unit_price])->toArray() : []);
-            
+            $itemsToCalculate = (! empty($items) && is_array($items)) ? $items : ($sale->exists ? $sale->items->map(fn ($i) => ['product_name' => $i->product_name, 'quantity' => $i->quantity, 'unit_price' => $i->unit_price])->toArray() : []);
+
             if (! empty($itemsToCalculate) && is_array($itemsToCalculate)) {
                 $itemsSubtotal = 0;
                 $totalQuantity = 0;
@@ -73,9 +78,9 @@ class ActualizarPedidoVenta
                     $totalQuantity += $itemQty;
                 }
                 $quantity = $totalQuantity > 0 ? $totalQuantity : $quantity;
-                $total = $itemsSubtotal + $deliveryCost;
+                $total = $itemsSubtotal;
             } else {
-                $total = ValidadorPrecioPedido::calcularTotal($unitPrice, $quantity, $deliveryCost);
+                $total = ValidadorPrecioPedido::calcularTotal($unitPrice, $quantity);
             }
 
             $payload = [
@@ -89,11 +94,8 @@ class ActualizarPedidoVenta
                     : mb_strtoupper(trim((string) ($datos['size'] ?? $sale->size)), 'UTF-8'),
                 'quantity' => $quantity,
                 'unit_price' => $unitPrice,
-                'delivery_cost' => $deliveryCost,
                 'total_amount' => $total,
                 'payment_method' => $datos['payment_method'] ?? $sale->payment_method,
-                'delivery_type' => $datos['delivery_type'] ?? $sale->delivery_type,
-                'delivery_district' => $datos['delivery_district'] ?? $sale->delivery_district,
                 'status' => $status,
                 'customer_data' => array_merge($sale->customer_data ?? [], $datos['customer_data'] ?? []),
                 'notes' => $datos['notes'] ?? $sale->notes,
@@ -109,6 +111,7 @@ class ActualizarPedidoVenta
             // Update customer name from customer_data if provided
             $customerName = $datos['customer_data']['nombre']
                 ?? $datos['customer_data']['name']
+                ?? $datos['customer_data']['nombre_completo']
                 ?? null;
             if ($customerName !== null && trim($customerName) !== '' && $customer->name !== $customerName) {
                 $customer->update(['name' => trim($customerName)]);
@@ -121,11 +124,23 @@ class ActualizarPedidoVenta
                 // Filtrar el placeholder "Pedido" que puede enviar el AI si lee el carrito vacío
                 $itemsReales = array_filter($items, function ($itemData) {
                     $name = $itemData['product_name'] ?? '';
-                    $price = (float)($itemData['unit_price'] ?? 0);
-                    return !($name === 'Pedido' && $price === 0.0);
+                    $price = (float) ($itemData['unit_price'] ?? 0);
+
+                    return ! ($name === 'Pedido' && $price === 0.0);
                 });
 
-                if (!empty($itemsReales) || empty($sale->items) || $sale->items->isEmpty()) {
+                if (! empty($itemsReales) || empty($sale->items) || $sale->items->isEmpty()) {
+                    foreach ($itemsReales as $itemData) {
+                        $itemProduct = $this->resolverProducto($itemData['product_name'] ?? null);
+                        if ($itemProduct !== null) {
+                            $itemColor = $itemData['color'] ?? null;
+                            $itemSize = $itemData['size'] ?? NormalizadorStockTallas::defaultSizeKey();
+                            $itemQty = max(1, (int) ($itemData['quantity'] ?? 1));
+
+                            $this->validarVarianteYStock($itemProduct, $itemColor, $itemSize, $itemQty);
+                        }
+                    }
+
                     $sale->items()->delete();
                     foreach ($itemsReales as $itemData) {
                         $itemProduct = $this->resolverProducto($itemData['product_name'] ?? null);
@@ -185,7 +200,6 @@ class ActualizarPedidoVenta
             'size' => NormalizadorStockTallas::defaultSizeKey(),
             'quantity' => 1,
             'unit_price' => 0,
-            'delivery_cost' => 0,
             'total_amount' => 0,
             'status' => SaleStatus::Consultando,
         ]);
@@ -221,5 +235,69 @@ class ActualizarPedidoVenta
             fn (ProductVariant $variant): bool => mb_strtolower($variant->color) === $needle
                 || str_contains(mb_strtolower($variant->color), $needle)
         );
+    }
+
+    private function validarVarianteYStock(?Product $product, ?string $color, ?string $size, int $quantity = 1): void
+    {
+        if ($product === null) {
+            return;
+        }
+
+        // Si el producto no tiene variantes registradas, no podemos validar colores ni stock de forma específica
+        if ($product->variants->isEmpty()) {
+            return;
+        }
+
+        if ($color === null || trim($color) === '') {
+            throw new \InvalidArgumentException(
+                "Es obligatorio especificar un color para el producto '{$product->name}'."
+            );
+        }
+
+        $variant = $this->resolverVariante($product, $color);
+        if ($variant === null) {
+            $coloresDisponibles = $product->variants->pluck('color')->unique()->implode(', ');
+            throw new \InvalidArgumentException(
+                "El color '{$color}' no está disponible para el producto '{$product->name}'. Colores disponibles: {$coloresDisponibles}."
+            );
+        }
+
+        // Validar talla y stock de esa variante
+        $sizesStock = NormalizadorStockTallas::normalize($variant->sizes_stock ?? []);
+
+        if (empty($sizesStock)) {
+            throw new \InvalidArgumentException(
+                "El producto '{$product->name}' en color '{$variant->color}' se encuentra temporalmente agotado."
+            );
+        }
+
+        // Normalizar la talla buscada
+        $tallaBuscada = NormalizadorStockTallas::esTallaEstandar((string) $size)
+            ? NormalizadorStockTallas::defaultSizeKey()
+            : mb_strtoupper(trim((string) $size), 'UTF-8');
+
+        // Si no hay stock para la talla especificada o no existe la talla en la variante
+        if (! array_key_exists($tallaBuscada, $sizesStock)) {
+            $tallasDisponibles = collect(array_keys($sizesStock))
+                ->map(fn ($t) => NormalizadorStockTallas::etiquetaPublica($t))
+                ->implode(', ');
+
+            throw new \InvalidArgumentException(
+                "La talla '{$size}' no está disponible para '{$product->name}' en color '{$variant->color}'. Tallas disponibles: {$tallasDisponibles}."
+            );
+        }
+
+        $stockDisponible = (int) $sizesStock[$tallaBuscada];
+        if ($stockDisponible <= 0) {
+            throw new \InvalidArgumentException(
+                "El producto '{$product->name}' en color '{$variant->color}' y talla '{$size}' está agotado."
+            );
+        }
+
+        if ($quantity > $stockDisponible) {
+            throw new \InvalidArgumentException(
+                "No hay suficiente stock para '{$product->name}' en color '{$variant->color}' y talla '{$size}'. Stock disponible: {$stockDisponible} unidades."
+            );
+        }
     }
 }

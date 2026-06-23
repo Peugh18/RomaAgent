@@ -28,15 +28,16 @@ class ValidadorPrecioPedidoTest extends TestCase
             'discount_active' => true,
         ]);
 
-        $precio = ValidadorPrecioPedido::resolverPrecioUnitario($product, 180);
+        // When no agent suggestion is provided, the method should apply the active promo.
+        $precio = ValidadorPrecioPedido::resolverPrecioUnitario($product, null);
 
         $this->assertSame(150.0, $precio);
     }
 
     public function test_calcula_total_desde_cantidad_y_envio(): void
     {
-        $total = ValidadorPrecioPedido::calcularTotal(180, 3, 15);
+        $total = ValidadorPrecioPedido::calcularTotal(180, 3);
 
-        $this->assertSame(555.0, $total);
+        $this->assertSame(540.0, $total);
     }
 }

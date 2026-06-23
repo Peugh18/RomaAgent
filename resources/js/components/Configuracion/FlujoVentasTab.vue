@@ -7,7 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MessageSquare, Zap, Users, AlertCircle, Info } from 'lucide-vue-next';
 import type { CompanySettingsForm } from '@/types/settings';
 import PlantillaMensajeEditor from '@/components/Configuracion/PlantillaMensajeEditor.vue';
-import DeliveryMethodsManager from '@/components/Configuracion/DeliveryMethodsManager.vue';
 
 const form = inject('companyConfigForm') as CompanySettingsForm & Record<string, unknown>;
 
@@ -28,10 +27,9 @@ if (!form) {
                     <ul class="list-disc space-y-1 pl-4 text-blue-800 dark:text-blue-300">
                         <li><strong>Personalidad</strong> → quién eres y cómo hablas</li>
                         <li><strong>Reglas</strong> → formato de mensajes (emojis, longitud, etc.)</li>
-                        <li><strong>Plantillas</strong> → datos a pedir por motorizado/Shalom</li>
                         <li><strong>Proceso de venta</strong> → solo casos de venta (stock, catálogo, confirmación)</li>
-                        <li><strong>Recordatorios / Protocolo / Registro</strong> → sus campos propios abajo</li>
-                        <li><strong>Entregas</strong> → horarios | <strong>Zonas de Entrega</strong> → tarifas | <strong>Pago</strong> → Yape/tarjeta</li>
+                        <li><strong>Recordatorios / Protocolo</strong> → sus campos propios abajo</li>
+                        <li><strong>Pago</strong> → métodos de pago y tarjeta en la pestaña Pago</li>
                     </ul>
                 </div>
             </div>
@@ -80,7 +78,6 @@ if (!form) {
             </CardContent>
         </Card>
 
-        <DeliveryMethodsManager />
 
 
         <Card>
@@ -167,18 +164,7 @@ if (!form) {
                         :rows="2"
                     />
                 </div>
-                <div class="space-y-2">
-                    <Label for="msg-tarjeta">Cliente elige tarjeta (mensaje de la IA)</Label>
-                    <Textarea
-                        id="msg-tarjeta"
-                        v-model="form.mensaje_espera_link_tarjeta"
-                        placeholder="Te comunico con el equipo para el link de pago..."
-                        :rows="2"
-                    />
-                    <p class="text-xs text-muted-foreground">
-                        La IA envía esto al escalar. El link real lo mandas tú desde el chat con el botón «Enviar link».
-                    </p>
-                </div>
+
                 <PlantillaMensajeEditor
                     id="msg-confirmado"
                     v-model="form.mensaje_pedido_confirmado"

@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Events\InboundMessageReceived;
 use App\Models\Customer;
 use App\Models\Message;
 use App\Services\ServicioResolucionMediaEntrante;
@@ -75,7 +76,7 @@ class ProcessIncomingMessage
 
         // Solo procesar IA en mensajes entrantes nuevos (idempotencia ante reintentos del webhook)
         if ($esMensajeNuevo && $message->direction === 'incoming') {
-            event(new \App\Events\InboundMessageReceived($message, $esMensajeNuevo));
+            event(new InboundMessageReceived($message, $esMensajeNuevo));
         }
 
         return $message;

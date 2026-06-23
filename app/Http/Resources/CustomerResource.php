@@ -40,8 +40,6 @@ class CustomerResource extends JsonResource
                     'status' => $sale->status->value ?? $sale->status,
                     'created_at' => $sale->created_at,
                     'payment_method' => $sale->payment_method,
-                    'delivery_type' => $sale->delivery_type,
-                    'delivery_district' => $sale->delivery_district,
                     'customer_data' => $sale->customer_data,
                 ])->values()
             ),

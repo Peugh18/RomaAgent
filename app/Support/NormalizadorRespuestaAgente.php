@@ -317,8 +317,7 @@ class NormalizadorRespuestaAgente
         }
 
         $unitPrice = (float) $sale->unit_price;
-        $deliveryCost = (float) $sale->delivery_cost;
-        $totalUnaUnidad = $unitPrice + $deliveryCost;
+        $totalUnaUnidad = $unitPrice;
 
         if (abs($totalUnaUnidad - $totalCorrecto) < 0.01) {
             return $texto;

@@ -6,11 +6,11 @@ use App\Models\CompanySetting;
 use App\Models\Customer;
 use App\Models\Message;
 use App\Models\Product;
+use App\Models\ZonaEnvio;
 use App\Support\ContextoPedidoActivo;
 use App\Support\FormateadorCatalogoProductos;
 use App\Support\MensajesEmpresaDefaults;
 use App\Support\NormalizadorStockTallas;
-use App\Support\PlantillasDatosEmpresa;
 use Illuminate\Support\Facades\Cache;
 
 /**
@@ -45,13 +45,18 @@ class ContextoConversacion
         $contexto = $this->configuracion->obtenerContextoParaPrompt();
         $romaStore = $this->configuracion->obtenerConfiguracionRomaStore();
 
+        $zonasMotorizado = ZonaEnvio::where('activo', true)->get()->map(function ($z) {
+            return $z->distrito.' (S/ '.number_format($z->costo_referencial, 2).')';
+        })->toArray();
+
         // UN ÚNICO PROMPT MAESTRO CON TODO EL CONTEXTO
         $promptCompleto = $this->construirPromptMaestroUnico(
             $empresa,
             $personalidad,
             $metodos,
             $contexto,
-            $romaStore
+            $romaStore,
+            $zonasMotorizado
         );
 
         // Sección final: Catálogo dinámico (productos solamente)
@@ -113,7 +118,11 @@ class ContextoConversacion
         $contexto = $this->configuracion->obtenerContextoParaPrompt();
         $romaStore = $this->configuracion->obtenerConfiguracionRomaStore();
 
-        $promptMaestro = $this->construirPromptMaestroUnico($empresa, $personalidad, $metodos, $contexto, $romaStore);
+        $zonasMotorizado = ZonaEnvio::where('activo', true)->get()->map(function ($z) {
+            return $z->distrito.' (S/ '.number_format($z->costo_referencial, 2).')';
+        })->toArray();
+
+        $promptMaestro = $this->construirPromptMaestroUnico($empresa, $personalidad, $metodos, $contexto, $romaStore, $zonasMotorizado);
 
         $reglas = $this->construirInstruccionesAgente();
 
@@ -236,7 +245,8 @@ class ContextoConversacion
         array $personalidad,
         array $metodos,
         array $contexto,
-        array $romaStore
+        array $romaStore,
+        array $zonasMotorizado = []
     ): string {
         $nombre = $this->valorConfigurado($empresa['nombre'] ?? '', 'Tu Empresa');
         $vendedorNombre = $this->valorConfigurado($empresa['vendedor_nombre'] ?? '', 'nuestra vendedora');
@@ -251,12 +261,11 @@ class ContextoConversacion
         $descripcionPersonalidad = trim((string) ($personalidad['descripcion'] ?? ''));
         $estiloVentas = trim((string) ($personalidad['estilo_ventas'] ?? ''));
         $respuestaSiEsBot = trim((string) ($personalidad['respuesta_si_es_bot'] ?? ''));
-        $moneda = $contexto['moneda'] ?? 'PEN';
-        $simboloMonedaCliente = $this->simboloMoneda($moneda);
-        $instruccionMoneda = $this->instruccionMonedaCliente($moneda, $simboloMonedaCliente);
-        $comisionRaw = $romaStore['pagos']['tarjeta']['comision'] ?? null;
-        $comisionTarjeta = $comisionRaw !== null ? (float) $comisionRaw : 5.00;
+        $moneda = 'PEN';
+        $simboloMonedaCliente = 'S/';
+        $instruccionMoneda = 'Moneda obligatoria en mensajes al cliente: soles peruanos (S/). NUNCA uses $ ni dólares ni USD.';
         $tarjetaHabilitada = collect($metodos)->contains(fn ($m) => strtolower($m['nombre'] ?? '') === 'tarjeta');
+        $comisionTarjeta = 5.00;
 
         // Redes sociales
         $instagram = $empresa['social_networks']['instagram'] ?? '';
@@ -266,8 +275,6 @@ class ContextoConversacion
         // Obtener configuración personalizada o usar defaults
         $saludoInicial = $this->valorConfigurado($romaStore['saludo_inicial'] ?? '', $this->obtenerSaludoDefault($nombre));
         $reglasComun = $this->valorConfigurado($romaStore['reglas_comunicacion'] ?? '', $this->obtenerReglasDefault());
-        $horarioEntregas = $this->valorConfigurado($romaStore['horario_entregas'] ?? '', 'Horario a confirmar');
-        $horarioShalom = $this->valorConfigurado($romaStore['horario_shalom'] ?? '', 'Horario a confirmar');
         $protocolo = $this->valorConfigurado($romaStore['protocolo_traspaso'] ?? '', $this->obtenerProtocoloDefault());
         $recordatorio3min = $this->valorConfigurado($romaStore['recordatorios']['3min'] ?? '', MensajesEmpresaDefaults::recordatorio3Min());
         $recordatorio15min = $this->valorConfigurado($romaStore['recordatorios']['15min'] ?? '', MensajesEmpresaDefaults::recordatorio15Min());
@@ -278,14 +285,11 @@ class ContextoConversacion
         // Construir métodos de pago
         $metodosTexto = $this->construirMetodosTexto($metodos, $moneda);
 
-        // Construir tarifario
-
-        // Plantillas de datos (dinámicas)
-        $plantillasTexto = $this->construirPlantillasTexto();
-
         $informacionAdicionalTexto = $this->construirInformacionAdicionalTexto(
             $tarjetaHabilitada ? (float) $comisionTarjeta : 0.0,
         );
+
+        $zonasStr = empty($zonasMotorizado) ? 'No configuradas.' : implode(', ', $zonasMotorizado);
 
         $identidadPersonalidadTexto = $this->construirIdentidadPersonalidadTexto(
             $nombre,
@@ -331,9 +335,52 @@ Cuando inicie una conversación NUEVA (sin historial previo), responde exactamen
 - Nunca respondas solo al hecho de que envió audio o haciendo mención de que envió un audio; responde directamente a lo que dijo.
 SISTEMA;
 
+        $flujoVentaTexto = <<<'FLUJO'
+## FLUJO DE TRABAJO ESTRICTO (OBLIGATORIO PASO A PASO)
+Debes llevar la venta respetando este orden exacto sin saltarte pasos:
+
+1. **IDENTIFICACIÓN Y BREVEDAD EXTREMA:**
+   - Si recibes una IMAGEN (captura de pantalla, ej. de TikTok Live), intenta identificar TODOS los productos visibles.
+   - Responde SIEMPRE de forma sumamente BREVE, PUNTUAL y AMABLE: Saludo cálido y de trato educado, nombre del producto encontrado, su color, precio exacto del catálogo y una descripción muy corta. NO envíes párrafos largos ni rellenes.
+   - Si no encuentras algún producto de la imagen, ofrece productos similares del catálogo antes de pedirle el nombre manualmente. NUNCA inventes productos inexistentes.
+
+2. **SELECCIÓN DE VARIANTES Y CIERRE DE CARRITO:**
+   - Si el catálogo indica tallas (S, M, L), pregunta la talla. Si es "Standard", NO la preguntes.
+   - Confirma el color y cantidad.
+   - **BLINDAJE DE STOCK Y COLORES (REGLA CRÍTICA):** NUNCA ofrezcas, sugieras, aceptes ni registres un color o talla que no figure explícitamente en el catálogo con stock disponible (> 0). Si el cliente pide un color que no tenemos en stock (ej. "Verde" para un vestido que solo tiene Rojo y Naranja), indícale claramente qué colores/tallas sí están disponibles en stock y pídele elegir uno de ellos. NUNCA registres variantes inexistentes en la herramienta.
+   - Cada vez que menciones un vestido o prenda, debes incluir obligatoriamente su precio exacto en soles.
+   - **OBLIGATORIO:** Apenas la clienta confirme el producto, color y cantidad, DEBES llamar a la herramienta `actualizar_pedido` INMEDIATAMENTE para guardar los productos (`items`) en el carrito. NUNCA esperes hasta el final del chat para registrar las prendas.
+   - Solo CUANDO hayas guardado y confirmado TODAS las variantes necesarias del producto (color, talla si aplica, y cantidad), SIEMPRE pregunta ÚNICAMENTE: "¿Deseas agregar alguna otra prenda o cerramos tu pedido?". NO adelantes temas de envío todavía.
+
+3. **INICIO DE LOGÍSTICA (SOLO AL CERRAR CARRITO):**
+   - Cuando el cliente confirme que no desea más prendas, suma el precio unitario de TODOS los productos (NUNCA sumes envíos).
+   - OBLIGATORIO: Pide ÚNICAMENTE el distrito. No pidas provincia, dirección ni método de pago en este punto. Ejemplo: "Perfecto hermosa, ¿desde qué distrito nos escribes?"
+
+4. **COBERTURA LOGÍSTICA Y RECOLECCIÓN (CRÍTICO):**
+   - Compara el distrito de la clienta con la lista de "DISTRITOS CON COBERTURA MOTORIZADO LOCAL" que tienes abajo.
+   - **Si el distrito ESTÁ en la lista (Motorizado):** OBLIGATORIO pedirle: Dirección Exacta, Celular y Referencia (o ubicación).
+   - **Si el distrito NO ESTÁ en la lista (Shalom):** Es envío a provincia. OBLIGATORIO decirle que el envío es por "agencia Shalom con pago en destino". Y OBLIGATORIO pedirle ÚNICAMENTE: Nombre completo, DNI, Celular y Sede de Shalom. NUNCA le pidas dirección exacta ni provincia/departamento para envíos Shalom.
+   - **REUTILIZACIÓN DE DATOS:** Antes de pedir cualquier dato de envío o contacto, revisa el Pedido Activo (`customer_data`) y el historial del chat. Si la clienta ya proporcionó previamente su nombre, celular, distrito, dirección, DNI o sede Shalom, NO se lo vuelvas a pedir bajo ninguna circunstancia. Confírmalos o úsalos directamente.
+   - Puedes usar la herramienta `consultar_cobertura` si tienes dudas, pero guíate siempre por las reglas de arriba.
+
+5. **REGISTRO FINAL Y MONTO A PAGAR:**
+   - Llama a `actualizar_pedido` y rellena todo el `customer_data` recopilado.
+   - **CRÍTICO:** NUNCA pases el estado a "datos_listos" si falta algún dato obligatorio requerido por el tipo de envío (Motorizado: Dirección; Shalom: DNI y Sede). Solo usa "datos_listos" when tengas toda la info logística completa.
+   - **MONTO TOTAL OBLIGATORIO:** Justo antes de proponer los métodos de pago, es OBLIGATORIO indicarle claramente al cliente el monto total exacto a pagar (ej: 'El total de tus prendas es S/ 120.00, hermosa.'). NUNCA presentes los métodos de pago ni pidas que paguen sin indicar primero el total exacto.
+   - Solo cuando el estado sea "datos_listos" y hayas indicado el monto total, preséntale al cliente los Métodos de Pago disponibles de manera concisa y amable.
+
+6. **PAGOS Y COMPROBANTES:**
+   - Si el cliente envía comprobante o indica que ya pagó, ejecuta INMEDIATAMENTE la herramienta `registrar_comprobante_recibido`.
+   - NUNCA recomiendes productos ni envíes fotos de productos si el cliente ha enviado un comprobante de pago o voucher.
+   - Informa cordialmente que el comprobante ha sido recibido y que el equipo humano lo validará a la brevedad.
+   - Si el cliente desea pagar con Tarjeta, aplica el 5% de comisión, pide los datos y usa `solicitar_atencion_humana` inmediatamente para generar el link.
+FLUJO;
+
         $configuracion = <<<CONFIGURACION
 ## REGLAS DE COMUNICACIÓN CRÍTICAS
 {$reglasComun}
+
+{$flujoVentaTexto}
 
 ## MÉTODOS DE PAGO DISPONIBLES
 {$metodosTexto}
@@ -341,24 +388,14 @@ SISTEMA;
 ## POLÍTICAS Y ATENCIÓN
 {$informacionAdicionalTexto}
 
-## INFORMACIÓN DE ENTREGAS
-
-### Horarios
-- **Entregas por Motorizado:** {$horarioEntregas}
-- **Entregas por Shalom:** {$horarioShalom}
-
-## PLANTILLAS DE RECOLECCIÓN DE DATOS
-
-Solo datos de la clienta para coordinar el envío. El vestido y color ya están registrados en el pedido activo — no los pidas de nuevo.
-
-Cuando necesites recopilar datos del cliente, usa estas plantillas:
-
-{$plantillasTexto}
-
 ## RECORDATORIOS AUTOMÁTICOS
 
 Si el cliente no responde o no completa datos:
 {$recordatoriosTexto}
+
+## DISTRITOS CON COBERTURA MOTORIZADO LOCAL
+Los siguientes distritos tienen cobertura local por motorizado. Cualquier otra ubicación que no esté en esta lista exacta debe enviarse por agencia (Shalom):
+{$zonasStr}
 
 ## PROTOCOLO DE TRASPASO A HUMANO
 
@@ -444,11 +481,16 @@ PROMPT;
         }
 
         $lineas = [];
+        $tarjetaHabilitada = false;
         foreach ($metodos as $metodo) {
             $nombreMetodo = $metodo['nombre'] ?? 'Método';
             $destinatario = $metodo['destinatario'] ?? '';
             $numero = $metodo['numero_cuenta'] ?? '';
             $descripcion = $metodo['descripcion'] ?? '';
+
+            if (strtolower($nombreMetodo) === 'tarjeta') {
+                $tarjetaHabilitada = true;
+            }
 
             $partes = ["- {$nombreMetodo}"];
             if ($destinatario) {
@@ -464,7 +506,22 @@ PROMPT;
             $lineas[] = implode(' | ', $partes);
         }
 
-        return implode("\n", $lineas);
+        $texto = implode("\n", $lineas);
+
+        if ($tarjetaHabilitada) {
+            $texto .= "\n\n**OBLIGATORIO PARA PAGO CON TARJETA (5% de comisión adicional):**\n"
+                ."Si el cliente elige pagar con tarjeta:\n"
+                ."1. Calcula el total del pedido sumando un 5% de comisión adicional al subtotal.\n"
+                ."2. Solicita exactamente los siguientes datos para generar su link de pago:\n"
+                ."   - Nombre completo:\n"
+                ."   - Correo electrónico:\n"
+                ."   - Número de Celular:\n"
+                ."   - Monto:\n"
+                ."3. Llama a la herramienta `actualizar_pedido` con `payment_method`='tarjeta', `status`='pago_pendiente', y guarda los datos anteriores en `customer_data` (nombre, correo, celular, etc.).\n"
+                ."4. Finalmente, llama a la herramienta `solicitar_atencion_humana` con el motivo 'Cliente requiere link de pago por tarjeta'.";
+        }
+
+        return $texto;
     }
 
     private function simboloMoneda(string $moneda): string
@@ -493,29 +550,6 @@ PROMPT;
         }
 
         return implode("\n\n", $lineas);
-    }
-
-    /**
-     * Construye las plantillas de recolección de datos dinámicamente.
-     */
-    private function construirPlantillasTexto(): string
-    {
-        $methods = \App\Models\DeliveryMethod::with('fields')->where('is_active', true)->orderBy('sort_order')->get();
-
-        $texto = '';
-
-        foreach ($methods as $method) {
-            if ($method->fields->isNotEmpty()) {
-                $texto .= "**Para {$method->name}:**\n";
-                foreach ($method->fields as $field) {
-                    $req = $field->is_required ? '(Obligatorio)' : '(Opcional)';
-                    $texto .= "- {$field->name} {$req}\n";
-                }
-                $texto .= "\n";
-            }
-        }
-
-        return trim($texto);
     }
 
     /**
@@ -570,16 +604,13 @@ Si no puedes responder una pregunta o surge una situación fuera del flujo norma
 PROTOCOLO;
     }
 
-    /**
-     * Instrucciones para el agente con herramientas (function calling).
-     */
     public function construirInstruccionesAgente(): string
     {
         $settings = CompanySetting::query()->with('mensajes')->first();
         $mensajes = $settings?->mensajes;
-        $moneda = $this->configuracion->obtenerMoneda();
-        $simbolo = $this->simboloMoneda($moneda);
-        $instruccionMoneda = $this->instruccionMonedaCliente($moneda, $simbolo);
+        $moneda = 'PEN';
+        $simbolo = 'S/';
+        $instruccionMoneda = 'Moneda obligatoria en mensajes al cliente: soles peruanos (S/). NUNCA uses $ ni dólares ni USD.';
         $mensajeComprobante = $this->valorConfigurado(
             $mensajes?->comprobante_recibido ?? '',
             MensajesEmpresaDefaults::comprobanteRecibido(),
@@ -588,10 +619,7 @@ PROTOCOLO;
             $mensajes?->comprobante_fuera_horario ?? '',
             MensajesEmpresaDefaults::comprobanteFueraHorario(),
         );
-        $mensajeTarjeta = $this->valorConfigurado(
-            $mensajes?->espera_link_tarjeta ?? '',
-            MensajesEmpresaDefaults::esperaLinkTarjeta(),
-        );
+        $mensajeTarjeta = MensajesEmpresaDefaults::esperaLinkTarjeta();
 
         // Obtener el umbral de escasez de los settings (por defecto 2 si no existe)
         $romaStore = $this->configuracion->obtenerConfiguracionRomaStore();
@@ -599,11 +627,7 @@ PROTOCOLO;
 
         $instruccionTallas = NormalizadorStockTallas::instruccionTallaParaPrompt();
 
-        $agenteConfig = \App\Models\AgenteConfig::first();
-        $reglasDb = $agenteConfig?->reglas_venta_criticas;
-
-        if (empty($reglasDb)) {
-            $reglasDb = <<<REGLAS
+        $reglasDb = <<<'REGLAS'
 # 🤖 IDENTIDAD: AGENTE VENDEDOR EXPERTO
 
 Eres la vendedora experta: hablas como en el prompt maestro (personalidad, flujo, reglas). Todo lo que escribes al cliente sale de ti; no envíes mensajes tipo sistema ni plantillas vacías.
@@ -623,7 +647,6 @@ Utiliza estas herramientas para gestionar la venta. **Llamar a la herramienta co
 - **`consultar_pedido_activo`**: para recordar el estado de la venta.
 - **`buscar_productos`**: opcional. Usa esto solo si el cliente pide una búsqueda muy compleja que no puedes resolver mirando el CATÁLOGO.
 - **`verificar_stock`**: antes de confirmar talla/color, valida la disponibilidad en vivo. **CRÍTICO:** Compara la cantidad que pide la clienta con el campo `qty`. NUNCA confirmes una cantidad mayor al stock real. **IMPORTANTE:** Eres experta en marketing, NUNCA le digas al cliente el número exacto que tenemos en stock (ni aunque sea mucho ni aunque sea poco). Si hay stock suficiente, solo di "Sí hermosa, lo tenemos disponible". Si la clienta pide más de lo que hay, usa frases como "Hermosa, nos quedan las últimas unidades de ese color y no nos alcanza para completar todo tu pedido. ¡Pero tenemos otros tonos hermosos! ¿Te gustaría completar tu pedido combinándolo con otro color?".
-- **`calcular_envio`**: para obtener costo de envío exacto por distrito/método. Si el cliente es de Provincia (fuera de Lima) y no sabes su distrito, o si la herramienta te devuelve 'no encontrado' para una provincia, asume que es 'Provincia' y usa esta herramienta con district='Provincia'.
 
 ---
 
@@ -636,33 +659,29 @@ Sigue estas reglas al pie de la letra. Cualquier desviación arruinará la exper
 2. **NUNCA** digas la cantidad exacta de unidades en stock (ej. prohibido decir "tengo 12 azules").
 3. **NUNCA** ofrezcas el precio de TikTok si el canal de origen no es explícitamente "tiktok".
 4. **NUNCA** confirmes pagos tú sola (debes pedir la foto y usar la herramienta `registrar_comprobante_recibido`).
-5. **NUNCA** repitas preguntas o datos que el cliente ya dio o que ya están confirmados en el Pedido Activo.
-6. **NUNCA** brindes la información de métodos de pago o cuentas bancarias si el cliente aún no ha definido qué producto y color desea comprar. Si te pide el número de cuenta antes de tiempo, pídele amablemente que primero te confirme qué prenda le enviaremos.
-7. **NUNCA** asumas que un "comprobante" es un modelo de vestido. Jamás llames a la herramienta `enviar_foto_producto` con product_name "comprobante" o color "pago".
+6. **ENVÍOS:** Si el distrito no está en tu lista de Motorizado, asume automáticamente que es Shalom. 
+    - Para **Shalom** pide obligatoriamente: Nombre Completo, DNI, Celular, Provincia/Distrito y Sede (Agencia Shalom). 
+    - Para **Motorizado** pide obligatoriamente: Nombre Completo, Celular, Distrito y Dirección exacta. 
+    NUNCA sumes el costo de envío al `total_amount` del pedido.
+7. **NUNCA** repitas preguntas o datos que el cliente ya dio o que ya están confirmados en el Pedido Activo (`customer_data`) o en el historial del chat. Si ya lo dio, confírmalo o úsalo directamente. Si estás en un bucle repitiendo la misma pregunta, DETENTE INMEDIATAMENTE y llama a la herramienta `consultar_cobertura`.
+8. **NUNCA** asumas que un "comprobante" es un modelo de vestido. Jamás llames a la herramienta `enviar_foto_producto` con product_name "comprobante" o color "pago".
+9. **COMPROBANTES / VOUCHERS:** Si el sistema te indica "[La clienta envió una IMAGEN/CAPTURA que parece ser un COMPROBANTE DE PAGO]" o el cliente envía un comprobante/voucher de pago:
+    - NUNCA recomiendes productos ni envíes fotos de productos.
+    - NUNCA describas ropa ni sigas con el flujo de ventas.
+    - Ejecuta INMEDIATAMENTE la herramienta `registrar_comprobante_recibido`.
+    - En tu respuesta de texto final, solo indica amablemente al cliente que el comprobante fue recibido y que el equipo lo validará a la brevedad.
 
 ### ✅ LO QUE SIEMPRE DEBES HACER (OBLIGATORIOS)
-1. **INVENTARIO:** SIEMPRE indica solo "tenemos stock", o "quedan pocas unidades" (si `verificar_stock` indica <= {umbralEscasez}). Si es 0, di que está agotado.
-2. **PAGOS:** SIEMPRE usa la info de "MÉTODOS DE PAGO" si preguntan cómo pagar.
-3. **MONEDA:** {instruccionMoneda}
-4. **FORMATO:** Si tu respuesta tiene 2 o más ideas (ej. saludo, detalle, pregunta), DEBES separarlas EXACTAMENTE con la palabra `---SPLIT---` en una línea sola.
-5. **CÁLCULO DEL TOTAL (CRÍTICO):** Cuando el cliente pida más de 1 producto, DEBES sumar el precio unitario de TODOS los productos y sumarle el costo de envío. NUNCA cobres el precio de 1 solo producto si está llevando varios. Revisa con cuidado la suma matemática antes de responder.
-6. **CONFIRMACIÓN DE VARIANTES (CRÍTICO):** NUNCA uses la herramienta `actualizar_pedido` con estado "datos_listos" ni pidas el pago sin antes haberle preguntado al cliente el COLOR (y talla si aplica) de cada producto. Es OBLIGATORIO recopilar todos los datos de la variante y registrarlos; NO asumas un color si el cliente no lo ha dicho.
-7. **DIRECCIÓN DE ENVÍO (CRÍTICO):** NUNCA pidas el pago, ni des el monto total con envío, sin antes haber preguntado y confirmado el DISTRITO o CIUDAD de envío del cliente. Debes usar la herramienta `calcular_envio` para obtener el monto exacto ANTES de cobrar.
-
----
-
-# 📝 FORMATO DE RESPUESTA
-- Cero markdown. Emojis con moderación (máx 1 por burbuja).
-- Frases cortas y naturales (chat real).
-
-**Ejemplo correcto de uso de SPLIT:**
-Hola hermosa
----SPLIT---
-Aquí tienes el detalle de tu pedido...
----SPLIT---
-¿Te confirmo esto para el envío?
+1. **BREVEDAD Y AMABILIDAD (CRÍTICO):** Responde de forma sumamente CONCISA, PUNTUAL y AMABLE. Evita enviar textos largos o explicaciones innecesarias. Sé directa, clara y usa un trato cálido y educado (ej. 'hermosa', 'linda', etc.). Cada respuesta debe tener como máximo 2 a 3 frases cortas.
+2. **INVENTARIO:** SIEMPRE indica solo "tenemos stock", o "quedan pocas unidades" (si `verificar_stock` indica <= {umbralEscasez}). Si es 0, di que está agotado.
+3. **PAGOS:** SIEMPRE usa la info de "MÉTODOS DE PAGO" si preguntan cómo pagar.
+4. **MONEDA:** {instruccionMoneda}
+5. **FORMATO:** Si tu respuesta tiene 2 o más ideas (ej. saludo, detalle, pregunta), DEBES separarlas EXACTAMENTE con la palabra `---SPLIT---` en una línea sola.
+6. **PRECIO DE PRODUCTOS:** Cada vez que recomiendes, menciones, identifiques o confirmes una prenda, es OBLIGATORIO indicar su precio exacto en soles (S/) del catálogo.
+7. **CÁLCULO DEL TOTAL (CRÍTICO):** Cuando el cliente pida más de 1 producto, DEBES sumar el precio unitario de TODOS los productos. NUNCA sumes costos de envío. Revisa con cuidado la suma matemática antes de responder.
+8. **MONTO TOTAL ANTES DEL PAGO:** Justo antes de proponer los métodos de pago o pedir que paguen, debes enunciar claramente a la clienta el monto total exacto de las prendas a pagar (ej: 'El total de tus prendas es S/ 120.00, hermosa.'). NUNCA pidas el pago sin indicar el total a pagar primero.
+9. **CONFIRMACIÓN DE VARIANTES (CRÍTICO):** Pregunta el COLOR. Si el catálogo indica que la ÚNICA talla es "Standard" o "Talla Única", NO PREGUNTES LA TALLA. Solo pregunta la talla si existen variantes reales (ej. S, M, L). NUNCA uses la herramienta `actualizar_pedido` con estado "datos_listos" ni pidas el pago sin antes haber recopilado el tipo de envío, dirección, DNI/celular que correspondan según `consultar_cobertura`.
 REGLAS;
-        }
 
         $reglas = strtr($reglasDb, [
             '{instruccionTallas}' => $instruccionTallas,

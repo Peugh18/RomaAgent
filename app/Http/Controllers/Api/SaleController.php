@@ -115,8 +115,7 @@ class SaleController extends Controller
         if ($search !== '') {
             $query->where(function ($inner) use ($search): void {
                 $inner->where('phone_number', 'like', "%{$search}%")
-                    ->orWhere('product_name', 'like', "%{$search}%")
-                    ->orWhere('delivery_district', 'like', "%{$search}%");
+                    ->orWhere('product_name', 'like', "%{$search}%");
             });
         }
 
@@ -142,7 +141,7 @@ class SaleController extends Controller
                 ->find($customer->active_sale_id);
 
             if ($sale !== null) {
-                return response()->json($sale);
+                return response()->json($this->enriquecerSaleSimple($sale));
             }
         }
 
@@ -156,7 +155,22 @@ class SaleController extends Controller
             ->with(['customer', 'product', 'productVariant', 'items'])
             ->first();
 
-        return response()->json($sale);
+        return response()->json($sale !== null ? $this->enriquecerSaleSimple($sale) : null);
+    }
+
+    /**
+     * Add computed permission flags to a single sale for the chat panel.
+     *
+     * @return array<string, mixed>
+     */
+    private function enriquecerSaleSimple(Sale $sale): array
+    {
+        return array_merge($sale->toArray(), [
+            'can_confirm_payment' => $sale->puedeVerificarPago(),
+            'can_mark_shipped' => $sale->puedeMarcarEnviado(),
+            'can_mark_delivered' => $sale->puedeMarcarEntregado(),
+            'can_cancel' => $sale->puedeCancelar(),
+        ]);
     }
 
     public function transitionPreview(Sale $sale, Request $request): JsonResponse
@@ -398,7 +412,6 @@ class SaleController extends Controller
         }
 
         return $sales->map(function (Sale $sale) use ($mensajesPorId, $etiquetadosPorVenta, $imagenesEntradaPorTelefono): array {
-            $entrega = $sale->datosEntregaResumen();
             $imageUrl = ComprobantePagoMensaje::resolverParaPedido(
                 $sale,
                 $mensajesPorId,
@@ -407,9 +420,9 @@ class SaleController extends Controller
             );
 
             return array_merge($sale->toArray(), [
-                'customer_name' => $entrega['nombre'],
-                'delivery_address' => $entrega['direccion'],
-                'maps_url' => $entrega['maps_url'],
+                'customer_name' => $sale->customer->name ?? '',
+                'delivery_address' => '',
+                'maps_url' => '',
                 'comprobante_url' => $imageUrl,
                 'can_confirm_payment' => $sale->puedeVerificarPago(),
                 'can_mark_shipped' => $sale->puedeMarcarEnviado(),

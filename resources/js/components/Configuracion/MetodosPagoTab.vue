@@ -96,8 +96,6 @@ const METODOS_PREDEFINIDOS = [
         categoria: 'Otros',
         metodos: [
             { nombre: 'Tarjeta', icono: 'CreditCard', color: 'bg-indigo-600 text-white', tipo: 'otro' },
-            { nombre: 'Efectivo', icono: 'Banknote', color: 'bg-green-600 text-white', tipo: 'otro' },
-            { nombre: 'Otro', icono: 'Wallet', color: 'bg-gray-600 text-white', tipo: 'otro' },
         ],
     },
 ];
@@ -161,27 +159,7 @@ const eliminarMetodoPago = (index: number) => {
 
 <template>
     <div class="space-y-6">
-        <CrmPanel>
-            <ConfigSectionHeader
-                :icon="DollarSign"
-                title="Moneda"
-                description="Moneda de operación de la tienda"
-            />
-            <div>
-                <div class="space-y-2">
-                    <Label for="moneda">Moneda de Operación</Label>
-                    <select
-                        id="moneda"
-                        v-model="form.moneda"
-                        class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <option v-for="moneda in monedas" :key="moneda.code" :value="moneda.code">
-                            {{ moneda.label }}
-                        </option>
-                    </select>
-                </div>
-            </div>
-        </CrmPanel>
+
 
         <CrmPanel>
             <ConfigSectionHeader
@@ -388,27 +366,7 @@ const eliminarMetodoPago = (index: number) => {
             </DialogContent>
         </Dialog>
 
-        <CrmPanel>
-            <ConfigSectionHeader
-                :icon="CreditCard"
-                title="Comisión por tarjeta"
-                description="Porcentaje adicional si el cliente paga con tarjeta"
-            />
-            <div>
-                <div class="space-y-2">
-                    <Label for="comision-tarjeta">Comisión (%)</Label>
-                    <Input
-                        id="comision-tarjeta"
-                        v-model.number="form.comision_tarjeta"
-                        type="number"
-                        placeholder="5"
-                        min="0"
-                        max="100"
-                        step="0.01"
-                    />
-                </div>
-            </div>
-        </CrmPanel>
+
 
     </div>
 </template>

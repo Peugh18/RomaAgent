@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Actions\Mensajes\EnviarMensajeWhatsappSaliente;
 use App\Exceptions\GeminiQuotaExceededException;
+use App\Exceptions\GeminiTransientException;
 use App\Models\Customer;
 use App\Models\Message;
 use App\Services\Agente\AgenteVendedor;
@@ -97,7 +98,7 @@ class GenerarRespuestaAgente
             }
 
             return $ultimoMensaje;
-        } catch (GeminiQuotaExceededException $e) {
+        } catch (GeminiQuotaExceededException|GeminiTransientException $e) {
             throw $e;
         } catch (\Exception $e) {
             Log::error('Error generando respuesta IA', [

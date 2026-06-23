@@ -44,11 +44,8 @@ export interface Sale {
     size: string;
     quantity: number;
     unit_price: number | string;
-    delivery_cost: number | string;
     total_amount: number | string;
     payment_method: string | null;
-    delivery_type: string | null;
-    delivery_district: string | null;
     status: SaleStatus;
     customer_data?: SaleCustomerData | null;
     payment_received_at: string | null;
@@ -63,8 +60,6 @@ export interface Sale {
         ia_pause_reason: string | null;
     };
     customer_name?: string | null;
-    delivery_address?: string | null;
-    maps_url?: string | null;
     comprobante_url?: string | null;
     notes?: string | null;
     can_confirm_payment?: boolean;
@@ -138,11 +133,9 @@ export function saleCanConfirmPayment(sale: Sale): boolean {
         return sale.can_confirm_payment;
     }
 
-    if (saleEsPagoTarjeta(sale)) {
-        return sale.status === 'pago_pendiente' || sale.status === 'pago_recibido';
-    }
-
-    return sale.status === 'pago_recibido';
+    // Fallback (should not be reached when API provides can_confirm_payment):
+    // Both pago_pendiente and pago_recibido can be confirmed by admin.
+    return sale.status === 'pago_pendiente' || sale.status === 'pago_recibido';
 }
 
 export function saleCanMarkShipped(sale: Sale): boolean {

@@ -15,24 +15,19 @@ class ContextoPedidoActivo
             return <<<'BLOQUE'
 ## PEDIDO ACTIVO (FUENTE DE VERDAD)
 No hay pedido en curso para esta clienta.
-Si confirma compra, llama **actualizar_pedido** con producto, color, cantidad, precios y envío.
+Si confirma compra, llama **actualizar_pedido** con producto, color, cantidad y precios.
 BLOQUE;
         }
 
         $simbolo = FormateadorCatalogoProductos::simboloDesdeMoneda($moneda);
-        $deliveryCost = (float) $sale->delivery_cost;
         $total = (float) $sale->total_amount;
-
-        $envio = trim((string) ($sale->delivery_type ?? '')) !== ''
-            ? $sale->delivery_type.($sale->delivery_district ? " ({$sale->delivery_district})" : '')
-            : 'Sin definir';
 
         $lineasDesglose = [];
         $totalQuantity = 0;
 
         if ($sale->items && $sale->items->isNotEmpty()) {
             // Verificar si el único item es el placeholder por defecto
-            if ($sale->items->count() === 1 && $sale->items->first()->product_name === 'Pedido' && (float)$sale->items->first()->unit_price === 0.0) {
+            if ($sale->items->count() === 1 && $sale->items->first()->product_name === 'Pedido' && (float) $sale->items->first()->unit_price === 0.0) {
                 $lineasDesglose[] = '**PRODUCTOS EN EL CARRITO:**';
                 $lineasDesglose[] = '- (Vacío - Esperando confirmación de prendas por parte del cliente)';
             } else {
@@ -51,7 +46,7 @@ BLOQUE;
             }
         } else {
             // Fallback legacy
-            if ($sale->product_name === 'Pedido' && (float)$sale->unit_price === 0.0) {
+            if ($sale->product_name === 'Pedido' && (float) $sale->unit_price === 0.0) {
                 $lineasDesglose[] = '**PRODUCTOS EN EL CARRITO:**';
                 $lineasDesglose[] = '- (Vacío - Esperando confirmación de prendas por parte del cliente)';
             } else {
@@ -69,11 +64,9 @@ BLOQUE;
         }
 
         $lineasDesglose[] = '';
-        $lineasDesglose[] = sprintf('- Costo envío: %s %.2f', $simbolo, $deliveryCost);
         $lineasDesglose[] = sprintf('- **TOTAL A COBRAR: %s %.2f**', $simbolo, $total);
         $lineasDesglose[] = sprintf('- Estado: %s', $sale->status->value);
         $lineasDesglose[] = sprintf('- Método pago: %s', $sale->payment_method ?: 'Sin definir');
-        $lineasDesglose[] = sprintf('- Envío: %s', $envio);
 
         $datosCliente = $sale->customer_data ?? [];
         if ($datosCliente !== []) {
@@ -89,7 +82,7 @@ Usa EXACTAMENTE estos datos al hablar de cantidades, precios y totales. No recal
 {$cuerpo}
 
 **Reglas:**
-- Si la clienta cambia cantidad, color o envío, llama **actualizar_pedido** ANTES de decirle el nuevo total.
+- Si la clienta cambia cantidad o color, llama **actualizar_pedido** ANTES de decirle el nuevo total.
 - El total que escribes al cliente DEBE ser **{$simbolo} {$total}** (total artículos: {$totalQuantity}).
 - Producto y color ya confirmados: no volver a pedirlos salvo que la clienta quiera cambiar.
 BLOQUE;

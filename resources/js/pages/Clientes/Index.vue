@@ -30,7 +30,7 @@ import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { getInitials } from '@/composables/useInitials';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Users, MessageCircle, Edit, Save, X, Loader2, ShoppingBag, Eye, Truck, CreditCard } from 'lucide-vue-next';
+import { Users, MessageCircle, Edit, Save, X, Loader2, ShoppingBag, Eye, CreditCard } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Clientes', href: '/clientes' }];
 
@@ -41,8 +41,6 @@ interface Sale {
     status: string;
     created_at: string;
     payment_method?: string | null;
-    delivery_type?: string | null;
-    delivery_district?: string | null;
     customer_data?: Record<string, any> | null;
 }
 
@@ -415,14 +413,44 @@ onMounted(() => {
                     <div v-if="viewingCustomer.recent_sales?.length && viewingCustomer.recent_sales[0].customer_data" class="rounded-lg border bg-muted/20 p-4">
                         <h4 class="text-sm font-semibold mb-3 flex items-center gap-1.5">
                             <Users class="h-4 w-4 text-primary" />
-                            Últimos datos de contacto conocidos
+                            Últimos datos de contacto y envío
                         </h4>
-                        <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                            <template v-for="([k, v]) in Object.entries(viewingCustomer.recent_sales[0].customer_data).filter(([k, v]) => !['nombre', 'name', 'maps_url', 'latitude', 'longitude'].includes(k) && v)" :key="k">
+                        
+                        <dl class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm mb-3">
+                            <template v-for="([k, v]) in Object.entries(viewingCustomer.recent_sales[0].customer_data).filter(([k, v]) => !['nombre', 'name', 'nombre_completo', 'celular', 'phone', 'maps_url', 'latitude', 'longitude', 'tipo_envio', 'costo_referencial', 'distrito', 'provincia', 'departamento', 'direccion', 'sede_shalom', 'dni'].includes(k) && v)" :key="k">
                                 <dt class="text-muted-foreground capitalize">{{ k.replace(/_/g, ' ') }}</dt>
                                 <dd class="font-medium break-words">{{ v }}</dd>
                             </template>
                         </dl>
+
+                        <!-- Bloque de Envío -->
+                        <div v-if="viewingCustomer.recent_sales[0].customer_data.tipo_envio || viewingCustomer.recent_sales[0].customer_data.distrito || viewingCustomer.recent_sales[0].customer_data.direccion || viewingCustomer.recent_sales[0].customer_data.sede_shalom" class="mt-3 pt-3 border-t border-border/50">
+                            <p class="text-xs font-semibold text-muted-foreground mb-2">PREFERENCIA DE ENVÍO</p>
+                            
+                            <template v-if="viewingCustomer.recent_sales[0].customer_data.tipo_envio === 'motorizado' || (!viewingCustomer.recent_sales[0].customer_data.tipo_envio && (viewingCustomer.recent_sales[0].customer_data.direccion || viewingCustomer.recent_sales[0].customer_data.address))">
+                                <dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                                    <dt class="text-muted-foreground">Tipo</dt>
+                                    <dd class="font-medium flex items-center gap-1">🛵 Motorizado <span v-if="!viewingCustomer.recent_sales[0].customer_data.tipo_envio" class="text-xs text-amber-600 font-normal">(Inferido)</span></dd>
+                                    <dt v-if="viewingCustomer.recent_sales[0].customer_data.distrito" class="text-muted-foreground">Distrito</dt>
+                                    <dd v-if="viewingCustomer.recent_sales[0].customer_data.distrito">{{ viewingCustomer.recent_sales[0].customer_data.distrito }}</dd>
+                                    <dt v-if="viewingCustomer.recent_sales[0].customer_data.direccion || viewingCustomer.recent_sales[0].customer_data.address" class="text-muted-foreground">Dirección</dt>
+                                    <dd v-if="viewingCustomer.recent_sales[0].customer_data.direccion || viewingCustomer.recent_sales[0].customer_data.address">{{ viewingCustomer.recent_sales[0].customer_data.direccion || viewingCustomer.recent_sales[0].customer_data.address }}</dd>
+                                </dl>
+                            </template>
+                            
+                            <template v-else-if="viewingCustomer.recent_sales[0].customer_data.tipo_envio === 'shalom' || (!viewingCustomer.recent_sales[0].customer_data.tipo_envio && (viewingCustomer.recent_sales[0].customer_data.provincia || viewingCustomer.recent_sales[0].customer_data.sede_shalom))">
+                                <dl class="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                                    <dt class="text-muted-foreground">Tipo</dt>
+                                    <dd class="font-medium flex items-center gap-1">🚚 Shalom <span v-if="!viewingCustomer.recent_sales[0].customer_data.tipo_envio" class="text-xs text-amber-600 font-normal">(Inferido)</span></dd>
+                                    <dt v-if="viewingCustomer.recent_sales[0].customer_data.distrito" class="text-muted-foreground">Destino</dt>
+                                    <dd v-if="viewingCustomer.recent_sales[0].customer_data.distrito">{{ viewingCustomer.recent_sales[0].customer_data.distrito }} <span v-if="viewingCustomer.recent_sales[0].customer_data.provincia">- {{ viewingCustomer.recent_sales[0].customer_data.provincia }}</span></dd>
+                                    <dt v-if="viewingCustomer.recent_sales[0].customer_data.sede_shalom" class="text-muted-foreground">Agencia</dt>
+                                    <dd v-if="viewingCustomer.recent_sales[0].customer_data.sede_shalom">{{ viewingCustomer.recent_sales[0].customer_data.sede_shalom }}</dd>
+                                    <dt v-if="viewingCustomer.recent_sales[0].customer_data.dni" class="text-muted-foreground">DNI Recojo</dt>
+                                    <dd v-if="viewingCustomer.recent_sales[0].customer_data.dni">{{ viewingCustomer.recent_sales[0].customer_data.dni }}</dd>
+                                </dl>
+                            </template>
+                        </div>
                     </div>
 
                     <!-- Stats -->
@@ -456,23 +484,13 @@ onMounted(() => {
                                 </div>
                             </div>
                             
-                            <!-- Detalles de Envío y Pago -->
-                            <div class="mt-2 grid grid-cols-2 gap-2 text-xs border-t pt-3">
-                                <div>
-                                    <span class="text-muted-foreground block mb-0.5">Envío:</span>
-                                    <span class="font-medium inline-flex items-center gap-1">
-                                        <Truck class="h-3 w-3" />
-                                        {{ sale.delivery_type || 'No especificado' }} 
-                                        <span v-if="sale.delivery_district" class="text-muted-foreground font-normal">({{ sale.delivery_district }})</span>
-                                    </span>
-                                </div>
-                                <div>
-                                    <span class="text-muted-foreground block mb-0.5">Método de pago:</span>
-                                    <span class="font-medium inline-flex items-center gap-1">
-                                        <CreditCard class="h-3 w-3" />
-                                        {{ sale.payment_method || 'No especificado' }}
-                                    </span>
-                                </div>
+                            <!-- Método de Pago -->
+                            <div class="mt-2 text-xs border-t pt-3">
+                                <span class="text-muted-foreground block mb-0.5">Método de pago:</span>
+                                <span class="font-medium inline-flex items-center gap-1">
+                                    <CreditCard class="h-3 w-3" />
+                                    {{ sale.payment_method || 'No especificado' }}
+                                </span>
                             </div>
                         </div>
                     </div>

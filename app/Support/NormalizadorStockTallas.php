@@ -91,8 +91,9 @@ class NormalizadorStockTallas
             '- La talla principal del catálogo es **talla estándar** (así se le dice a la clienta).',
             '- En base de datos el código interno puede ser "'.$claveInterna.'"; eso NO se menciona al cliente.',
             '- **Nunca** digas "única", "UNICA", "talla única" ni expongas códigos internos de talla.',
+            '- Si el producto en el catálogo SOLO tiene "talla estándar" (o no especifica tallas S, M, L), **NO le preguntes a la clienta qué talla desea**. Asume la talla estándar automáticamente.',
             '- Si la clienta no especifica talla, asume **talla estándar** al verificar stock y actualizar pedido.',
-            '- Otras tallas (S, M, L, etc.) solo si existen en el stock del producto; también di "talla S", "talla M", nunca códigos raros.',
+            '- Otras tallas (S, M, L, etc.) solo si existen en el stock del producto; también di "talla S", "talla M", nunca códigos raros. En ese caso SÍ debes preguntarle qué talla prefiere.',
         ]);
     }
 

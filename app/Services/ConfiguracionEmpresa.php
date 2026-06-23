@@ -4,14 +4,12 @@ namespace App\Services;
 
 use App\Models\AgenteConfig;
 use App\Models\CompanySetting;
-use App\Models\DeliveryZone;
 use App\Models\EmpresaInfoConfig;
 use App\Models\HorarioConfig;
 use App\Models\MensajeConfig;
 use App\Models\Product;
 use App\Models\VentaConfig;
 use App\Support\NormalizadorStockTallas;
-use App\Support\PlantillasDatosEmpresa;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -86,7 +84,6 @@ class ConfiguracionEmpresa
     public function obtenerEstadisticas(?string $promptCompleto = null): array
     {
         $productosActivos = Product::where('status', Product::ESTADO_DISPONIBLE)->count();
-        $zonasDelivery = DeliveryZone::count();
         $metodosActivos = count($this->obtenerMetodosPago());
 
         $completitud = $this->getPorcentajeCompletitud();
@@ -104,7 +101,6 @@ class ConfiguracionEmpresa
             'completitud' => $completitud,
             'campos_faltantes' => $camposFaltantes,
             'productos_activos' => $productosActivos,
-            'zonas_delivery' => $zonasDelivery,
             'metodos_pago_count' => $metodosActivos,
             'tokens_estimados' => $tokensEstimados,
             'esta_lista' => $camposFaltantes === [] && $metodosActivos > 0,
@@ -124,7 +120,6 @@ class ConfiguracionEmpresa
             'Saludo inicial' => fn (): bool => ! empty($this->mensajes?->saludo_inicial),
             'Reglas de comunicación' => fn (): bool => ! empty($this->mensajes?->reglas_comunicacion),
             'Métodos de pago' => fn (): bool => ! empty($this->ventas?->metodos_pago),
-            'Horario de entregas' => fn (): bool => ! empty($this->horarios?->horario_entregas),
         ];
     }
 
@@ -265,24 +260,9 @@ class ConfiguracionEmpresa
 
     public function obtenerConfiguracionRomaStore(): array
     {
-        $zonas = DeliveryZone::all();
-        $tarifarioMotorizado = [];
-        $tarifarioShalom = [];
-
-        foreach ($zonas as $zona) {
-            if ((float) $zona->cost_motorizado > 0) {
-                $tarifarioMotorizado[$zona->district] = $zona->cost_motorizado;
-            }
-
-            $tarifarioShalom[$zona->district] = $zona->cost_shalom;
-        }
-
         return [
             'saludo_inicial' => $this->mensajes?->saludo_inicial ?? '',
             'reglas_comunicacion' => $this->mensajes?->reglas_comunicacion ?? '',
-            'plantillas_datos' => PlantillasDatosEmpresa::normalizar($this->horarios?->plantillas_datos),
-            'horario_entregas' => $this->horarios?->horario_entregas ?? '',
-            'horario_shalom' => $this->horarios?->horario_shalom ?? '',
             'protocolo_traspaso' => $this->ventas?->protocolo_traspaso ?? '',
             'confirmacion_pago' => [
                 'mensaje_comprobante_recibido' => $this->mensajes?->comprobante_recibido ?? '',
@@ -301,10 +281,6 @@ class ConfiguracionEmpresa
                 'tarjeta' => [
                     'comision' => $this->ventas?->comision_tarjeta,
                 ],
-            ],
-            'entregas' => [
-                'motorizado' => $tarifarioMotorizado,
-                'shalom' => $tarifarioShalom,
             ],
         ];
     }

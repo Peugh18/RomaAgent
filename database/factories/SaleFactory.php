@@ -22,7 +22,6 @@ class SaleFactory extends Factory
     public function definition(): array
     {
         $unitPrice = fake()->randomFloat(2, 80, 250);
-        $delivery = fake()->randomElement([0, 12, 15, 18]);
 
         return [
             'customer_id' => Customer::factory(),
@@ -32,10 +31,8 @@ class SaleFactory extends Factory
             'size' => 'UNICA',
             'quantity' => 1,
             'unit_price' => $unitPrice,
-            'delivery_cost' => $delivery,
-            'total_amount' => $unitPrice + $delivery,
+            'total_amount' => $unitPrice,
             'payment_method' => 'yape',
-            'delivery_type' => 'motorizado',
             'status' => SaleStatus::PagoRecibido,
             'payment_received_at' => now(),
         ];

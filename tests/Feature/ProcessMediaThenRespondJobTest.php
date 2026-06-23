@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Actions\GenerarRespuestaAgente;
 use App\Jobs\EsperarRespuestaAgenteJob;
+use App\Jobs\GenerarRespuestaAgenteJob;
 use App\Jobs\ProcessMediaThenRespondJob;
 use App\Models\CompanySetting;
 use App\Models\Customer;
@@ -71,7 +72,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
 
     public function test_image_message_dispatches_ia_job_after_vision_analysis(): void
     {
-        Queue::fake([EsperarRespuestaAgenteJob::class, SendWhatsappMessageJob::class]);
+        Queue::fake([GenerarRespuestaAgenteJob::class, SendWhatsappMessageJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
             'agente_ia_modelo' => 'gemini-2.5-flash-lite',
@@ -122,7 +123,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         $this->assertSame('[Imagen enviada]', $message->content);
         $this->assertSame('comprobante', $message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? null);
 
-        Queue::assertPushed(EsperarRespuestaAgenteJob::class);
+        Queue::assertPushed(GenerarRespuestaAgenteJob::class);
     }
 
     public function test_successful_image_analysis_clears_previous_vision_failed_flag(): void

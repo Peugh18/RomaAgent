@@ -52,7 +52,6 @@ class SalePaymentConfirmationTest extends TestCase
             'size' => 'UNICA',
             'quantity' => 1,
             'total_amount' => 195,
-            'delivery_cost' => 15,
             'payment_method' => 'yape',
         ]);
 
@@ -121,7 +120,6 @@ class SalePaymentConfirmationTest extends TestCase
             'size' => 'UNICA',
             'quantity' => 1,
             'total_amount' => 192,
-            'delivery_cost' => 12,
         ]);
 
         $this->actingAs($user)
@@ -204,7 +202,6 @@ class SalePaymentConfirmationTest extends TestCase
             'size' => 'UNICA',
             'quantity' => 1,
             'total_amount' => 195,
-            'delivery_cost' => 15,
             'payment_method' => 'yape',
         ]);
 

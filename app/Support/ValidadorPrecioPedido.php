@@ -18,7 +18,7 @@ class ValidadorPrecioPedido
         $sugerido = $sugeridoPorAgente !== null ? (float) $sugeridoPorAgente : null;
         $precioCatalogo = (float) $product->price;
         $precioTikTok = $product->price_tiktok !== null ? (float) $product->price_tiktok : null;
-        
+
         $promo = null;
         if ($product->descuentoPromoActivo()) {
             $promo = $product->precioNormalConPromo();
@@ -43,8 +43,8 @@ class ValidadorPrecioPedido
         return round(max(0, $precioFinal), 2);
     }
 
-    public static function calcularTotal(float $unitPrice, int $quantity, float $deliveryCost): float
+    public static function calcularTotal(float $unitPrice, int $quantity): float
     {
-        return round(max(0, $unitPrice) * max(1, $quantity) + max(0, $deliveryCost), 2);
+        return round(max(0, $unitPrice) * max(1, $quantity), 2);
     }
 }
