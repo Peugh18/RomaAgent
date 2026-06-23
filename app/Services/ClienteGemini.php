@@ -183,7 +183,26 @@ class ClienteGemini
                     }
                 }
 
+                $finishReason = $data['candidates'][0]['finishReason'] ?? null;
+
                 if ($functionCall === null && ($texto === null || $texto === '')) {
+                    if ($finishReason === 'MALFORMED_FUNCTION_CALL') {
+                        Log::warning('Gemini agent devolvio MALFORMED_FUNCTION_CALL, forzando reintento', [
+                            'finishMessage' => $data['candidates'][0]['finishMessage'] ?? '',
+                        ]);
+                        
+                        $contents[] = [
+                            'role' => 'model',
+                            'parts' => $parts,
+                        ];
+                        
+                        $contents[] = [
+                            'role' => 'user',
+                            'parts' => [['text' => 'Tu última llamada a función falló con MALFORMED_FUNCTION_CALL porque el formato JSON era inválido o estaba incompleto. Por favor, verifica la sintaxis JSON, asegúrate de cerrar todas las llaves y comillas correctamente, y vuelve a llamar a la herramienta.']],
+                        ];
+                        continue;
+                    }
+
                     Log::warning('Gemini agent devolvio candidato sin text ni functionCall', [
                         'response' => $data,
                     ]);
