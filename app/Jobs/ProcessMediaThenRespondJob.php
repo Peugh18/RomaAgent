@@ -289,6 +289,11 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         $contenido = $captionCliente !== ''
             ? '[Imagen — clienta: '.$captionCliente.']'
             : '[Imagen enviada]';
+            
+        if ($esComprobante) {
+            $contenido .= "\n\n[La clienta envió una IMAGEN/CAPTURA que parece ser un COMPROBANTE DE PAGO]";
+        }
+        
         $message->content = $contenido;
         $message->save();
 
@@ -301,6 +306,30 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         $enviarMensaje = app(EnviarMensajeWhatsappSaliente::class);
         $phone = $message->phone_number;
         $matches = $inboundProfile['matches'] ?? [];
+
+        if (!empty($matches)) {
+            $customer = \App\Models\Customer::resolverDesdeMensaje($phone, $message->customer_name);
+            $cacheKey = "agente_memoria_visual_cliente_{$customer->id}";
+            $topMatch = $matches[0];
+            
+            $memoriaActual = \Illuminate\Support\Facades\Cache::get($cacheKey, []);
+            if (!is_array($memoriaActual)) {
+                $memoriaActual = [];
+            }
+            
+            $memoriaActual[] = [
+                'product_id' => $topMatch['id_producto'] ?? null,
+                'product_name' => $topMatch['nombre_vestido'] ?? '',
+                'color' => $topMatch['color'] ?? '',
+                'timestamp' => now()->toIso8601String(),
+            ];
+            
+            if (count($memoriaActual) > 5) {
+                array_shift($memoriaActual);
+            }
+            
+            \Illuminate\Support\Facades\Cache::put($cacheKey, $memoriaActual, now()->addHours(4));
+        }
 
         if ($encontrado && ! empty($matches)) {
             $exacto = $matches[0];

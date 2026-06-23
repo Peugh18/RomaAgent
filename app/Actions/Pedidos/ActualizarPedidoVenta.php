@@ -188,6 +188,30 @@ class ActualizarPedidoVenta
                 }
             }
 
+            $cacheKey = "agente_memoria_visual_cliente_{$customer->id}";
+
+            // Limpiar memoria visual en estados finales
+            if (in_array($status, [SaleStatus::Confirmado, SaleStatus::Cancelado, SaleStatus::Entregado, SaleStatus::Enviado], true)) {
+                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+            } else {
+                // Limpiar memoria visual si uno de los items añadidos estaba en memoria
+                if (isset($itemsReales) && !empty($itemsReales)) {
+                    $memoria = \Illuminate\Support\Facades\Cache::get($cacheKey, []);
+                    if (is_array($memoria) && !empty($memoria)) {
+                        $memoriaIds = array_column($memoria, 'product_id');
+                        $memoriaIds = array_filter($memoriaIds);
+                        
+                        foreach ($itemsReales as $itemData) {
+                            $itemProduct = $this->resolverProducto($itemData['product_name'] ?? null);
+                            if ($itemProduct && in_array($itemProduct->id, $memoriaIds, true)) {
+                                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             return $sale->fresh(['product', 'productVariant', 'items']);
         });
     }
