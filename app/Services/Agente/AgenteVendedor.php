@@ -2,6 +2,7 @@
 
 namespace App\Services\Agente;
 
+use App\Enums\SaleStatus;
 use App\Exceptions\GeminiQuotaExceededException;
 use App\Exceptions\GeminiTransientException;
 use App\Models\Customer;
@@ -41,7 +42,15 @@ class AgenteVendedor
             excluirMessageId: $mensajeEntrante->id,
         );
         $contenidoEntrante = trim($mensajeEntrante->content);
+
+        $estadoActual = $customer->activeSale?->status;
+        $enFaseDePago = in_array($estadoActual, [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido], true);
+        $esComprobante = str_contains($contenidoEntrante, 'COMPROBANTE DE PAGO');
+
         $solicitaFoto = $this->solicitaVerProducto($contenidoEntrante);
+        if ($enFaseDePago || $esComprobante) {
+            $solicitaFoto = false;
+        }
 
         $historial[] = [
             'role' => 'user',
