@@ -53,6 +53,29 @@ class ActualizarPedidoVenta
 
             $newStatus = isset($datos['status']) ? SaleStatus::from($datos['status']) : null;
 
+            // Validación backend para impedir datos_listos incompletos
+            if ($newStatus === SaleStatus::DatosListos) {
+                $customerData = array_merge($sale->customer_data ?? [], $datos['customer_data'] ?? []);
+                $tipoEnvio = strtolower($customerData['tipo_envio'] ?? '');
+                $nombre = trim($customerData['nombre'] ?? $customerData['name'] ?? $customerData['nombre_completo'] ?? $customer->name ?? '');
+
+                if ($nombre === '') {
+                    throw new \InvalidArgumentException('Para confirmar los datos listos es obligatorio registrar el nombre de la clienta en customer_data.');
+                }
+
+                if ($tipoEnvio === 'motorizado') {
+                    if (empty($customerData['distrito']) || empty($customerData['direccion'])) {
+                        throw new \InvalidArgumentException('Para envío motorizado es obligatorio registrar el distrito y la dirección en customer_data antes de pasar a datos_listos.');
+                    }
+                } elseif ($tipoEnvio === 'shalom') {
+                    if (empty($customerData['dni']) || empty($customerData['agencia'])) {
+                        throw new \InvalidArgumentException('Para envío por Shalom es obligatorio registrar el DNI y la agencia/provincia en customer_data antes de pasar a datos_listos.');
+                    }
+                } else {
+                    throw new \InvalidArgumentException('Es obligatorio especificar un tipo de envío válido (motorizado o shalom) en customer_data antes de pasar a datos_listos.');
+                }
+            }
+
             // Prevent downgrading the status if it's already PagoRecibido or further
             if ($newStatus === SaleStatus::DatosListos || $newStatus === SaleStatus::Cotizando || $newStatus === SaleStatus::Consultando) {
                 if ($sale->exists && in_array($sale->status, [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido, SaleStatus::Confirmado, SaleStatus::Enviado, SaleStatus::Entregado], true)) {
