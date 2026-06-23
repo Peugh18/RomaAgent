@@ -141,7 +141,7 @@ class ClienteGemini
         array $historialMensajes,
         array $herramientas,
         callable $ejecutor,
-        int $maxIteraciones = 6,
+        int $maxIteraciones = 12,
         ?array $toolConfig = null,
     ): ?ResultadoGeminiAgente {
         $this->ultimoError = null;
