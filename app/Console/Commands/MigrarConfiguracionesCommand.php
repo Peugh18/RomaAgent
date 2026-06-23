@@ -149,7 +149,7 @@ class MigrarConfiguracionesCommand extends Command
     {
         return [
             'activado' => $config->agente_ia_activado ?? false,
-            'modelo' => $config->agente_ia_modelo ?? 'gemini-2.5-flash-lite',
+            'modelo' => $config->agente_ia_modelo ?? 'gemini-3.1-flash-lite',
             'api_key_encrypted' => $config->agente_ia_api_key_encrypted,
             'temperatura' => $config->agente_ia_temperatura ?? 0.70,
             'tono_bot' => $config->tono_bot,

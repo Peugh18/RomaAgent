@@ -46,7 +46,7 @@ class AlertaCuotaGeminiTest extends TestCase
         LogIA::create([
             'tipo' => 'error',
             'phone_number' => '51999999999',
-            'modelo' => 'gemini-2.5-flash-lite',
+            'modelo' => 'gemini-3.1-flash-lite',
             'http_status' => 429,
             'error_mensaje' => 'Resource has been exhausted',
             'error_codigo' => 'RESOURCE_EXHAUSTED',

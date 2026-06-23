@@ -18,7 +18,7 @@ class ConfiguracionAgenteApiTest extends TestCase
 
         CompanySetting::factory()->create([
             'agente_ia_activado' => true,
-            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
+            'agente_ia_modelo' => 'gemini-3.1-flash-lite',
             'agente_ia_temperatura' => 0.5,
         ]);
 
@@ -26,7 +26,7 @@ class ConfiguracionAgenteApiTest extends TestCase
 
         $response->assertOk();
         $response->assertJsonPath('configuracion_agente.activado', true);
-        $response->assertJsonPath('configuracion_agente.modelo', 'gemini-2.5-flash-lite');
+        $response->assertJsonPath('configuracion_agente.modelo', 'gemini-3.1-flash-lite');
     }
 
     public function test_saving_other_fields_does_not_disable_agent_when_active(): void
@@ -36,13 +36,13 @@ class ConfiguracionAgenteApiTest extends TestCase
         CompanySetting::factory()->create([
             'company_name' => 'Roma Store',
             'agente_ia_activado' => true,
-            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
+            'agente_ia_modelo' => 'gemini-3.1-flash-lite',
         ]);
 
         $response = $this->actingAs($user)->putJson('/api/company-settings', [
             'company_name' => 'Roma Store Actualizado',
             'agente_ia_activado' => true,
-            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
+            'agente_ia_modelo' => 'gemini-3.1-flash-lite',
             'agente_ia_temperatura' => 0.7,
         ]);
 

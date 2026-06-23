@@ -42,10 +42,10 @@ class ConfiguracionAgente
      */
     public function obtenerModelo(): string
     {
-        $modelo = (string) ($this->agenteConfig?->modelo ?? 'gemini-2.5-flash-lite');
+        $modelo = (string) ($this->agenteConfig?->modelo ?? 'gemini-3.1-flash-lite');
 
         if (! str_starts_with($modelo, 'gemini-')) {
-            return 'gemini-2.5-flash-lite';
+            return 'gemini-3.1-flash-lite';
         }
 
         return $modelo;
@@ -118,7 +118,7 @@ class ConfiguracionAgente
     public static function modelosDisponibles(): array
     {
         return [
-            'gemini-2.5-flash-lite' => 'Gemini 2.5 Flash-Lite — máximo ahorro de tokens',
+            'gemini-3.1-flash-lite' => 'Gemini 3.1 Flash-Lite — máximo ahorro de tokens',
         ];
     }
 
@@ -159,7 +159,7 @@ class ConfiguracionAgente
 
         $updateData = [
             'activado' => $datos['agente_ia_activado'] ?? $this->agenteConfig->activado ?? false,
-            'modelo' => $datos['agente_ia_modelo'] ?? $this->agenteConfig->modelo ?? 'gemini-2.5-flash-lite',
+            'modelo' => $datos['agente_ia_modelo'] ?? $this->agenteConfig->modelo ?? 'gemini-3.1-flash-lite',
             'temperatura' => $datos['agente_ia_temperatura'] ?? $this->agenteConfig->temperatura ?? 0.3,
         ];
 
