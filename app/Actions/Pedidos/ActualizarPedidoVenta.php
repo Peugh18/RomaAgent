@@ -53,6 +53,29 @@ class ActualizarPedidoVenta
 
             $newStatus = isset($datos['status']) ? SaleStatus::from($datos['status']) : null;
 
+            // Validación backend para impedir datos_listos incompletos
+            if ($newStatus === SaleStatus::DatosListos) {
+                $customerData = array_merge($sale->customer_data ?? [], $datos['customer_data'] ?? []);
+                $tipoEnvio = strtolower($customerData['tipo_envio'] ?? '');
+                $nombre = trim($customerData['nombre'] ?? $customerData['name'] ?? $customerData['nombre_completo'] ?? $customer->name ?? '');
+
+                if ($nombre === '') {
+                    throw new \InvalidArgumentException('Para confirmar los datos listos es obligatorio registrar el nombre de la clienta en customer_data.');
+                }
+
+                if ($tipoEnvio === 'motorizado') {
+                    if (empty($customerData['distrito']) || empty($customerData['direccion'])) {
+                        throw new \InvalidArgumentException('Para envío motorizado es obligatorio registrar el distrito y la dirección en customer_data antes de pasar a datos_listos.');
+                    }
+                } elseif ($tipoEnvio === 'shalom') {
+                    if (empty($customerData['dni']) || empty($customerData['agencia'])) {
+                        throw new \InvalidArgumentException('Para envío por Shalom es obligatorio registrar el DNI y la agencia/provincia en customer_data antes de pasar a datos_listos.');
+                    }
+                } else {
+                    throw new \InvalidArgumentException('Es obligatorio especificar un tipo de envío válido (motorizado o shalom) en customer_data antes de pasar a datos_listos.');
+                }
+            }
+
             // Prevent downgrading the status if it's already PagoRecibido or further
             if ($newStatus === SaleStatus::DatosListos || $newStatus === SaleStatus::Cotizando || $newStatus === SaleStatus::Consultando) {
                 if ($sale->exists && in_array($sale->status, [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido, SaleStatus::Confirmado, SaleStatus::Enviado, SaleStatus::Entregado], true)) {
@@ -165,6 +188,30 @@ class ActualizarPedidoVenta
                 }
             }
 
+            $cacheKey = "agente_memoria_visual_cliente_{$customer->id}";
+
+            // Limpiar memoria visual en estados finales
+            if (in_array($status, [SaleStatus::Confirmado, SaleStatus::Cancelado, SaleStatus::Entregado, SaleStatus::Enviado], true)) {
+                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+            } else {
+                // Limpiar memoria visual si uno de los items añadidos estaba en memoria
+                if (isset($itemsReales) && !empty($itemsReales)) {
+                    $memoria = \Illuminate\Support\Facades\Cache::get($cacheKey, []);
+                    if (is_array($memoria) && !empty($memoria)) {
+                        $memoriaIds = array_column($memoria, 'product_id');
+                        $memoriaIds = array_filter($memoriaIds);
+                        
+                        foreach ($itemsReales as $itemData) {
+                            $itemProduct = $this->resolverProducto($itemData['product_name'] ?? null);
+                            if ($itemProduct && in_array($itemProduct->id, $memoriaIds, true)) {
+                                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
             return $sale->fresh(['product', 'productVariant', 'items']);
         });
     }
@@ -229,12 +276,12 @@ class ActualizarPedidoVenta
             return null;
         }
 
-        $needle = mb_strtolower(trim($color));
+        $needle = mb_strtolower(trim(\Illuminate\Support\Str::ascii($color)), 'UTF-8');
 
-        return $product->variants->first(
-            fn (ProductVariant $variant): bool => mb_strtolower($variant->color) === $needle
-                || str_contains(mb_strtolower($variant->color), $needle)
-        );
+        return $product->variants->first(function (ProductVariant $variant) use ($needle): bool {
+            $variantColor = mb_strtolower(trim(\Illuminate\Support\Str::ascii($variant->color)), 'UTF-8');
+            return $variantColor === $needle || str_contains($variantColor, $needle);
+        });
     }
 
     private function validarVarianteYStock(?Product $product, ?string $color, ?string $size, int $quantity = 1): void
@@ -275,6 +322,12 @@ class ActualizarPedidoVenta
         $tallaBuscada = NormalizadorStockTallas::esTallaEstandar((string) $size)
             ? NormalizadorStockTallas::defaultSizeKey()
             : mb_strtoupper(trim((string) $size), 'UTF-8');
+
+        // REGLA: Si la variante solo tiene UNA talla en stock y es la talla estándar interna (UNICA),
+        // ignoramos lo que haya enviado Gemini y forzamos el uso de la talla estándar para evitar errores de validación.
+        if (count($sizesStock) === 1 && array_key_exists(NormalizadorStockTallas::defaultSizeKey(), $sizesStock)) {
+            $tallaBuscada = NormalizadorStockTallas::defaultSizeKey();
+        }
 
         // Si no hay stock para la talla especificada o no existe la talla en la variante
         if (! array_key_exists($tallaBuscada, $sizesStock)) {

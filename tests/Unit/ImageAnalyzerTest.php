@@ -19,7 +19,7 @@ class ImageAnalyzerTest extends TestCase
     {
         parent::setUp();
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
+            'agente_ia_modelo' => 'gemini-3.1-flash-lite',
         ]);
     }
 

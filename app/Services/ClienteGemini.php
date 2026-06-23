@@ -20,7 +20,7 @@ class ClienteGemini
 
     private const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 
-    public function __construct(string $apiKey, string $modelo = 'gemini-2.5-flash-lite', float $temperatura = 0.7)
+    public function __construct(string $apiKey, string $modelo = 'gemini-3.1-flash-lite', float $temperatura = 0.7)
     {
         $this->apiKey = $apiKey;
         $this->modelo = $modelo;
@@ -70,6 +70,9 @@ class ClienteGemini
                         'maxOutputTokens' => 2048,
                         'topP' => 0.95,
                         'topK' => 40,
+                        'thinkingConfig' => [
+                            'thinkingLevel' => 'HIGH'
+                        ],
                     ],
                 ]);
 
@@ -138,7 +141,7 @@ class ClienteGemini
         array $historialMensajes,
         array $herramientas,
         callable $ejecutor,
-        int $maxIteraciones = 6,
+        int $maxIteraciones = 12,
         ?array $toolConfig = null,
     ): ?ResultadoGeminiAgente {
         $this->ultimoError = null;
@@ -167,18 +170,39 @@ class ClienteGemini
 
                 $parts = $data['candidates'][0]['content']['parts'] ?? [];
                 $functionCall = null;
+                $functionCallPart = null;
                 $texto = null;
 
                 foreach ($parts as $part) {
                     if (isset($part['functionCall'])) {
                         $functionCall = $part['functionCall'];
+                        $functionCallPart = $part;
                     }
                     if (isset($part['text']) && is_string($part['text'])) {
                         $texto = trim($part['text']);
                     }
                 }
 
+                $finishReason = $data['candidates'][0]['finishReason'] ?? null;
+
                 if ($functionCall === null && ($texto === null || $texto === '')) {
+                    if ($finishReason === 'MALFORMED_FUNCTION_CALL') {
+                        Log::warning('Gemini agent devolvio MALFORMED_FUNCTION_CALL, forzando reintento', [
+                            'finishMessage' => $data['candidates'][0]['finishMessage'] ?? '',
+                        ]);
+                        
+                        $contents[] = [
+                            'role' => 'model',
+                            'parts' => $parts,
+                        ];
+                        
+                        $contents[] = [
+                            'role' => 'user',
+                            'parts' => [['text' => 'Tu última llamada a función falló con MALFORMED_FUNCTION_CALL porque el formato JSON era inválido o estaba incompleto. Por favor, verifica la sintaxis JSON, asegúrate de cerrar todas las llaves y comillas correctamente, y vuelve a llamar a la herramienta.']],
+                        ];
+                        continue;
+                    }
+
                     Log::warning('Gemini agent devolvio candidato sin text ni functionCall', [
                         'response' => $data,
                     ]);
@@ -188,7 +212,12 @@ class ClienteGemini
                     $nombre = (string) ($functionCall['name'] ?? '');
                     $args = is_array($functionCall['args'] ?? null) ? $functionCall['args'] : [];
 
-                    $functionCall = $this->normalizarFunctionCall($functionCall);
+                    foreach ($parts as &$p) {
+                        if (isset($p['functionCall'])) {
+                            $p['functionCall'] = $this->normalizarFunctionCall($p['functionCall']);
+                        }
+                    }
+                    unset($p);
 
                     Log::info('Gemini function call', [
                         'tool' => $nombre,
@@ -198,7 +227,7 @@ class ClienteGemini
 
                     $contents[] = [
                         'role' => 'model',
-                        'parts' => [['functionCall' => $functionCall]],
+                        'parts' => $parts,
                     ];
 
                     $resultado = $ejecutor($nombre, $args);
@@ -261,6 +290,9 @@ class ClienteGemini
                 'maxOutputTokens' => 2048,
                 'topP' => 0.95,
                 'topK' => 40,
+                'thinkingConfig' => [
+                    'thinkingLevel' => 'HIGH'
+                ],
             ],
         ];
 
@@ -329,10 +361,10 @@ class ClienteGemini
      */
     private function normalizarFunctionCall(array $functionCall): array
     {
-        return [
-            'name' => (string) ($functionCall['name'] ?? ''),
-            'args' => $this->normalizarFunctionCallArgs($functionCall['args'] ?? []),
-        ];
+        $normalized = $functionCall;
+        $normalized['name'] = (string) ($functionCall['name'] ?? '');
+        $normalized['args'] = $this->normalizarFunctionCallArgs($functionCall['args'] ?? []);
+        return $normalized;
     }
 
     /**

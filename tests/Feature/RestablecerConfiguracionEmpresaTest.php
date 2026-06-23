@@ -27,7 +27,7 @@ class RestablecerConfiguracionEmpresaTest extends TestCase
         LogIA::query()->create([
             'tipo' => 'request',
             'phone_number' => '51999999999',
-            'modelo' => 'gemini-2.5-flash-lite',
+            'modelo' => 'gemini-3.1-flash-lite',
         ]);
 
         $response = $this->actingAs($user)->deleteJson('/api/company-settings');

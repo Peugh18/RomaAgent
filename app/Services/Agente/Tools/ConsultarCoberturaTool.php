@@ -35,7 +35,7 @@ class ConsultarCoberturaTool
      * @param  array<string, mixed>  $args
      * @return array<string, mixed>
      */
-    public static function execute(array $args): array
+    public static function execute(array $args, ?\App\Models\Customer $customer = null): array
     {
         $rawInput = trim((string) ($args['distrito'] ?? ''));
         $inputProvincia = trim((string) ($args['provincia'] ?? ''));
@@ -94,11 +94,31 @@ class ConsultarCoberturaTool
 
         $zona = $query->first();
 
-        if ($zona) {
-            // Existe en zonas_envio -> Motorizado (o el tipo que esté configurado ahí)
-            $tipoEnvio = $zona->tipo_envio;
-            $costo = (float) $zona->costo_referencial;
+        $tipoEnvio = $zona ? $zona->tipo_envio : 'shalom';
+        
+        // Guardado progresivo en base de datos
+        if ($customer !== null && $customer->activeSale) {
+            $sale = $customer->activeSale;
+            $customerData = $sale->customer_data ?? [];
+            $customerData['tipo_envio'] = $tipoEnvio;
+            $customerData['distrito'] = $zona ? $zona->distrito : $extractedDistrito;
+            if ($zona) {
+                $customerData['provincia'] = $zona->provincia;
+                $customerData['costo_referencial'] = (float) $zona->costo_referencial;
+            } else {
+                $customerData['provincia'] = $extractedProvincia;
+            }
+            
+            $payload = ['customer_data' => $customerData];
+            if (in_array($sale->status, [\App\Enums\SaleStatus::Consultando, \App\Enums\SaleStatus::Cotizando], true)) {
+                $payload['status'] = \App\Enums\SaleStatus::Cotizando;
+            }
+            
+            $sale->update($payload);
+        }
 
+        if ($zona) {
+            $costo = (float) $zona->costo_referencial;
             return [
                 'ok' => true,
                 'encontrado' => true,
@@ -109,8 +129,8 @@ class ConsultarCoberturaTool
                 'costo_referencial' => $costo,
                 'instruccion_para_ia' => "Se encontró cobertura local. El envío es '{$tipoEnvio}'. El costo es S/ {$costo}. "
                     .'OBLIGATORIO: Infórmale esto a la clienta y aclárale que el costo es referencial e informativo. '
-                    .'Pídele los datos que falten: Nombre completo, Celular, Dirección Exacta y (opcionalmente) ubicación. '
-                    ."IMPORTANTE: NO llames a 'actualizar_pedido' todavía. Solo respóndele a la clienta con texto. Cuando ella te responda con sus datos en el siguiente mensaje, recién ahí usarás 'actualizar_pedido' para guardar todo.",
+                    ."El sistema ya ha guardado el distrito y tipo_envio internamente, NO necesitas llamar a actualizar_pedido a menos que te den datos nuevos. "
+                    .'Pídele ÚNICAMENTE los datos que falten: Nombre completo, Celular, Dirección Exacta y (opcionalmente) ubicación.',
             ];
         }
 
@@ -124,7 +144,9 @@ class ConsultarCoberturaTool
             'departamento' => $extractedDepartamento,
             'tipo_envio' => 'shalom',
             'costo_referencial' => 'Pago en destino',
-            'instruccion_para_ia' => "No se encontró el distrito en la zona de reparto local, por lo tanto el envío es por 'shalom' con Pago en destino. OBLIGATORIO: Infórmale a la clienta que para su ciudad los envíos se hacen por Shalom y el flete se paga al recoger. Pídele los datos que falten: Nombre completo, DNI, Celular y la Sede de Shalom. IMPORTANTE: NO llames a 'actualizar_pedido' todavía. Solo respóndele a la clienta con texto. Cuando ella te dé los datos en su próximo mensaje, recién usarás 'actualizar_pedido'.",
+            'instruccion_para_ia' => "No se encontró el distrito en la zona de reparto local, por lo tanto el envío es por 'shalom' con Pago en destino. OBLIGATORIO: Infórmale a la clienta que para su ciudad los envíos se hacen por Shalom y el flete se paga al recoger. "
+                    ."El sistema ya ha guardado el distrito y tipo_envio internamente, NO necesitas llamar a actualizar_pedido a menos que te den datos nuevos. "
+                    ."Pídele ÚNICAMENTE los datos que falten: Nombre completo, DNI, Celular y la Sede de Shalom.",
         ];
     }
 }

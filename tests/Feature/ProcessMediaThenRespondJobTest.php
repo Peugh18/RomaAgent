@@ -26,7 +26,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
+            'agente_ia_modelo' => 'gemini-3.1-flash-lite',
         ]);
 
         $relativePath = 'inbound-media/audio-job.ogg';
@@ -75,7 +75,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([GenerarRespuestaAgenteJob::class, SendWhatsappMessageJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
+            'agente_ia_modelo' => 'gemini-3.1-flash-lite',
         ]);
 
         $relativePath = 'inbound-media/comprobante.jpg';
@@ -120,7 +120,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         @unlink($fullPath);
 
         $message->refresh();
-        $this->assertSame('[Imagen enviada]', $message->content);
+        $this->assertSame('[Imagen enviada]'."\n\n".'[La clienta envió una IMAGEN/CAPTURA que parece ser un COMPROBANTE DE PAGO]', $message->content);
         $this->assertSame('comprobante', $message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? null);
 
         Queue::assertPushed(GenerarRespuestaAgenteJob::class);
@@ -131,7 +131,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([EsperarRespuestaAgenteJob::class, SendWhatsappMessageJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
+            'agente_ia_modelo' => 'gemini-3.1-flash-lite',
         ]);
 
         $relativePath = 'inbound-media/vestido-retry.jpg';
@@ -220,7 +220,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
+            'agente_ia_modelo' => 'gemini-3.1-flash-lite',
         ]);
 
         config([
@@ -273,7 +273,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
         Queue::fake([EsperarRespuestaAgenteJob::class]);
 
         CompanySetting::factory()->withIaEnabled()->create([
-            'agente_ia_modelo' => 'gemini-2.5-flash-lite',
+            'agente_ia_modelo' => 'gemini-3.1-flash-lite',
         ]);
 
         $relativePath = 'inbound-media/audio-503.ogg';

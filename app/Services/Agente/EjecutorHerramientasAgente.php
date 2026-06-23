@@ -142,7 +142,7 @@ class EjecutorHerramientasAgente
             'consultar_pedido_activo' => $this->ejecutarConsultarPedido($customer),
             'buscar_productos' => BuscarProductosTool::execute($args),
             'verificar_stock' => VerificarStockTool::execute($args),
-            'consultar_cobertura' => ConsultarCoberturaTool::execute($args),
+            'consultar_cobertura' => ConsultarCoberturaTool::execute($args, $customer),
             default => ['ok' => false, 'error' => "Herramienta desconocida: {$nombre}"],
         };
     }
