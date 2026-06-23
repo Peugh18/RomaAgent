@@ -59,7 +59,9 @@ class NormalizadorStockTallas
         $key = mb_strtoupper(trim((string) ($talla ?? self::defaultSizeKey())), 'UTF-8');
         $key = str_replace(['TALLA ', 'TALLA_'], '', $key);
 
-        return $key === self::defaultSizeKey();
+        $variantes = [self::defaultSizeKey(), 'ESTANDAR', 'ESTÁNDAR', 'STANDARD', 'UNICA', 'ÚNICA'];
+
+        return in_array($key, $variantes, true);
     }
 
     /**

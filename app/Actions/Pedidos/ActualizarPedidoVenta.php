@@ -229,12 +229,12 @@ class ActualizarPedidoVenta
             return null;
         }
 
-        $needle = mb_strtolower(trim($color));
+        $needle = mb_strtolower(trim(\Illuminate\Support\Str::ascii($color)), 'UTF-8');
 
-        return $product->variants->first(
-            fn (ProductVariant $variant): bool => mb_strtolower($variant->color) === $needle
-                || str_contains(mb_strtolower($variant->color), $needle)
-        );
+        return $product->variants->first(function (ProductVariant $variant) use ($needle): bool {
+            $variantColor = mb_strtolower(trim(\Illuminate\Support\Str::ascii($variant->color)), 'UTF-8');
+            return $variantColor === $needle || str_contains($variantColor, $needle);
+        });
     }
 
     private function validarVarianteYStock(?Product $product, ?string $color, ?string $size, int $quantity = 1): void
@@ -275,6 +275,12 @@ class ActualizarPedidoVenta
         $tallaBuscada = NormalizadorStockTallas::esTallaEstandar((string) $size)
             ? NormalizadorStockTallas::defaultSizeKey()
             : mb_strtoupper(trim((string) $size), 'UTF-8');
+
+        // REGLA: Si la variante solo tiene UNA talla en stock y es la talla estándar interna (UNICA),
+        // ignoramos lo que haya enviado Gemini y forzamos el uso de la talla estándar para evitar errores de validación.
+        if (count($sizesStock) === 1 && array_key_exists(NormalizadorStockTallas::defaultSizeKey(), $sizesStock)) {
+            $tallaBuscada = NormalizadorStockTallas::defaultSizeKey();
+        }
 
         // Si no hay stock para la talla especificada o no existe la talla en la variante
         if (! array_key_exists($tallaBuscada, $sizesStock)) {
