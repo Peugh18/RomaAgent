@@ -111,7 +111,7 @@ class CustomerController extends Controller
     {
         $customer = Customer::query()
             ->where('phone_number', $phoneNumber)
-            ->with(['activeSale', 'labels'])
+            ->with(['activeSale', 'labels', 'sales' => fn ($q) => $q->latest()])
             ->first();
 
         return response()->json($customer);

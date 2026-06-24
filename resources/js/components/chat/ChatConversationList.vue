@@ -5,6 +5,7 @@ import type { ChatConversation } from '@/types/chat';
 import { Bot, Clock, Loader2, MessageSquare, UserRound, CreditCard, Tag, ChevronDown } from 'lucide-vue-next';
 import { computed, ref, onMounted } from 'vue';
 import axios from 'axios';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 
 const props = defineProps<{
@@ -27,6 +28,7 @@ const filters = [
 
 const activeLabelId = ref<number | null>(null);
 const labelCatalog = ref<any[]>([]);
+const hideIa = ref(false);
 
 onMounted(async () => {
     try {
@@ -45,6 +47,10 @@ onMounted(async () => {
 
 const filteredConversations = computed(() => {
     let result = props.conversations;
+
+    if (hideIa.value) {
+        result = result.filter((c) => c.ia_paused || c.pending_payment);
+    }
 
     if (activeFilter.value === 'pagos') {
         result = result.filter((c) => c.pending_payment);
@@ -147,6 +153,11 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
+            </div>
+            
+            <div class="flex items-center justify-between pt-2 border-t border-border/50">
+                <label for="hide-ia" class="text-xs font-medium text-muted-foreground cursor-pointer">Ocultar bot conversando</label>
+                <Checkbox id="hide-ia" :checked="hideIa" @update:checked="hideIa = $event" />
             </div>
         </div>
 

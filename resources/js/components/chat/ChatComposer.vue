@@ -45,27 +45,14 @@ const handleClickOutside = (e: MouseEvent) => {
 };
 
 const cannedResponses = [
-    { command: '/banco', label: 'Cuentas Bancarias', text: 'Nuestras cuentas bancarias son:\nBCP: 191-12345678-0-99 (RomaAgent SAC)\nYape/Plin: 987654321\nPor favor envíanos la captura del comprobante por aquí.' },
-    { command: '/delivery', label: 'Costo de envío', text: 'El costo de envío es de S/ 10 para Lima Metropolitana (24 a 48 hrs) y S/ 15 para provincias (Olva Courier, 2 a 4 días hábiles).' },
-    { command: '/horario', label: 'Horarios de atención', text: 'Nuestro horario de atención es de Lunes a Sábado de 9:00 AM a 6:00 PM.' },
-    { command: '/direccion', label: 'Ubicación física', text: 'Nos encontramos ubicados en Av. Principal 123, tienda 4, Lima.' },
+    { id: 'banco', label: 'Cuentas Bancarias', text: 'Nuestras cuentas bancarias son:\nBCP: 191-12345678-0-99 (RomaAgent SAC)\nYape/Plin: 987654321\nPor favor envíanos la captura del comprobante por aquí.' },
+    { id: 'delivery', label: 'Costo de envío', text: 'El costo de envío es de S/ 10 para Lima Metropolitana (24 a 48 hrs) y S/ 15 para provincias (Olva Courier, 2 a 4 días hábiles).' },
+    { id: 'horario', label: 'Horarios', text: 'Nuestro horario de atención es de Lunes a Sábado de 9:00 AM a 6:00 PM.' },
+    { id: 'direccion', label: 'Ubicación', text: 'Nos encontramos ubicados en Av. Principal 123, tienda 4, Lima.' },
 ];
-
-import { computed } from 'vue';
-
-const showCannedResponses = computed(() => {
-    return model.value.startsWith('/') && model.value.length < 15;
-});
-
-const filteredCannedResponses = computed(() => {
-    if (!showCannedResponses.value) return [];
-    const query = model.value.toLowerCase();
-    return cannedResponses.filter(cr => cr.command.startsWith(query));
-});
 
 const selectCannedResponse = (text: string) => {
     model.value = text;
-    // Poner el foco devuelta (opcional)
 };
 
 onMounted(() => {
@@ -104,29 +91,17 @@ onUnmounted(() => {
             <EmojiPicker :native="true" theme="auto" @select="onSelectEmoji" />
         </div>
 
-        <!-- Canned Responses Menu -->
-        <div
-            v-if="showCannedResponses && filteredCannedResponses.length > 0"
-            class="absolute bottom-16 left-3 right-3 z-50 overflow-hidden rounded-xl border border-border bg-background shadow-xl"
-        >
-            <div class="border-b border-border bg-muted/40 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Respuestas Rápidas
-            </div>
-            <ul class="max-h-48 overflow-y-auto p-1">
-                <li v-for="response in filteredCannedResponses" :key="response.command">
-                    <button
-                        type="button"
-                        class="flex w-full flex-col items-start gap-1 rounded-md px-3 py-2 text-left text-sm transition hover:bg-muted"
-                        @click="selectCannedResponse(response.text)"
-                    >
-                        <div class="flex items-center gap-2">
-                            <span class="rounded bg-emerald-100 px-1.5 py-0.5 font-mono text-[10px] font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">{{ response.command }}</span>
-                            <span class="font-medium">{{ response.label }}</span>
-                        </div>
-                        <span class="line-clamp-1 text-xs text-muted-foreground">{{ response.text }}</span>
-                    </button>
-                </li>
-            </ul>
+        <!-- Botones Rápidos (Píldoras) -->
+        <div class="mb-2 flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+            <button
+                v-for="response in cannedResponses"
+                :key="response.id"
+                type="button"
+                class="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                @click="selectCannedResponse(response.text)"
+            >
+                {{ response.label }}
+            </button>
         </div>
 
         <form class="flex items-end gap-2" @submit.prevent="emit('submit'); showEmojiPicker = false;">

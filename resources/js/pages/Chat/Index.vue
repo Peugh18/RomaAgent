@@ -5,6 +5,7 @@ import ChatHumanAlertBanner from '@/components/chat/ChatHumanAlertBanner.vue';
 import ChatMessageBubble from '@/components/chat/ChatMessageBubble.vue';
 import ChatSalePanel from '@/components/chat/ChatSalePanel.vue';
 import ChatThreadHeader from '@/components/chat/ChatThreadHeader.vue';
+import ChatCustomerHistoryDrawer from '@/components/chat/ChatCustomerHistoryDrawer.vue';
 import SaleTransitionModal from '@/components/sales/SaleTransitionModal.vue';
 import CrmAnimatedSection from '@/components/crm/CrmAnimatedSection.vue';
 import CrmPageHero from '@/components/crm/CrmPageHero.vue';
@@ -99,6 +100,20 @@ const openTransition = (transition: SaleTransition) => {
     activeTransition.value = transition;
     transitionOpen.value = true;
 };
+
+const customerHistoryOpen = ref(false);
+const customerData = ref<any>(null);
+
+const openCustomerHistory = async () => {
+    customerHistoryOpen.value = true;
+    if (!selectedPhone.value) return;
+    try {
+        const encoded = encodeURIComponent(selectedPhone.value);
+        customerData.value = await apiJson(`/api/customers/${encoded}`);
+    } catch (e) {
+        console.error('Error fetching customer history', e);
+    }
+};
 </script>
 
 <template>
@@ -138,6 +153,7 @@ const openTransition = (transition: SaleTransition) => {
                             @mode-change="chatMode = $event"
                             @labels-updated="updateLabels"
                             @open-sale-panel="mobileSalePanelOpen = true"
+                            @open-history-panel="openCustomerHistory"
                             @back="deselectConversation"
                         />
 
@@ -240,6 +256,11 @@ const openTransition = (transition: SaleTransition) => {
                 :sale="activeSale"
                 :transition="activeTransition"
                 @completed="onTransitionCompleted"
+            />
+            
+            <ChatCustomerHistoryDrawer 
+                v-model:open="customerHistoryOpen"
+                :customer="customerData"
             />
         </div>
             </CrmAnimatedSection>

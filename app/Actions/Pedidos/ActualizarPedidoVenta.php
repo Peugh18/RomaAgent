@@ -68,7 +68,7 @@ class ActualizarPedidoVenta
                         throw new \InvalidArgumentException('Para envío motorizado es obligatorio registrar el distrito y la dirección en customer_data antes de pasar a datos_listos.');
                     }
                 } elseif ($tipoEnvio === 'shalom') {
-                    if (empty($customerData['dni']) || empty($customerData['agencia'])) {
+                    if (empty($customerData['dni']) || (empty($customerData['agencia']) && empty($customerData['sede_shalom']))) {
                         throw new \InvalidArgumentException('Para envío por Shalom es obligatorio registrar el DNI y la agencia/provincia en customer_data antes de pasar a datos_listos.');
                     }
                 } else {

@@ -16,6 +16,7 @@ const emit = defineEmits<{
     'mode-change': [mode: 'bot' | 'human'];
     'labels-updated': [labels: any[]];
     'open-sale-panel': [];
+    'open-history-panel': [];
     'back': [];
 }>();
 
@@ -134,6 +135,16 @@ watch(() => props.phone, () => {
                 :phone="phone" 
                 @labels-updated="$emit('labels-updated', $event)" 
             />
+
+            <button
+                type="button"
+                class="inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground"
+                @click="$emit('open-history-panel')"
+                title="Historial de Compras"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <span class="hidden xl:inline">Historial</span>
+            </button>
 
             <span
                 class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
