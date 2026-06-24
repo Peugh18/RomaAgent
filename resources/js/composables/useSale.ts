@@ -86,7 +86,9 @@ export function usePipelineSales() {
     const error = ref<string | null>(null);
     const entregadosTotal = ref(0);
     const entregadosArchivedCount = ref(0);
-    const entregadosKanbanLimit = ref(15);
+    const canceladosTotal = ref(0);
+    const canceladosArchivedCount = ref(0);
+    const hoursLimit = ref(24);
 
     const loadSales = async () => {
         loading.value = true;
@@ -97,18 +99,24 @@ export function usePipelineSales() {
                 sales: Sale[];
                 entregados_total: number;
                 entregados_archived_count: number;
-                entregados_kanban_limit: number;
+                cancelados_total: number;
+                cancelados_archived_count: number;
+                hours_limit: number;
             }>('/api/sales?pipeline=1');
 
             sales.value = response.sales ?? [];
             entregadosTotal.value = response.entregados_total ?? 0;
             entregadosArchivedCount.value = response.entregados_archived_count ?? 0;
-            entregadosKanbanLimit.value = response.entregados_kanban_limit ?? 15;
+            canceladosTotal.value = response.cancelados_total ?? 0;
+            canceladosArchivedCount.value = response.cancelados_archived_count ?? 0;
+            hoursLimit.value = response.hours_limit ?? 24;
         } catch (err) {
             error.value = err instanceof Error ? err.message : 'Error al cargar pedidos';
             sales.value = [];
             entregadosTotal.value = 0;
             entregadosArchivedCount.value = 0;
+            canceladosTotal.value = 0;
+            canceladosArchivedCount.value = 0;
         } finally {
             loading.value = false;
         }
@@ -120,7 +128,9 @@ export function usePipelineSales() {
         error,
         entregadosTotal,
         entregadosArchivedCount,
-        entregadosKanbanLimit,
+        canceladosTotal,
+        canceladosArchivedCount,
+        hoursLimit,
         loadSales,
     };
 }
@@ -139,6 +149,8 @@ const pipelineHistoryPage = ref(1);
 const pipelineHistoryLastPage = ref(1);
 const pipelineHistoryTotal = ref(0);
 const pipelineHistorySearch = ref('');
+const pipelineHistoryStatus = ref('entregado');
+const pipelineHistoryPeriod = ref('todos');
 
 export function usePipelineArchive() {
     const loadArchive = async () => {
@@ -149,7 +161,8 @@ export function usePipelineArchive() {
             const params = new URLSearchParams({
                 pipeline: '1',
                 scope: 'archive',
-                skip_recent: String(PIPELINE_ENTREGADOS_KANBAN_LIMIT),
+                history_status: pipelineHistoryStatus.value,
+                period: pipelineHistoryPeriod.value,
                 page: String(pipelineHistoryPage.value),
                 per_page: '20',
             });
@@ -179,6 +192,8 @@ export function usePipelineArchive() {
         lastPage: pipelineHistoryLastPage,
         total: pipelineHistoryTotal,
         search: pipelineHistorySearch,
+        status: pipelineHistoryStatus,
+        period: pipelineHistoryPeriod,
         loadArchive,
     };
 }

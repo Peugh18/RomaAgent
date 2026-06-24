@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MediaProxyController;
 use App\Http\Controllers\ProductController;
 use App\Models\Label;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -26,6 +27,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('chat', [ChatController::class, 'index'])->name('chat.index');
 
     Route::get('pipeline', fn () => Inertia::render('Pipeline/Index'))->name('pipeline.index');
+    Route::get('pipeline/historial', fn (Request $request) => Inertia::render('Pipeline/History', [
+        'status' => $request->query('status', 'entregado'),
+    ]))->name('pipeline.history');
     Route::get('clientes', fn () => Inertia::render('Clientes/Index'))->name('clientes.index');
 
     Route::get('productos', [ProductController::class, 'index'])->name('productos.index');

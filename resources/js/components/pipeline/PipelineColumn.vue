@@ -10,6 +10,7 @@ import { VueDraggable } from 'vue-draggable-plus';
 import type { SortableEvent } from 'sortablejs';
 import { Archive, ChevronRight } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
+import { Link } from '@inertiajs/vue3';
 
 const props = defineProps<{
     status: SaleStatus;
@@ -53,15 +54,15 @@ const columnTotal = computed(() =>
 );
 
 const badgeCount = computed(() => {
-    if (props.status === 'entregado' && props.entregadosTotal !== undefined) {
-        return props.entregadosTotal;
+    if (props.entregadosTotal !== undefined) {
+        return props.entregadosTotal; // Passed for both entregado and cancelado from parent
     }
 
     return props.sales.length;
 });
 
 const showArchiveLink = computed(
-    () => props.status === 'entregado' && (props.archivedCount ?? 0) > 0,
+    () => (props.status === 'entregado' || props.status === 'cancelado') && (props.archivedCount ?? 0) > 0,
 );
 
 const dragGroup = computed(() =>
@@ -167,17 +168,21 @@ const onColumnAdd = (event: SortableEvent) => {
                 </p>
             </div>
 
-            <Button
+            <Link
                 v-if="showArchiveLink"
-                variant="secondary"
-                size="sm"
-                class="mt-3 w-full gap-2 text-xs"
-                @click="emit('openArchive')"
+                :href="`/pipeline/historial?status=${status}`"
+                class="mt-3"
             >
-                <Archive class="h-3.5 w-3.5" />
-                Ver {{ archivedCount }} entregados anteriores
-                <ChevronRight class="ml-auto h-3.5 w-3.5" />
-            </Button>
+                <Button
+                    variant="secondary"
+                    size="sm"
+                    class="w-full gap-2 text-xs"
+                >
+                    <Archive class="h-3.5 w-3.5" />
+                    Ver {{ archivedCount }} {{ status === 'cancelado' ? 'cancelados' : 'entregados' }} anteriores
+                    <ChevronRight class="ml-auto h-3.5 w-3.5" />
+                </Button>
+            </Link>
         </CardContent>
     </Card>
 </template>

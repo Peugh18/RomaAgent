@@ -75,14 +75,14 @@ class SaleController extends Controller
     private function pipelineKanban(): JsonResponse
     {
         $recentEntregadoIds = PipelineKanban::recentEntregadoIds();
+        $recentCanceladoIds = PipelineKanban::recentCanceladoIds();
 
         $sales = Sale::query()
             ->with(['customer', 'product', 'productVariant', 'items'])
-            ->where(function ($query) use ($recentEntregadoIds): void {
-                $query->where('status', '!=', SaleStatus::Entregado)
-                    ->where('status', '!=', SaleStatus::Cancelado)
+            ->where(function ($query) use ($recentEntregadoIds, $recentCanceladoIds): void {
+                $query->whereNotIn('status', [SaleStatus::Entregado->value, SaleStatus::Cancelado->value])
                     ->orWhereIn('id', $recentEntregadoIds)
-                    ->orWhere('status', SaleStatus::Cancelado);
+                    ->orWhereIn('id', $recentCanceladoIds);
             })
             ->oldest()
             ->get();
@@ -91,26 +91,30 @@ class SaleController extends Controller
             'sales' => $this->enriquecerParaPipeline($sales),
             'entregados_total' => PipelineKanban::entregadosTotal(),
             'entregados_archived_count' => PipelineKanban::entregadosArchivedCount(),
-            'entregados_kanban_limit' => PipelineKanban::ENTREGADOS_KANBAN_LIMIT,
+            'cancelados_total' => PipelineKanban::canceladosTotal(),
+            'cancelados_archived_count' => PipelineKanban::canceladosArchivedCount(),
+            'hours_limit' => PipelineKanban::HOURS_LIMIT,
         ]);
     }
 
     private function pipelineArchivo($query, Request $request): JsonResponse
     {
-        $skipRecent = min(
-            max($request->integer('skip_recent', PipelineKanban::ENTREGADOS_KANBAN_LIMIT), 0),
-            100,
-        );
+        // For the history view, we might just want to list EVERYTHING terminal, or EVERYTHING delivered.
+        // If the frontend explicitly asks for delivered/cancelled, we show them.
 
-        $recentIds = Sale::query()
-            ->where('status', SaleStatus::Entregado)
-            ->orderByDesc('delivered_at')
-            ->orderByDesc('id')
-            ->limit($skipRecent)
-            ->pluck('id');
+        $status = $request->string('history_status')->toString() ?: SaleStatus::Entregado->value;
+        $query->where('status', $status);
 
-        $query->where('status', SaleStatus::Entregado)
-            ->whereNotIn('id', $recentIds);
+        $period = $request->string('period')->toString();
+        $dateColumn = $status === SaleStatus::Entregado->value ? 'delivered_at' : 'updated_at';
+
+        if ($period === 'hoy') {
+            $query->whereDate($dateColumn, today());
+        } elseif ($period === 'semana') {
+            $query->whereBetween($dateColumn, [now()->startOfWeek(), now()->endOfWeek()]);
+        } elseif ($period === 'mes') {
+            $query->whereBetween($dateColumn, [now()->startOfMonth(), now()->endOfMonth()]);
+        }
 
         $perPage = min(max($request->integer('per_page', 20), 1), 50);
         $search = trim((string) $request->query('search', ''));

@@ -37,7 +37,7 @@ import type { SortableEvent } from 'sortablejs';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Pipeline de ventas', href: '/pipeline' }];
 
-const { sales, loading, error, loadSales, entregadosTotal, entregadosArchivedCount } = usePipelineSales();
+const { sales, loading, error, loadSales, entregadosTotal, entregadosArchivedCount, canceladosTotal, canceladosArchivedCount } = usePipelineSales();
 
 const searchQuery = ref('');
 const kanbanRef = ref<HTMLElement | null>(null);
@@ -332,8 +332,8 @@ const onTransitionCancelled = async () => {
                         :status="status"
                         :sales="columnSales[status]"
                         :highlight-attention="status === 'pago_pendiente' || status === 'pago_recibido'"
-                        :entregados-total="status === 'entregado' ? entregadosTotal : undefined"
-                        :archived-count="status === 'entregado' ? entregadosArchivedCount : undefined"
+                        :entregados-total="status === 'entregado' ? entregadosTotal : (status === 'cancelado' ? canceladosTotal : undefined)"
+                        :archived-count="status === 'entregado' ? entregadosArchivedCount : (status === 'cancelado' ? canceladosArchivedCount : undefined)"
                         @update:sales="columnSales[status] = $event"
                         @open-transition="openTransition"
                         @open-detail="openDetail"
