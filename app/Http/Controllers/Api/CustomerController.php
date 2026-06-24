@@ -17,6 +17,10 @@ class CustomerController extends Controller
         $perPage = min(max((int) $perPage, 1), 100);
 
         $search = trim((string) $request->input('search', ''));
+        $minSpent = $request->input('min_spent');
+        $minPurchases = $request->input('min_purchases');
+        $sortBy = $request->input('sort_by', 'last_inbound_at');
+        $sortDir = $request->input('sort_dir', 'desc');
 
         $customers = Customer::query()
             ->when($search !== '', function ($query) use ($search): void {
@@ -28,8 +32,27 @@ class CustomerController extends Controller
             ->withSum('sales as total_spent', 'total_amount')
             ->with(['sales' => fn ($q) => $q->latest()->limit(5)])
             ->withCount('sales')
-            ->orderByDesc('last_inbound_at')
-            ->orderByDesc('created_at')
+            ->when($minSpent !== null, function ($query) use ($minSpent) {
+                $query->having('total_spent', '>=', (float) $minSpent);
+            })
+            ->when($minPurchases !== null, function ($query) use ($minPurchases) {
+                $query->having('sales_count', '>=', (int) $minPurchases);
+            })
+            ->when($sortBy === 'total_spent', function ($query) use ($sortDir) {
+                $query->orderBy('total_spent', $sortDir);
+            })
+            ->when($sortBy === 'sales_count', function ($query) use ($sortDir) {
+                $query->orderBy('sales_count', $sortDir);
+            })
+            ->when(!in_array($sortBy, ['total_spent', 'sales_count']), function ($query) use ($sortBy, $sortDir) {
+                // Previene SQL injection validando contra lista blanca
+                $validColumns = ['last_inbound_at', 'created_at', 'name'];
+                $column = in_array($sortBy, $validColumns) ? $sortBy : 'last_inbound_at';
+                $query->orderBy($column, $sortDir === 'asc' ? 'asc' : 'desc');
+                if ($column !== 'created_at') {
+                    $query->orderByDesc('created_at');
+                }
+            })
             ->paginate($perPage);
 
         return CustomerResource::collection($customers)->response();

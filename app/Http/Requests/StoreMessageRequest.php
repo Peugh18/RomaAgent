@@ -24,7 +24,8 @@ class StoreMessageRequest extends FormRequest
     {
         return [
             'phone_number' => ['required', 'string'],
-            'content' => ['required', 'string', 'max:4096'],
+            'content' => ['required_without:image', 'nullable', 'string', 'max:4096'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'], // 5MB max
         ];
     }
 

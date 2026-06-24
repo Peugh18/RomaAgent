@@ -248,6 +248,50 @@ class SaleController extends Controller
         ]);
     }
 
+    public function sendPaymentReminder(Sale $sale): JsonResponse
+    {
+        $this->authorize('update', $sale);
+
+        if (!in_array($sale->status, [SaleStatus::PagoPendiente, SaleStatus::Confirmado])) {
+            return response()->json(['message' => 'Solo se pueden enviar recordatorios a pedidos pendientes de pago o confirmación.'], 422);
+        }
+
+        $customer = $sale->customer;
+        
+        if ($customer && !$customer->ia_paused) {
+            $customer->pausarIa('Pausado por recordatorio de pago automático.');
+        }
+
+        $monto = number_format((float) $sale->total_amount, 2);
+        $producto = $sale->product_name;
+
+        $nombreCorto = '';
+        if ($customer && $customer->name) {
+            $nombreCorto = ' ' . explode(' ', $customer->name)[0];
+        }
+
+        $content = "Hola{$nombreCorto}, notamos que tienes un pedido pendiente por S/ {$monto} de *{$producto}*. ¿Te ayudamos con algo para finalizar tu compra?";
+
+        $message = Message::create([
+            'message_id' => 'temp_' . uniqid(),
+            'phone_number' => $sale->phone_number,
+            'content' => $content,
+            'direction' => 'outgoing',
+            'status' => 'pending',
+            'whatsapp_timestamp' => now(),
+            'metadata' => ['type' => 'text'],
+        ]);
+
+        \App\Support\MessageBroadcaster::broadcast($message, 'SaleController');
+        \App\Jobs\SendWhatsappMessageJob::dispatchSync($message);
+        $message->refresh();
+
+        return response()->json([
+            'message' => 'Recordatorio enviado correctamente',
+            'data' => $message
+        ]);
+    }
+
     public function markShipped(Sale $sale, SaleTransitionRequest $request, MarcarPedidoEnviado $marcarEnviado): JsonResponse
     {
         $this->authorize('markShipped', $sale);

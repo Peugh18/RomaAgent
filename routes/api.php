@@ -63,6 +63,7 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
         ->where('phoneNumber', '[0-9+]+');
     Route::get('sales/{sale}/transition-preview', [SaleController::class, 'transitionPreview']);
     Route::post('sales/{sale}/confirm-payment', [SaleController::class, 'confirmPayment']);
+    Route::post('sales/{sale}/send-payment-reminder', [SaleController::class, 'sendPaymentReminder']);
     Route::post('sales/{sale}/send-payment-link', [SaleController::class, 'sendPaymentLink']);
     Route::post('sales/{sale}/mark-shipped', [SaleController::class, 'markShipped']);
     Route::post('sales/{sale}/mark-delivered', [SaleController::class, 'markDelivered']);

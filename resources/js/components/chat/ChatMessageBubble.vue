@@ -116,7 +116,7 @@ const locationLabel = computed(() => {
                         alt="Sticker"
                         class="max-h-28 max-w-28 object-contain"
                     />
-                    <span class="text-[10px] text-muted-foreground">Sticker</span>
+                    <span class="text-xs text-muted-foreground">Sticker</span>
                 </div>
                 <img
                     v-else-if="mediaKind(message) === 'image' && mediaSource(message)"
@@ -142,8 +142,8 @@ const locationLabel = computed(() => {
             </template>
 
             <div
-                class="mt-1.5 flex items-center justify-end gap-2 text-[10px]"
-                :class="message.direction === 'outgoing' ? 'text-emerald-900/60 dark:text-emerald-200/70' : 'text-muted-foreground'"
+                class="mt-1.5 flex items-center justify-end gap-2 text-xs"
+                :class="message.direction === 'outgoing' ? 'text-emerald-900/60 dark:text-emerald-100/90' : 'text-muted-foreground'"
             >
                 <span>{{ formatChatTime(message.created_at) }}</span>
                 <span v-if="message.direction === 'outgoing'">{{ chatStatusLabel(message.status) }}</span>
@@ -151,7 +151,7 @@ const locationLabel = computed(() => {
 
             <p
                 v-if="message.metadata?.send_error"
-                class="mt-1 text-[11px]"
+                class="mt-1 text-xs"
                 :class="message.direction === 'outgoing' ? 'text-red-700 dark:text-red-300' : 'text-red-600 dark:text-red-400'"
             >
                 {{ message.metadata.send_error }}
@@ -160,7 +160,7 @@ const locationLabel = computed(() => {
             <button
                 v-if="canResend"
                 type="button"
-                class="mt-2 inline-flex items-center gap-1.5 rounded-md border border-red-300/80 bg-white/80 px-2.5 py-1 text-[11px] font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70"
+                class="mt-2 inline-flex items-center gap-1.5 rounded-md border border-red-300/80 bg-white/80 px-2.5 py-1 text-xs font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200 dark:hover:bg-red-950/70"
                 :disabled="resending"
                 @click="emit('resend', message)"
             >

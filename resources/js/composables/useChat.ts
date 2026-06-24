@@ -10,6 +10,8 @@ interface UseChatOptions {
 export function useChat(options: UseChatOptions = {}) {
     const selectedPhone = ref<string | null>(options.initialPhone ?? null);
     const newMessage = ref('');
+    const selectedImage = ref<File | null>(null);
+    const imagePreviewUrl = ref<string | null>(null);
     const messages = ref<ChatMessage[]>([]);
     const conversations = ref<ChatConversation[]>([]);
     const loading = ref(false);
@@ -26,6 +28,22 @@ export function useChat(options: UseChatOptions = {}) {
 
         return messages.value.filter((message) => message.phone_number === selectedPhone.value);
     });
+
+    const clearImage = () => {
+        if (imagePreviewUrl.value) {
+            URL.revokeObjectURL(imagePreviewUrl.value);
+            imagePreviewUrl.value = null;
+        }
+        selectedImage.value = null;
+    };
+
+    const setImage = (file: File | null) => {
+        clearImage();
+        if (file) {
+            selectedImage.value = file;
+            imagePreviewUrl.value = URL.createObjectURL(file);
+        }
+    };
 
     const scrollToBottom = () => {
         requestAnimationFrame(() => {
@@ -178,7 +196,7 @@ export function useChat(options: UseChatOptions = {}) {
     };
 
     const sendMessage = async () => {
-        if (!selectedPhone.value || !newMessage.value.trim() || sending.value) {
+        if (!selectedPhone.value || (!newMessage.value.trim() && !selectedImage.value) || sending.value) {
             return;
         }
 
@@ -186,7 +204,21 @@ export function useChat(options: UseChatOptions = {}) {
         sendError.value = null;
 
         const content = newMessage.value.trim();
+        const optimisticImageUrl = imagePreviewUrl.value;
+        const hasImage = selectedImage.value !== null;
+        const fileToSend = selectedImage.value; // Store reference
+
         newMessage.value = '';
+        selectedImage.value = null;
+        imagePreviewUrl.value = null;
+
+        const metadata: any = { type: hasImage ? 'image' : 'text' };
+        if (hasImage) {
+            metadata.image_url = optimisticImageUrl;
+            if (content) {
+                metadata.image_caption = content;
+            }
+        }
 
         const optimistic: ChatMessage = {
             id: Date.now(),
@@ -197,7 +229,7 @@ export function useChat(options: UseChatOptions = {}) {
             direction: 'outgoing',
             status: 'pending',
             whatsapp_timestamp: null,
-            metadata: { type: 'text' },
+            metadata,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
         };
@@ -206,12 +238,24 @@ export function useChat(options: UseChatOptions = {}) {
         scrollToBottom();
 
         try {
-            const result = await apiJson<{ data: ChatMessage }>('/api/send-message', {
-                method: 'POST',
-                body: JSON.stringify({
+            let body: string | FormData;
+            if (hasImage && fileToSend) {
+                body = new FormData();
+                body.append('phone_number', selectedPhone.value);
+                if (content) {
+                    body.append('content', content);
+                }
+                body.append('image', fileToSend);
+            } else {
+                body = JSON.stringify({
                     phone_number: selectedPhone.value,
                     content,
-                }),
+                });
+            }
+
+            const result = await apiJson<{ data: ChatMessage }>('/api/send-message', {
+                method: 'POST',
+                body,
             });
 
             upsertMessage(result.data);
@@ -267,10 +311,11 @@ export function useChat(options: UseChatOptions = {}) {
         onPoll: pollUpdate,
         onMessageReceived: handleMessageReceived,
     });
-
     return {
         selectedPhone,
         newMessage,
+        selectedImage,
+        imagePreviewUrl,
         messages,
         conversations,
         filteredMessages,
@@ -280,6 +325,8 @@ export function useChat(options: UseChatOptions = {}) {
         sendError,
         loadError,
         messagesContainer,
+        setImage,
+        clearImage,
         initialLoad,
         pollUpdate,
         selectConversation,

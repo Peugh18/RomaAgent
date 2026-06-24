@@ -77,6 +77,10 @@ const lastPage = ref(1);
 const totalCustomers = ref(0);
 let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+const currentFilter = ref<'todos'|'vip'|'alto_valor'>('todos');
+const sortBy = ref<'last_inbound_at'|'total_spent'|'sales_count'>('last_inbound_at');
+const sortDir = ref<'asc'|'desc'>('desc');
+
 // Edit modal state
 const editingCustomer = ref<Customer | null>(null);
 const editNotes = ref('');
@@ -92,9 +96,16 @@ const fetchCustomers = async () => {
         const params = new URLSearchParams({
             page: String(currentPage.value),
             per_page: String(itemsPerPage.value),
+            sort_by: sortBy.value,
+            sort_dir: sortDir.value,
         });
         if (searchQuery.value.trim()) {
             params.set('search', searchQuery.value.trim());
+        }
+        if (currentFilter.value === 'vip') {
+            params.set('min_purchases', '3');
+        } else if (currentFilter.value === 'alto_valor') {
+            params.set('min_spent', '500');
         }
 
         const raw = await apiJson<unknown>(`/api/customers?${params.toString()}`);
@@ -133,7 +144,7 @@ const toItem = computed(() =>
     Math.min(currentPage.value * itemsPerPage.value, totalCustomers.value),
 );
 
-watch(searchQuery, () => {
+watch([searchQuery, currentFilter, sortBy, sortDir], () => {
     if (searchDebounceTimer) {
         clearTimeout(searchDebounceTimer);
     }
@@ -142,6 +153,19 @@ watch(searchQuery, () => {
         void fetchCustomers();
     }, 300);
 });
+
+const setFilter = (filter: 'todos'|'vip'|'alto_valor') => {
+    currentFilter.value = filter;
+};
+
+const toggleSort = (column: 'last_inbound_at'|'total_spent'|'sales_count') => {
+    if (sortBy.value === column) {
+        sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortBy.value = column;
+        sortDir.value = 'desc';
+    }
+};
 
 onUnmounted(() => {
     if (searchDebounceTimer) {
@@ -215,11 +239,17 @@ onMounted(() => {
             <CrmAlert v-if="error" class="mb-0">{{ error }}</CrmAlert>
 
             <CrmAnimatedSection :delay="80">
-            <div class="crm-toolbar">
+            <div class="crm-toolbar flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+                <div class="flex flex-wrap gap-2 items-center">
+                    <Button variant="outline" size="sm" :class="{'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300': currentFilter === 'todos'}" @click="setFilter('todos')">Todos</Button>
+                    <Button variant="outline" size="sm" :class="{'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300': currentFilter === 'vip'}" @click="setFilter('vip')">🌟 VIP (>3 compras)</Button>
+                    <Button variant="outline" size="sm" :class="{'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300': currentFilter === 'alto_valor'}" @click="setFilter('alto_valor')">💰 Alto Valor (>S/ 500)</Button>
+                </div>
                 <CrmSearchBar
                     v-model="searchQuery"
                     placeholder="Buscar por nombre o teléfono…"
                     :disabled="loading"
+                    class="w-full sm:w-64"
                 />
             </div>
 
@@ -248,7 +278,12 @@ onMounted(() => {
                                     <TableHead class="w-[180px]">Teléfono</TableHead>
                                     <TableHead class="w-[180px]">Nombre</TableHead>
                                     <TableHead>Notas internas</TableHead>
-                                    <TableHead class="w-[100px] text-center">Compras</TableHead>
+                                    <TableHead class="w-[100px] text-center cursor-pointer hover:bg-muted transition-colors" @click="toggleSort('sales_count')">
+                                        Compras <span v-if="sortBy === 'sales_count'">{{ sortDir === 'desc' ? '↓' : '↑' }}</span>
+                                    </TableHead>
+                                    <TableHead class="w-[140px] text-right cursor-pointer hover:bg-muted transition-colors" @click="toggleSort('total_spent')">
+                                        LTV <span v-if="sortBy === 'total_spent'">{{ sortDir === 'desc' ? '↓' : '↑' }}</span>
+                                    </TableHead>
                                     <TableHead class="w-[100px] text-center">Estado</TableHead>
                                     <TableHead class="w-[120px] text-right">Acciones</TableHead>
                                 </TableRow>
@@ -289,6 +324,11 @@ onMounted(() => {
                                             {{ customer.sales_count }}
                                         </Button>
                                         <span v-else class="text-sm text-muted-foreground">—</span>
+                                    </TableCell>
+                                    <TableCell class="text-right">
+                                        <span class="font-semibold" :class="{'text-emerald-600 dark:text-emerald-400': customer.total_spent > 0}">
+                                            S/ {{ customer.total_spent ? customer.total_spent.toFixed(2) : '0.00' }}
+                                        </span>
                                     </TableCell>
                                     <TableCell class="text-center">
                                         <Badge

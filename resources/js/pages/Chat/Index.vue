@@ -14,15 +14,17 @@ import { useHumanAttentionAlert } from '@/composables/useHumanAttentionAlert';
 import { useActiveSale } from '@/composables/useSale';
 import { type BreadcrumbItem } from '@/types';
 import type { Sale, SaleTransition } from '@/types/sale';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Head } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
-import { Bot, Loader2, MessageSquare } from 'lucide-vue-next';
+import { Bot, Loader2, MessageSquare, PanelRightOpen } from 'lucide-vue-next';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Chat WhatsApp', href: '/chat' }];
 
 const chatMode = ref<'bot' | 'human'>('bot');
 const transitionOpen = ref(false);
 const activeTransition = ref<SaleTransition | null>(null);
+const mobileSalePanelOpen = ref(false);
 
 const phoneFromUrl = typeof window !== 'undefined'
     ? new URLSearchParams(window.location.search).get('phone')
@@ -39,10 +41,24 @@ const {
     sendError,
     loadError,
     messagesContainer,
+    selectedImage,
+    imagePreviewUrl,
+    setImage,
+    clearImage,
     selectConversation,
     sendMessage,
     resendMessage,
 } = useChat({ initialPhone: phoneFromUrl });
+
+const deselectConversation = () => {
+    // Navigate to /chat without phone parameter or just clear it
+    window.history.pushState({}, '', '/chat');
+    window.dispatchEvent(new Event('popstate'));
+    // Since useChat doesn't have an explicit clear, we can reload or handle it.
+    // Actually, selectConversation(null) might not be typed to allow null, let's see.
+    // If not, we can just force a reload, but SPA is better. Let's try selectConversation('').
+    void selectConversation('');
+};
 
 const phoneRef = computed(() => selectedPhone.value);
 
@@ -96,48 +112,44 @@ const openTransition = (transition: SaleTransition) => {
             @select="goToHumanChat"
         />
 
-        <div class="crm-page !gap-4 pb-4 pt-2">
-            <CrmPageHero
-                compact
-                title="Chat WhatsApp"
-                description="Conversaciones en tiempo real. Cambia a modo humano para responder manualmente."
-                :icon="MessageSquare"
-                variant="emerald"
-                :stats="[{ label: 'Conversaciones', value: conversations.length }]"
-            />
-
-            <CrmAnimatedSection :delay="60">
-            <div
-                class="flex h-[calc(100vh-11rem)] min-h-[32rem] flex-col gap-4 overflow-hidden lg:flex-row lg:gap-0 lg:rounded-2xl lg:border lg:border-border/50 lg:shadow-md"
-            >
-            <ChatConversationList
-                :conversations="conversations"
-                :selected-phone="selectedPhone"
-                :loading="loading"
-                @select="selectConversation"
-            />
-
-            <section class="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#efeae2] dark:bg-muted/20 lg:rounded-r-xl">
-                <ChatThreadHeader
-                    :name="activeConversation?.name ?? null"
-                    :phone="selectedPhone"
-                    @mode-change="chatMode = $event"
-                    @labels-updated="updateLabels"
-                />
-
-                <ChatSalePanel
-                    :sale="activeSale"
-                    :loading="saleLoading"
-                    :transitioning="transitioning"
-                    :error="saleError"
-                    @open-transition="openTransition"
-                    @refresh="loadActiveSale"
-                />
-
+        <div class="flex h-[calc(100vh-80px)] flex-col overflow-hidden pb-0 pt-0">
+            <CrmAnimatedSection :delay="60" class="flex flex-1 flex-col overflow-hidden">
                 <div
-                    ref="messagesContainer"
-                    class="flex-1 space-y-3 overflow-y-auto bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%23d4cdc4%22 fill-opacity=%220.15%22%3E%3Cpath d=%22M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] p-4 dark:bg-none"
+                    class="flex flex-1 flex-col overflow-hidden lg:flex-row lg:gap-0 lg:border-t lg:border-border"
                 >
+                    <!-- Left Sidebar: Conversations -->
+                    <ChatConversationList
+                        :conversations="conversations"
+                        :selected-phone="selectedPhone"
+                        :loading="loading"
+                        @select="selectConversation"
+                        class="w-full shrink-0 border-r border-border lg:w-80"
+                        :class="selectedPhone ? 'hidden lg:flex' : 'flex'"
+                    />
+
+                    <!-- Middle Column: Chat Thread -->
+                    <section 
+                        class="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#efeae2] dark:bg-[#0b141a]"
+                        :class="!selectedPhone ? 'hidden lg:flex' : 'flex'"
+                    >
+                        <ChatThreadHeader
+                            :name="activeConversation?.name ?? null"
+                            :phone="selectedPhone"
+                            @mode-change="chatMode = $event"
+                            @labels-updated="updateLabels"
+                            @open-sale-panel="mobileSalePanelOpen = true"
+                            @back="deselectConversation"
+                        />
+
+                        <div class="relative flex-1 overflow-hidden">
+                            <!-- Background Pattern -->
+                            <div 
+                                class="pointer-events-none absolute inset-0 z-0 bg-[url('/storage/logos/2NIgcUYuHK75VhjbnATXeUsApwnYv1CQylp2XAtf.png')] bg-repeat opacity-40 dark:opacity-[0.04]"
+                                style="background-size: 350px;"
+                            ></div>
+                            
+                            <!-- Messages -->
+                            <div ref="messagesContainer" class="relative z-10 h-full space-y-3 overflow-y-auto p-4">
                     <div v-if="loading && filteredMessages.length === 0" class="flex justify-center py-8">
                         <Loader2 class="h-5 w-5 animate-spin text-muted-foreground" />
                     </div>
@@ -164,12 +176,16 @@ const openTransition = (transition: SaleTransition) => {
                         No hay mensajes en esta conversación.
                     </p>
                 </div>
+            </div>
 
                 <ChatComposer
                     v-if="selectedPhone && chatMode === 'human'"
                     v-model="newMessage"
                     :sending="sending"
+                    :image-preview-url="imagePreviewUrl"
                     @submit="sendMessage"
+                    @image-selected="setImage"
+                    @clear-image="clearImage"
                 />
 
                 <div
@@ -180,10 +196,44 @@ const openTransition = (transition: SaleTransition) => {
                     La IA responde sola. Cambia a <strong class="mx-1 font-medium text-foreground">Humano</strong> para escribir manualmente.
                 </div>
 
-                <p v-if="sendError" class="bg-[#f0f2f5] px-4 pb-3 text-sm text-destructive dark:bg-muted/30">
-                    {{ sendError }}
-                </p>
-            </section>
+                    <p v-if="sendError" class="bg-[#f0f2f5] px-4 pb-3 text-sm text-destructive dark:bg-muted/30">
+                        {{ sendError }}
+                    </p>
+                </section>
+
+                <!-- Right Sidebar: Sale Panel (Desktop) -->
+                <aside
+                    v-if="activeSale || saleLoading"
+                    class="hidden w-80 shrink-0 flex-col overflow-y-auto border-l border-border bg-card lg:flex"
+                >
+                    <ChatSalePanel
+                        :sale="activeSale"
+                        :loading="saleLoading"
+                        :transitioning="transitioning"
+                        :error="saleError"
+                        @open-transition="openTransition"
+                        @refresh="loadActiveSale"
+                    />
+                </aside>
+
+                <!-- Mobile Sale Panel Drawer -->
+                <Sheet v-model:open="mobileSalePanelOpen">
+                    <SheetContent side="right" class="w-full max-w-md p-0 sm:max-w-md">
+                        <SheetHeader class="border-b border-border bg-muted/30 px-4 py-3 text-left">
+                            <SheetTitle class="text-sm">Datos de la Venta</SheetTitle>
+                        </SheetHeader>
+                        <div class="h-full overflow-y-auto pb-10">
+                            <ChatSalePanel
+                                :sale="activeSale"
+                                :loading="saleLoading"
+                                :transitioning="transitioning"
+                                :error="saleError"
+                                @open-transition="openTransition"
+                                @refresh="loadActiveSale"
+                            />
+                        </div>
+                    </SheetContent>
+                </Sheet>
 
             <SaleTransitionModal
                 v-model:open="transitionOpen"
