@@ -9,6 +9,7 @@ interface NavItem {
     title: string;
     url: string;
     icon: Component;
+    exact?: boolean;
 }
 
 defineProps<{
@@ -18,10 +19,18 @@ defineProps<{
 
 const page = usePage<SharedData>();
 
-const isActive = (url: string) => {
+const isActive = (item: NavItem) => {
     const current = page.url.split('?')[0];
 
-    return current === url || (url !== '/dashboard' && current.startsWith(url));
+    if (current === item.url) return true;
+    if (item.exact || item.url === '/dashboard') return false;
+
+    // Exception: Do not mark Configuración as active if in Zonas de Envío
+    if (item.url === '/configuracion' && current.startsWith('/configuracion/zonas-envio')) {
+        return false;
+    }
+
+    return current.startsWith(item.url + '/');
 };
 </script>
 
@@ -34,12 +43,12 @@ const isActive = (url: string) => {
             <SidebarMenuItem v-for="item in items" :key="item.title">
                 <SidebarMenuButton
                     as-child
-                    :is-active="isActive(item.url)"
+                    :is-active="isActive(item)"
                     :tooltip="item.title"
                     :class="
                         cn(
                             'transition-all duration-200',
-                            isActive(item.url) &&
+                            isActive(item) &&
                                 'bg-sidebar-accent/90 font-medium shadow-[inset_3px_0_0_0_hsl(var(--sidebar-ring))] [&>svg]:text-sidebar-ring',
                         )
                     "

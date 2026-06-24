@@ -86,7 +86,7 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
 
 <template>
     <aside class="flex h-full w-full shrink-0 flex-col overflow-hidden border-r border-border bg-card lg:w-80">
-        <div class="space-y-3 border-b border-border bg-muted/30 p-4">
+        <div class="space-y-2 border-b border-border bg-muted/30 p-3">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 text-sm font-semibold">
                     <MessageSquare class="h-4 w-4 text-emerald-600" />
@@ -161,7 +161,7 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
             </div>
         </div>
 
-        <div class="border-b border-border px-4 py-2">
+        <div class="border-b border-border px-3 py-1.5">
             <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Conversaciones ({{ filteredConversations.length }})
             </p>
@@ -176,7 +176,7 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
                 v-for="conversation in filteredConversations"
                 :key="conversation.phone"
                 type="button"
-                class="relative flex w-full gap-3 border-b border-border/60 px-4 py-3 text-left transition hover:bg-muted/40"
+                class="relative flex w-full gap-2 border-b border-border/60 px-3 py-2 text-left transition hover:bg-muted/40"
                 :class="selectedPhone === conversation.phone ? 'bg-emerald-50/80 dark:bg-emerald-950/20' : ''"
                 @click="emit('select', conversation.phone)"
             >
@@ -186,7 +186,7 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
                 />
 
                 <div
-                    class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 text-sm font-semibold text-white"
+                    class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 text-sm font-semibold text-white"
                 >
                     {{ getInitials(conversation.name || conversation.phone) }}
                 </div>
@@ -205,24 +205,24 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
                         </span>
                     </div>
                     <p class="mt-1 truncate text-xs text-muted-foreground">{{ conversation.last_message }}</p>
-                    <div class="mt-2 flex flex-wrap gap-1">
+                    <div class="mt-1.5 flex flex-wrap gap-1">
                         <span
                             v-if="conversation.pending_payment"
-                            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200"
                         >
                             <CreditCard class="h-3 w-3" />
                             Pago por revisar
                         </span>
                         <span
                             v-else-if="conversation.ia_paused"
-                            class="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                            class="inline-flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0 text-[10px] font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300"
                         >
                             <UserRound class="h-3 w-3" />
                             Humano
                         </span>
                         <span
                             v-else
-                            class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-1.5 py-0 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
                         >
                             <Bot class="h-3 w-3" />
                             IA activa
@@ -232,7 +232,7 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
                         <span
                             v-for="label in conversation.labels"
                             :key="label.id"
-                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-white shadow-sm border border-black/10"
+                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium text-white shadow-sm border border-black/10"
                             :style="{ backgroundColor: label.color }"
                         >
                             {{ label.name }}

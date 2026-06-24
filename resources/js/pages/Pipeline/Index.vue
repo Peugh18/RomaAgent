@@ -239,7 +239,7 @@ const onTransitionCancelled = async () => {
     <Head title="Pipeline de ventas" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="flex flex-col h-[calc(100vh-73px)] overflow-hidden px-4 md:px-6 py-4 space-y-4">
+        <div class="flex flex-col h-[calc(100vh-73px)] overflow-hidden px-2 md:px-4 py-3 space-y-3">
             <CrmPageHero
                 title="Pipeline de ventas"
                 description="Confirma pagos con botones. En Confirmado → Enviado → Entregado puedes arrastrar o usar botones; siempre se abre el modal de WhatsApp al avanzar."

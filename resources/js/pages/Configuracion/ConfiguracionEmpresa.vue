@@ -190,7 +190,7 @@ const heroStats = computed(() => {
         <div v-if="loading" class="crm-page flex min-h-[40vh] items-center justify-center">
             <p class="text-sm text-muted-foreground">Cargando configuración…</p>
         </div>
-        <div v-else class="crm-page space-y-6 pb-20">
+        <div v-else class="crm-page space-y-4 pb-20">
             <CrmPageHero
                 title="Configuración de empresa"
                 description="Datos de tu marca, pagos, IA y mensajes. La IA responde según esta configuración."
@@ -208,7 +208,7 @@ const heroStats = computed(() => {
                 <!-- FORMULARIO (Izquierda - 2 columnas) -->
                 <div class="lg:col-span-2 space-y-6">
             <Tabs v-model="pestanaActiva" class="w-full">
-                <TabsList class="grid h-auto w-full grid-cols-3 gap-1 rounded-xl border border-border/50 bg-muted/30 p-1 sm:grid-cols-4">
+                <TabsList class="grid h-auto w-full grid-cols-3 gap-0.5 rounded-xl border border-border/50 bg-muted/30 p-1 sm:grid-cols-4">
                     <!-- 1. Datos Básicos -->
                     <TabsTrigger value="empresa" class="rounded-lg text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm">
                         <Building2 class="h-4 w-4 mr-1 hidden sm:inline" />
@@ -275,7 +275,7 @@ const heroStats = computed(() => {
                         />
                         <Button
                             variant="destructive"
-                            class="gap-2"
+                            class="gap-1 p-1"
                             :disabled="resetting"
                             @click="modalResetAbierto = true"
                         >
@@ -286,14 +286,14 @@ const heroStats = computed(() => {
                     </div>
 
                     <Dialog v-model:open="modalResetAbierto">
-                        <DialogContent>
+                        <DialogContent class="p-2">
                             <DialogHeader>
                                 <DialogTitle>¿Eliminar toda la configuración?</DialogTitle>
                                 <DialogDescription>
                                     Esta acción no se puede deshacer. Escribe <strong>RESETEAR</strong> para confirmar.
                                 </DialogDescription>
                             </DialogHeader>
-                            <div class="space-y-2">
+                            <div class="space-y-3">
                                 <Label for="confirm-reset">Confirmación</Label>
                                 <Input
                                     id="confirm-reset"

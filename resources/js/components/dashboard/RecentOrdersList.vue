@@ -104,7 +104,7 @@ const statusBadge = (status: SaleStatus): string => {
                     v-for="order in orders.slice(0, 6)"
                     :key="order.id"
                     :href="`/chat?phone=${encodeURIComponent(order.phone_number)}`"
-                    class="group flex items-center gap-3 rounded-xl border border-transparent px-2 py-3 transition hover:border-border/60 hover:bg-muted/30"
+                    class="group flex items-center gap-3 rounded-xl border border-transparent px-2 py-2 transition hover:border-border/60 hover:bg-muted/30"
                 >
                     <Avatar class="h-10 w-10 border border-border/60">
                         <AvatarFallback class="bg-muted text-xs font-semibold">

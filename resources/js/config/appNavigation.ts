@@ -15,6 +15,7 @@ export interface AppNavItem {
     title: string;
     href: string;
     icon: Component;
+    exact?: boolean;
 }
 
 export interface AppNavGroup {
@@ -57,10 +58,11 @@ export const systemNavGroup: AppNavGroup = {
 };
 
 
-export function toNavMainItems(items: AppNavItem[]): { title: string; url: string; icon: Component }[] {
+export function toNavMainItems(items: AppNavItem[]): { title: string; url: string; icon: Component; exact?: boolean }[] {
     return items.map((item) => ({
         title: item.title,
         url: item.href,
         icon: item.icon,
+        exact: item.exact,
     }));
 }

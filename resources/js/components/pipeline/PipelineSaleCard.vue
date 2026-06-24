@@ -83,26 +83,22 @@ const sendReminder = async () => {
 
         <CardContent class="p-2">
             <div class="flex items-center gap-1.5">
-                <GripVertical
-                    v-if="draggable"
-                    class="h-3.5 w-3.5 shrink-0 text-muted-foreground/40"
-                />
                 <div class="min-w-0 flex-1 space-y-0.5">
                     <div class="flex items-center justify-between gap-1">
-                        <div class="flex items-center gap-1 min-w-0">
+                        <div class="flex items-center gap-1.5 min-w-0 pr-1">
                             <AlertCircle v-if="isEstancada" class="h-3 w-3 shrink-0 text-red-500" />
                             <p class="truncate text-xs font-medium" :class="isEstancada ? 'text-red-700 dark:text-red-400' : ''">
                                 {{ displayName(sale) }}
                             </p>
                         </div>
-                        <span class="shrink-0 text-[10px] text-muted-foreground pr-6" :class="isEstancada ? 'text-red-600/70 dark:text-red-400/70' : ''">
+                        <span class="shrink-0 text-[11px] font-medium text-muted-foreground pr-6" :class="isEstancada ? 'text-red-600/70 dark:text-red-400/70' : ''">
                             {{ formatMoney(sale.total_amount) }}
                         </span>
                     </div>
-                    <p class="truncate text-[10px] text-muted-foreground pr-6" :class="isEstancada ? 'text-red-600/70 dark:text-red-400/70' : ''">
+                    <p class="truncate text-[11px] text-muted-foreground pr-6" :class="isEstancada ? 'text-red-600/70 dark:text-red-400/70' : ''">
                         {{ sale.product_name }}
-                        <span v-if="sale.color"> · {{ sale.color }}</span>
-                        <span v-if="sale.size && sale.size !== 'UNICA'"> · {{ sale.size }}</span>
+                        <span v-if="sale.size && sale.size !== 'UNICA'" class="text-[11px] text-muted-foreground/70"> · {{ sale.size }}</span>
+                        <span v-if="sale.color" class="text-[11px] text-muted-foreground/70"> · {{ sale.color }}</span>
                     </p>
                 </div>
             </div>

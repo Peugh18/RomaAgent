@@ -150,7 +150,7 @@ const hasDispatchData = computed(() =>
 
     <div
         v-else-if="sale"
-        class="border-b border-border bg-card px-4 py-3"
+        class="border-b border-border bg-card px-3 py-2.5"
     >
         <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 space-y-1">
@@ -185,8 +185,8 @@ const hasDispatchData = computed(() =>
                 </p>
                 
                 <!-- Dispatch Info Block -->
-                <div v-if="hasDispatchData" class="mt-4 rounded-md border border-border/60 bg-muted/20 p-3 space-y-2">
-                    <h5 class="text-xs font-semibold text-foreground flex items-center gap-1.5 mb-2 border-b pb-1.5">
+                <div v-if="hasDispatchData" class="mt-3 rounded-md border border-border/60 bg-muted/20 p-2.5 space-y-1.5">
+                    <h5 class="text-[11px] font-semibold text-foreground flex items-center gap-1.5 mb-1.5 border-b pb-1">
                         📦 Información de Despacho
                     </h5>
                     
@@ -199,14 +199,14 @@ const hasDispatchData = computed(() =>
                             </span>
                             <span v-else-if="!tipoEnvio" class="text-amber-600 font-normal ml-1">(Inferido)</span>
                         </p>
-                        <p v-if="deliveryDistrito" class="text-xs text-muted-foreground ml-6">
-                            <strong class="text-foreground font-medium">Distrito:</strong> {{ deliveryDistrito }}
+                        <p v-if="deliveryDistrito" class="text-xs text-muted-foreground flex justify-between gap-2">
+                            <strong class="text-foreground font-medium shrink-0">Distrito:</strong> <span class="truncate">{{ deliveryDistrito }}</span>
                         </p>
-                        <p v-if="deliveryAddress" class="text-xs text-muted-foreground ml-6">
-                            <strong class="text-foreground font-medium">Dirección:</strong> {{ deliveryAddress }}
+                        <p v-if="deliveryAddress" class="text-xs text-muted-foreground flex justify-between gap-2">
+                            <strong class="text-foreground font-medium shrink-0">Dirección:</strong> <span class="truncate">{{ deliveryAddress }}</span>
                         </p>
-                        <p v-if="customerName" class="text-xs text-muted-foreground ml-6">
-                            <strong class="text-foreground font-medium">Recibe:</strong> {{ customerName }}
+                        <p v-if="customerName" class="text-xs text-muted-foreground flex justify-between gap-2">
+                            <strong class="text-foreground font-medium shrink-0">Recibe:</strong> <span class="truncate">{{ customerName }}</span>
                         </p>
                     </template>
                     
@@ -217,15 +217,14 @@ const hasDispatchData = computed(() =>
                             <span v-if="tipoEnvio" class="text-muted-foreground font-normal ml-1">(Pago en destino)</span>
                             <span v-else class="text-amber-600 font-normal ml-1">(Inferido)</span>
                         </p>
-                        <p v-if="deliveryDistrito" class="text-xs text-muted-foreground ml-6">
-                            <strong class="text-foreground font-medium">Destino:</strong> {{ deliveryDistrito }} <span v-if="deliveryProvincia">- {{ deliveryProvincia }}</span>
+                        <p v-if="deliveryDistrito" class="text-xs text-muted-foreground flex justify-between gap-2">
+                            <strong class="text-foreground font-medium shrink-0">Destino:</strong> <span class="truncate">{{ deliveryDistrito }} <span v-if="deliveryProvincia">- {{ deliveryProvincia }}</span></span>
                         </p>
-                        <p v-if="deliverySedeShalom" class="text-xs text-muted-foreground ml-6">
-                            <strong class="text-foreground font-medium">Agencia:</strong> {{ deliverySedeShalom }}
+                        <p v-if="deliverySedeShalom" class="text-xs text-muted-foreground flex justify-between gap-2">
+                            <strong class="text-foreground font-medium shrink-0">Agencia:</strong> <span class="truncate">{{ deliverySedeShalom }}</span>
                         </p>
-                        <p v-if="customerName" class="text-xs text-muted-foreground ml-6">
-                            <strong class="text-foreground font-medium">Recoge:</strong> {{ customerName }} 
-                            <span v-if="deliveryDni">- DNI: {{ deliveryDni }}</span>
+                        <p v-if="customerName" class="text-xs text-muted-foreground flex justify-between gap-2">
+                            <strong class="text-foreground font-medium shrink-0">Recoge:</strong> <span class="truncate">{{ customerName }} <span v-if="deliveryDni">- DNI: {{ deliveryDni }}</span></span>
                         </p>
                     </template>
 
