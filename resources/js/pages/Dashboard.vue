@@ -205,7 +205,7 @@ const statCards = computed(() => [
                 v-motion
                 :initial="{ opacity: 0, y: 16 }"
                 :enter="{ opacity: 1, y: 0, transition: { delay: 280, duration: 350, ease: 'easeOut' } }"
-                class="grid gap-6 xl:grid-cols-5"
+                class="grid gap-4 xl:grid-cols-5"
             >
                 <SalesChart :data="chartData" class="xl:col-span-3" />
                 <PipelineOverviewChart :data="pipelineOverview" class="xl:col-span-2" />

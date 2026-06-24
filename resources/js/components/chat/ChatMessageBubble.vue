@@ -66,11 +66,11 @@ const locationLabel = computed(() => {
 <template>
     <div class="flex" :class="message.direction === 'outgoing' ? 'justify-end' : 'justify-start'">
         <div
-            class="max-w-[min(85%,28rem)] text-sm"
+            class="max-w-[92%] sm:max-w-[min(85%,28rem)] text-sm"
             :class="
                 isSticker
                     ? 'px-0 py-0 shadow-none'
-                    : 'rounded-2xl px-3.5 py-2.5 shadow-sm ' +
+                    : 'rounded-2xl px-3 py-1.5 shadow-sm ' +
                       (message.direction === 'outgoing'
                           ? 'rounded-br-md bg-[#d9fdd3] text-[#111b21] dark:bg-emerald-900/50 dark:text-emerald-50'
                           : 'rounded-bl-md border border-border bg-white text-foreground dark:bg-card')

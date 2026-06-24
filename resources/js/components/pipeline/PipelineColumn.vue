@@ -79,12 +79,12 @@ const onColumnAdd = (event: SortableEvent) => {
     <Card
         :data-pipeline-status="status"
         :class="[
-            'min-w-[220px] flex-1 shrink-0 snap-center rounded-2xl border border-border/40 shadow-sm transition-shadow hover:shadow-md flex flex-col',
+            'min-w-[280px] max-w-[320px] flex-1 shrink-0 snap-center rounded-xl border border-border/40 shadow-sm transition-shadow hover:shadow-md flex flex-col',
             statusConfig[status].bg,
             highlightAttention && sales.length > 0 ? 'ring-2 ring-amber-500/50 ring-offset-2 ring-offset-background' : '',
         ]"
     >
-        <CardHeader class="space-y-3 pb-3">
+        <CardHeader class="space-y-1.5 pb-2 p-3">
             <div class="text-center w-full">
                 <p v-if="status === 'confirmado'" class="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Pedido por Preparar
@@ -107,17 +107,17 @@ const onColumnAdd = (event: SortableEvent) => {
             <CardTitle class="text-sm font-semibold">
                 {{ SALE_STATUS_LABELS[status] }}
             </CardTitle>
-            <p v-if="status === 'confirmado'" class="text-[10px] leading-snug text-muted-foreground">
+            <p v-if="status === 'confirmado'" class="text-[10px] leading-tight text-muted-foreground/80">
                 Arrastra o usa el botón · al soltar se abre el modal de mensaje.
             </p>
-            <p v-else-if="status === 'enviado'" class="text-[10px] leading-snug text-muted-foreground">
+            <p v-else-if="status === 'enviado'" class="text-[10px] leading-tight text-muted-foreground/80">
                 Arrastra a Entregado para enviar gracias y reactivar el bot.
             </p>
-            <p v-else-if="status === 'entregado'" class="text-[10px] leading-snug text-muted-foreground">
+            <p v-else-if="status === 'entregado'" class="text-[10px] leading-tight text-muted-foreground/80">
                 Últimos en kanban · arrastra a Enviado para corregir recientes.
             </p>
         </CardHeader>
-        <CardContent class="flex-1 overflow-y-auto pt-0 min-h-0">
+        <CardContent class="flex-1 overflow-y-auto px-3 pb-3 pt-0 min-h-0">
             <!-- Columnas de pago: lista estática (sin drag) -->
             <div v-if="!draggable" class="space-y-3">
                 <PipelineSaleCard

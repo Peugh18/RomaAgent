@@ -65,7 +65,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <footer ref="composerRef" class="relative border-t border-border bg-[#f0f2f5] p-3 dark:bg-muted/30">
+    <footer ref="composerRef" class="relative border-t border-border bg-[#f0f2f5] p-2 dark:bg-muted/30">
         <!-- Vista previa de imagen -->
         <div v-if="imagePreviewUrl" class="mb-3 flex items-start gap-2 rounded-xl bg-muted/40 p-2">
             <div class="relative h-20 w-20 shrink-0 overflow-hidden rounded-md border border-border bg-background">
@@ -92,12 +92,12 @@ onUnmounted(() => {
         </div>
 
         <!-- Botones Rápidos (Píldoras) -->
-        <div class="mb-2 flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
+        <div class="mb-1.5 flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
             <button
                 v-for="response in cannedResponses"
                 :key="response.id"
                 type="button"
-                class="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
+                class="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 transition hover:bg-emerald-100 hover:text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/50"
                 @click="selectCannedResponse(response.text)"
             >
                 {{ response.label }}
@@ -118,7 +118,7 @@ onUnmounted(() => {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    class="h-9 w-9 shrink-0 text-muted-foreground transition hover:text-foreground"
+                    class="h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
                     :disabled="disabled || sending"
                     @click="showEmojiPicker = !showEmojiPicker"
                 >
@@ -128,7 +128,7 @@ onUnmounted(() => {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    class="h-9 w-9 shrink-0 text-muted-foreground transition hover:text-foreground"
+                    class="h-8 w-8 shrink-0 text-muted-foreground transition hover:text-foreground"
                     :disabled="disabled || sending"
                     @click="fileInput?.click()"
                 >
@@ -139,7 +139,7 @@ onUnmounted(() => {
             <Input
                 v-model="model"
                 placeholder="Escribe un mensaje…"
-                class="min-h-10 flex-1 rounded-2xl border-0 bg-white shadow-sm dark:bg-background"
+                class="min-h-9 flex-1 rounded-2xl border-0 bg-white px-3 shadow-sm dark:bg-background"
                 :disabled="disabled || sending"
             />
 

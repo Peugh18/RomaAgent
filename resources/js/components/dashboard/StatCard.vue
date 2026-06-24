@@ -69,7 +69,7 @@ const isNumericValue = computed(() => typeof props.value === 'number' && Number.
                 </div>
             </CardHeader>
 
-            <CardContent class="relative space-y-3">
+            <CardContent class="relative space-y-2">
                 <div v-if="loading" class="space-y-2">
                     <Skeleton class="h-8 w-24" />
                     <Skeleton class="h-4 w-16" />
