@@ -13,11 +13,14 @@ use App\Enums\SaleStatus;
 use App\Enums\SaleTransitionType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SaleTransitionRequest;
+use App\Jobs\SendWhatsappMessageJob;
 use App\Models\CompanySetting;
 use App\Models\Customer;
 use App\Models\Message;
 use App\Models\Sale;
 use App\Support\ComprobantePagoMensaje;
+use App\Support\MensajesEmpresaDefaults;
+use App\Support\MessageBroadcaster;
 use App\Support\PipelineKanban;
 use App\Support\PlantillaMensajePedido;
 use App\Support\ValidadorPlantillaMensaje;
@@ -185,12 +188,16 @@ class SaleController extends Controller
         $settings = CompanySetting::query()->with('mensajes')->first();
         $sale->loadMissing(['customer', 'items']);
 
+        // Build suggested extra message bubbles based on the transition
+        $extraMessages = $this->buildExtraMessages($sale, $transition, $settings);
+
         return response()->json([
             'transition' => $transition->value,
             'label' => $transition->label(),
             'message' => PlantillaMensajePedido::preview($sale, $transition, $settings),
             'variables' => PlantillaMensajePedido::variablesDisponibles(),
             'sale_summary' => PlantillaMensajePedido::resumenPedido($sale),
+            'extra_messages' => $extraMessages,
             'template_invalid' => ValidadorPlantillaMensaje::tieneFormatoIncorrecto(
                 match ($transition) {
                     SaleTransitionType::ConfirmPayment => $settings?->mensajes?->pedido_confirmado,
@@ -199,6 +206,49 @@ class SaleController extends Controller
                 },
             ),
         ]);
+    }
+
+    /**
+     * Build suggested extra message bubbles for a transition.
+     *
+     * @return list<array{content: string, delay_seconds: int}>
+     */
+    private function buildExtraMessages(Sale $sale, SaleTransitionType $transition, ?CompanySetting $settings): array
+    {
+        $mensajes = $settings?->mensajes;
+
+        if ($transition === SaleTransitionType::ConfirmPayment) {
+            // "Pedido por preparar" summary bubble
+            $sale->loadMissing('items');
+
+            if ($sale->items->isNotEmpty()) {
+                $lineas = $sale->items->map(fn ($item) => "• {$item->quantity}x {$item->product_name}".($item->color ? " ({$item->color})" : ''))->implode("\n");
+            } else {
+                $lineas = "• {$sale->quantity}x {$sale->product_name}".($sale->color ? " ({$sale->color})" : '');
+            }
+
+            $total = number_format((float) $sale->total_amount, 2);
+            $content = "📦 *Pedido por preparar*\n{$lineas}\n• Total: S/ {$total}";
+
+            return [['content' => $content, 'delay_seconds' => 3]];
+        }
+
+        if ($transition === SaleTransitionType::MarkShipped) {
+            $tipoEnvio = is_array($sale->customer_data) ? ($sale->customer_data['tipo_envio'] ?? null) : null;
+
+            if ($tipoEnvio === 'shalom') {
+                $recordatorio = $mensajes?->recordatorio_shalom
+                    ?: MensajesEmpresaDefaults::recordatorioShalom();
+            } else {
+                // Default to motorizado reminder for any delivery type
+                $recordatorio = $mensajes?->recordatorio_motorizado
+                    ?: MensajesEmpresaDefaults::recordatorioMotorizado();
+            }
+
+            return [['content' => $recordatorio, 'delay_seconds' => 5]];
+        }
+
+        return [];
     }
 
     public function confirmPayment(Sale $sale, SaleTransitionRequest $request, ConfirmarPagoPedido $confirmarPago): JsonResponse
@@ -214,11 +264,16 @@ class SaleController extends Controller
         $settings = CompanySetting::query()->with('mensajes')->first();
         $sale->loadMissing(['customer', 'items']);
 
+        $bubbles = $request->messageBubbles();
+        $mainMessage = $bubbles[0]['content'] ?? PlantillaMensajePedido::preview($sale, SaleTransitionType::ConfirmPayment, $settings);
+        $extraMessages = array_slice($bubbles, 1);
+
         try {
             $sale = $confirmarPago->handle(
                 $sale,
                 $request->user(),
-                PlantillaMensajePedido::preview($sale, SaleTransitionType::ConfirmPayment, $settings),
+                $mainMessage,
+                $extraMessages,
             );
         } catch (RuntimeException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
@@ -252,13 +307,13 @@ class SaleController extends Controller
     {
         $this->authorize('update', $sale);
 
-        if (!in_array($sale->status, [SaleStatus::PagoPendiente, SaleStatus::Confirmado])) {
+        if (! in_array($sale->status, [SaleStatus::PagoPendiente, SaleStatus::Confirmado])) {
             return response()->json(['message' => 'Solo se pueden enviar recordatorios a pedidos pendientes de pago o confirmación.'], 422);
         }
 
         $customer = $sale->customer;
-        
-        if ($customer && !$customer->ia_paused) {
+
+        if ($customer && ! $customer->ia_paused) {
             $customer->pausarIa('Pausado por recordatorio de pago automático.');
         }
 
@@ -267,13 +322,13 @@ class SaleController extends Controller
 
         $nombreCorto = '';
         if ($customer && $customer->name) {
-            $nombreCorto = ' ' . explode(' ', $customer->name)[0];
+            $nombreCorto = ' '.explode(' ', $customer->name)[0];
         }
 
         $content = "Hola{$nombreCorto}, notamos que tienes un pedido pendiente por S/ {$monto} de *{$producto}*. ¿Te ayudamos con algo para finalizar tu compra?";
 
         $message = Message::create([
-            'message_id' => 'temp_' . uniqid(),
+            'message_id' => 'temp_'.uniqid(),
             'phone_number' => $sale->phone_number,
             'content' => $content,
             'direction' => 'outgoing',
@@ -282,13 +337,13 @@ class SaleController extends Controller
             'metadata' => ['type' => 'text'],
         ]);
 
-        \App\Support\MessageBroadcaster::broadcast($message, 'SaleController');
-        \App\Jobs\SendWhatsappMessageJob::dispatchSync($message);
+        MessageBroadcaster::broadcast($message, 'SaleController');
+        SendWhatsappMessageJob::dispatchSync($message);
         $message->refresh();
 
         return response()->json([
             'message' => 'Recordatorio enviado correctamente',
-            'data' => $message
+            'data' => $message,
         ]);
     }
 
@@ -302,9 +357,12 @@ class SaleController extends Controller
             ], 422);
         }
 
+        $bubbles = $request->messageBubbles();
+        $extraMessages = array_slice($bubbles, 1);
+
         try {
             $imageUrl = $this->resolveTransitionImageUrl($request);
-            $sale = $marcarEnviado->handle($sale, $request->validated('message'), $imageUrl);
+            $sale = $marcarEnviado->handle($sale, $request->validated('message'), $imageUrl, $extraMessages);
         } catch (RuntimeException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }

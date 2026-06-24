@@ -29,6 +29,10 @@ export function useChat(options: UseChatOptions = {}) {
         return messages.value.filter((message) => message.phone_number === selectedPhone.value);
     });
 
+    const pinnedMessage = computed(() =>
+        filteredMessages.value.find((m) => m.is_pinned) ?? null,
+    );
+
     const clearImage = () => {
         if (imagePreviewUrl.value) {
             URL.revokeObjectURL(imagePreviewUrl.value);
@@ -295,6 +299,26 @@ export function useChat(options: UseChatOptions = {}) {
         }
     };
 
+    const pinMessage = async (messageId: number) => {
+        try {
+            const updated = await apiJson<ChatMessage>(`/api/messages/${messageId}/pin`, {
+                method: 'POST',
+            });
+            // Upsert the toggled message
+            upsertMessage(updated);
+            // If we just pinned this message, unpin all other messages in the conversation locally
+            if (updated.is_pinned) {
+                messages.value = messages.value.map((m) =>
+                    m.id !== messageId && m.phone_number === updated.phone_number
+                        ? { ...m, is_pinned: false }
+                        : m,
+                );
+            }
+        } catch (error) {
+            console.error('Error al fijar mensaje', error);
+        }
+    };
+
     watch(selectedPhone, () => scrollToBottom());
 
     const handleMessageReceived = async (incoming: ChatMessage) => {
@@ -319,6 +343,7 @@ export function useChat(options: UseChatOptions = {}) {
         messages,
         conversations,
         filteredMessages,
+        pinnedMessage,
         loading,
         sending,
         resendingId,
@@ -332,5 +357,6 @@ export function useChat(options: UseChatOptions = {}) {
         selectConversation,
         sendMessage,
         resendMessage,
+        pinMessage,
     };
 }

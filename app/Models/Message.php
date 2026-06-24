@@ -18,6 +18,7 @@ class Message extends Model
         'content',
         'direction',
         'status',
+        'is_pinned',
         'whatsapp_timestamp',
         'metadata',
     ];
@@ -26,6 +27,7 @@ class Message extends Model
     {
         return [
             'metadata' => 'array',
+            'is_pinned' => 'boolean',
             'whatsapp_timestamp' => 'datetime',
         ];
     }

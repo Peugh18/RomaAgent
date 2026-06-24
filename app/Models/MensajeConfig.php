@@ -27,6 +27,8 @@ class MensajeConfig extends Model
         'pedido_confirmado',
         'pedido_enviado',
         'pedido_entregado',
+        'recordatorio_motorizado',
+        'recordatorio_shalom',
         'comprobante_recibido',
         'comprobante_fuera_horario',
         'espera_link_tarjeta',

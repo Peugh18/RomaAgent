@@ -2,16 +2,18 @@
 import { chatStatusLabel, formatChatTime } from '@/lib/chatFormatting';
 import { isMediaOnlyLabel, isStickerMessage, mediaKind, mediaSource, mediaUnavailable } from '@/composables/useChatMedia';
 import type { ChatMessage } from '@/types/chat';
-import { ExternalLink, MapPin, RotateCw } from 'lucide-vue-next';
+import { ExternalLink, MapPin, Pin, RotateCw } from 'lucide-vue-next';
 import { computed } from 'vue';
 
 const props = defineProps<{
     message: ChatMessage;
     resending?: boolean;
+    isPinned?: boolean;
 }>();
 
 const emit = defineEmits<{
     resend: [message: ChatMessage];
+    pin: [message: ChatMessage];
 }>();
 
 const canResend = computed(
@@ -64,7 +66,11 @@ const locationLabel = computed(() => {
 </script>
 
 <template>
-    <div class="flex" :class="message.direction === 'outgoing' ? 'justify-end' : 'justify-start'">
+    <div
+        :id="`msg-${message.id}`"
+        class="group flex"
+        :class="message.direction === 'outgoing' ? 'justify-end' : 'justify-start'"
+    >
         <div
             class="max-w-[92%] sm:max-w-[min(85%,28rem)] text-sm"
             :class="
@@ -168,5 +174,19 @@ const locationLabel = computed(() => {
                 {{ resending ? 'Reenviando…' : 'Reenviar' }}
             </button>
         </div>
+
+        <!-- Pin button: visible on hover -->
+        <button
+            type="button"
+            class="self-center shrink-0 rounded-full p-1 text-muted-foreground opacity-0 transition group-hover:opacity-100 hover:bg-muted"
+            :class="message.direction === 'outgoing' ? 'order-first mr-1' : 'order-last ml-1'"
+            :title="isPinned ? 'Desfijar mensaje' : 'Fijar mensaje'"
+            @click="emit('pin', message)"
+        >
+            <Pin
+                class="h-3.5 w-3.5"
+                :class="isPinned ? 'text-emerald-600 fill-emerald-600' : ''"
+            />
+        </button>
     </div>
 </template>
