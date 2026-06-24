@@ -14,6 +14,16 @@ class MensajesEmpresaDefaults
         return 'Gracias hermosa, recibimos tu comprobante. Tu pedido quedó registrado; lo confirmamos a primera hora y te avisamos por aquí.';
     }
 
+    public static function recordatorioMotorizado(): string
+    {
+        return "🛵 Tu pedido ya está en camino hacia ti.\n⏱ El tiempo estimado de llegada es entre 1 a 3 horas (referencial, puede variar).\n💰 El costo del envío se paga al recibir el pedido.\n¡Pronto estarás con tu pedido! 🎉";
+    }
+
+    public static function recordatorioShalom(): string
+    {
+        return "📦 Tu pedido fue enviado por Shalom Courier.\n⏱ El tiempo estimado de llegada es 2 a 4 días hábiles (referencial, puede variar).\n💰 El costo del envío se paga al recoger en la agencia.\n¡Gracias por tu preferencia! 🌟";
+    }
+
     public static function pedidoConfirmado(): string
     {
         return 'Listo {nombre}, tu pedido de {producto} quedó confirmado. Total S/ {total}. Pronto coordinamos el envío.';

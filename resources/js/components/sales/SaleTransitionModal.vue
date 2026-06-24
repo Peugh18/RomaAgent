@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -18,7 +18,7 @@ import {
     type Sale,
     type SaleTransition,
 } from '@/types/sale';
-import { AlertTriangle, Loader2, Package } from 'lucide-vue-next';
+import { AlertTriangle, ChevronDown, ChevronUp, Loader2, Package, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 
 interface SaleSummary {
@@ -26,8 +26,13 @@ interface SaleSummary {
     producto?: string | null;
     color?: string | null;
     total?: string | null;
-
     metodo_pago?: string | null;
+}
+
+interface MessageBubble {
+    id: string;
+    content: string;
+    delay_seconds: number;
 }
 
 const props = defineProps<{
@@ -44,7 +49,7 @@ const emit = defineEmits<{
 
 const { format: formatMoney } = useCurrency();
 
-const message = ref('');
+const bubbles = ref<MessageBubble[]>([]);
 const saleSummary = ref<SaleSummary | null>(null);
 const templateInvalid = ref(false);
 const receiptPhoto = ref<File | null>(null);
@@ -55,16 +60,18 @@ const closedBySubmit = ref(false);
 const suppressCancelEmit = ref(false);
 const error = ref<string | null>(null);
 
+let bubbleCounter = 0;
+const newBubbleId = () => `bubble-${++bubbleCounter}`;
+
 const esConfirmacionPago = computed(() => props.transition === 'confirm_payment');
-
-
+const esEnvio = computed(() => props.transition === 'mark_shipped');
 
 const modalCopy = computed(() => {
     switch (props.transition) {
         case 'confirm_payment':
             return {
                 title: 'Confirmar pago',
-                description: 'Revisa el pedido y el mensaje. Al confirmar se envía por WhatsApp y baja stock.',
+                description: 'Revisa el pedido y los mensajes. Al confirmar se envían por WhatsApp y baja stock.',
                 submit: 'Confirmar y enviar',
             };
         case 'mark_shipped':
@@ -101,15 +108,26 @@ const loadPreview = async () => {
             message: string;
             sale_summary?: SaleSummary;
             template_invalid?: boolean;
+            extra_messages?: Array<{ content: string; delay_seconds: number }>;
         }>(
             `/api/sales/${props.sale.id}/transition-preview?transition=${encodeURIComponent(props.transition)}`,
         );
-        message.value = data.message;
+
+        // Build the initial bubble list: main message + any extra suggested by server
+        bubbles.value = [
+            { id: newBubbleId(), content: data.message, delay_seconds: 0 },
+            ...(data.extra_messages ?? []).map((m) => ({
+                id: newBubbleId(),
+                content: m.content,
+                delay_seconds: m.delay_seconds ?? 0,
+            })),
+        ];
+
         saleSummary.value = data.sale_summary ?? null;
         templateInvalid.value = Boolean(data.template_invalid);
     } catch (err) {
         error.value = err instanceof Error ? err.message : 'No se pudo cargar el mensaje';
-        message.value = '';
+        bubbles.value = [];
         saleSummary.value = null;
     } finally {
         loading.value = false;
@@ -131,6 +149,23 @@ watch(
         }
     },
 );
+
+const addBubble = () => {
+    bubbles.value.push({ id: newBubbleId(), content: '', delay_seconds: 0 });
+};
+
+const removeBubble = (index: number) => {
+    if (bubbles.value.length <= 1) return;
+    bubbles.value.splice(index, 1);
+};
+
+const moveBubble = (index: number, direction: -1 | 1) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= bubbles.value.length) return;
+    const arr = [...bubbles.value];
+    [arr[index], arr[newIndex]] = [arr[newIndex], arr[index]];
+    bubbles.value = arr;
+};
 
 const onReceiptSelected = (event: Event) => {
     const input = event.target as HTMLInputElement;
@@ -156,8 +191,10 @@ const onOpenChange = (value: boolean) => {
     emit('update:open', value);
 };
 
+const canSubmit = computed(() => bubbles.value.length > 0 && bubbles.value[0].content.trim().length > 0);
+
 const submit = async () => {
-    if (!props.sale || !props.transition || !message.value.trim()) {
+    if (!props.sale || !props.transition || !canSubmit.value) {
         return;
     }
 
@@ -168,10 +205,19 @@ const submit = async () => {
         const endpoint = SALE_TRANSITION_ENDPOINTS[props.transition];
         let sale: Sale;
 
-        if (props.transition === 'mark_shipped' && receiptPhoto.value) {
+        const messagesPayload = bubbles.value
+            .filter((b) => b.content.trim().length > 0)
+            .map((b) => ({ content: b.content.trim(), delay_seconds: b.delay_seconds }));
+
+        if (esEnvio.value && receiptPhoto.value) {
             const formData = new FormData();
-            formData.append('message', message.value.trim());
+            formData.append('message', messagesPayload[0]?.content ?? '');
             formData.append('photo', receiptPhoto.value);
+            // Extra bubbles as JSON string
+            for (let i = 1; i < messagesPayload.length; i++) {
+                formData.append(`messages[${i - 1}][content]`, messagesPayload[i].content);
+                formData.append(`messages[${i - 1}][delay_seconds]`, String(messagesPayload[i].delay_seconds));
+            }
 
             sale = await apiJson<Sale>(`/api/sales/${props.sale.id}/${endpoint}`, {
                 method: 'POST',
@@ -187,7 +233,7 @@ const submit = async () => {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': getCsrfToken(),
                 },
-                body: JSON.stringify({ message: message.value.trim() }),
+                body: JSON.stringify({ messages: messagesPayload }),
             });
         }
 
@@ -239,7 +285,6 @@ const submit = async () => {
                             {{ formatMoney(saleSummary.total) }}
                         </dd>
                     </template>
-
                     <template v-if="saleSummary.metodo_pago">
                         <dt class="text-muted-foreground">Pago</dt>
                         <dd>{{ saleSummary.metodo_pago }}</dd>
@@ -258,48 +303,112 @@ const submit = async () => {
 
             <div v-if="loading" class="flex items-center gap-2 py-6 text-sm text-muted-foreground">
                 <Loader2 class="h-4 w-4 animate-spin" />
-                Preparando mensaje…
+                Preparando mensajes…
             </div>
 
-            <div v-else class="space-y-2">
-                <Label for="transition-message">
-                    {{ esConfirmacionPago ? 'Mensaje listo para enviar' : 'Mensaje para la clienta' }}
-                </Label>
-                <Textarea
-                    id="transition-message"
-                    v-model="message"
-                    rows="5"
-                    class="resize-none"
-                    :readonly="esConfirmacionPago"
-                    :class="esConfirmacionPago ? 'bg-muted/50' : ''"
-                    placeholder="Mensaje para la clienta…"
-                />
-                <p v-if="esConfirmacionPago" class="text-xs text-muted-foreground">
-                    Generado desde Configuración con los datos del pedido. Solo confirma y envía.
-                </p>
-                <p v-else class="text-xs text-muted-foreground">
+            <div v-else class="space-y-3">
+                <!-- Message Bubbles -->
+                <div
+                    v-for="(bubble, index) in bubbles"
+                    :key="bubble.id"
+                    class="rounded-lg border bg-muted/20 p-3 space-y-2"
+                >
+                    <div class="flex items-center justify-between gap-2">
+                        <span class="text-xs font-semibold text-muted-foreground">
+                            {{ index === 0 ? 'Mensaje principal' : `Mensaje ${index + 1}` }}
+                            <span v-if="bubble.delay_seconds > 0" class="ml-1 text-emerald-600">
+                                ({{ bubble.delay_seconds }}s de retraso)
+                            </span>
+                        </span>
+                        <div class="flex items-center gap-1">
+                            <button
+                                v-if="index > 0"
+                                type="button"
+                                class="rounded p-0.5 hover:bg-muted"
+                                title="Subir"
+                                @click="moveBubble(index, -1)"
+                            >
+                                <ChevronUp class="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                                v-if="index < bubbles.length - 1"
+                                type="button"
+                                class="rounded p-0.5 hover:bg-muted"
+                                title="Bajar"
+                                @click="moveBubble(index, 1)"
+                            >
+                                <ChevronDown class="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                                v-if="bubbles.length > 1"
+                                type="button"
+                                class="rounded p-0.5 text-destructive hover:bg-destructive/10"
+                                title="Eliminar"
+                                @click="removeBubble(index)"
+                            >
+                                <Trash2 class="h-3.5 w-3.5" />
+                            </button>
+                        </div>
+                    </div>
+
+                    <Textarea
+                        :id="`bubble-${bubble.id}`"
+                        v-model="bubble.content"
+                        rows="4"
+                        class="resize-none text-sm"
+                        placeholder="Mensaje para la clienta…"
+                    />
+
+                    <!-- Delay (only for extra bubbles) -->
+                    <div v-if="index > 0" class="flex items-center gap-2">
+                        <Label :for="`delay-${bubble.id}`" class="text-xs text-muted-foreground whitespace-nowrap">
+                            Retraso (seg):
+                        </Label>
+                        <Input
+                            :id="`delay-${bubble.id}`"
+                            v-model.number="bubble.delay_seconds"
+                            type="number"
+                            min="0"
+                            max="300"
+                            class="h-7 w-20 text-xs"
+                        />
+                    </div>
+
+                    <!-- Photo upload for mark_shipped (first bubble only) -->
+                    <div v-if="esEnvio && index === 0" class="space-y-2 rounded-md border bg-background p-2">
+                        <Label for="receipt-photo" class="text-xs font-medium">
+                            Foto de boleta o guía (opcional)
+                        </Label>
+                        <Input
+                            id="receipt-photo"
+                            type="file"
+                            accept="image/*"
+                            class="text-xs"
+                            @change="onReceiptSelected"
+                        />
+                        <img
+                            v-if="receiptPreviewUrl"
+                            :src="receiptPreviewUrl"
+                            alt="Vista previa boleta"
+                            class="h-24 w-24 rounded border object-cover"
+                        />
+                    </div>
+                </div>
+
+                <!-- Add bubble button -->
+                <button
+                    type="button"
+                    class="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-xs text-muted-foreground transition hover:bg-muted/50"
+                    :disabled="bubbles.length >= 5"
+                    @click="addBubble"
+                >
+                    <Plus class="h-3.5 w-3.5" />
+                    Añadir otro mensaje
+                </button>
+
+                <p class="text-xs text-muted-foreground">
                     Variables: {nombre}, {producto}, {color}, {total}, {metodo_pago}
                 </p>
-
-                <div v-if="transition === 'mark_shipped'" class="space-y-2 rounded-lg border bg-muted/30 p-3">
-                    <Label for="receipt-photo" class="text-xs font-medium">
-                        Foto de boleta o guía (opcional)
-                    </Label>
-                    <Input
-                        id="receipt-photo"
-                        type="file"
-                        accept="image/*"
-                        class="text-xs"
-                        @change="onReceiptSelected"
-                    />
-
-                    <img
-                        v-if="receiptPreviewUrl"
-                        :src="receiptPreviewUrl"
-                        alt="Vista previa boleta"
-                        class="h-24 w-24 rounded border object-cover"
-                    />
-                </div>
             </div>
 
             <p v-if="error" class="text-sm text-destructive">{{ error }}</p>
@@ -312,7 +421,7 @@ const submit = async () => {
                 >
                     Cancelar
                 </Button>
-                <Button :disabled="submitting || loading || !message.trim()" @click="submit">
+                <Button :disabled="submitting || loading || !canSubmit" @click="submit">
                     <Loader2 v-if="submitting" class="mr-2 h-4 w-4 animate-spin" />
                     {{ modalCopy.submit }}
                 </Button>

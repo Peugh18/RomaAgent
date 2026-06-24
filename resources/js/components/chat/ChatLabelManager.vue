@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, watch } from 'vue';
 import axios from 'axios';
-import { Tag, Loader2, Check } from 'lucide-vue-next';
+import { Tag, Loader2, Check, Send } from 'lucide-vue-next';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { apiJson, getCsrfToken } from '@/composables/useApi';
 
 const props = defineProps<{
     phone: string;
@@ -18,6 +20,11 @@ const customerLabels = ref<number[]>([]);
 const loadingLabels = ref(false);
 const loadingCustomer = ref(false);
 const saving = ref(false);
+
+// Dialog state for "send label message?"
+const sendDialogOpen = ref(false);
+const pendingLabelName = ref('');
+const sendingLabelMessage = ref(false);
 
 const loadLabels = async () => {
     loadingLabels.value = true;
@@ -52,6 +59,9 @@ const loadCustomerLabels = async () => {
 const toggleLabel = async (labelId: number) => {
     if (!props.phone || saving.value) return;
     
+    const wasAdding = !customerLabels.value.includes(labelId);
+    const labelObj = labels.value.find((l) => l.id === labelId);
+    
     saving.value = true;
     let newLabels = [...customerLabels.value];
     
@@ -68,11 +78,46 @@ const toggleLabel = async (labelId: number) => {
         });
         customerLabels.value = newLabels;
         emit('labels-updated', response.data.labels);
+
+        // If we just ADDED a label, ask if they want to send a message
+        if (wasAdding && labelObj) {
+            pendingLabelName.value = labelObj.name;
+            sendDialogOpen.value = true;
+        }
     } catch (error) {
         console.error('Error guardando etiquetas', error);
     } finally {
         saving.value = false;
     }
+};
+
+const sendLabelMessage = async () => {
+    if (!props.phone || !pendingLabelName.value) return;
+    sendingLabelMessage.value = true;
+    try {
+        await apiJson('/api/messages/send-system', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': getCsrfToken(),
+            },
+            body: JSON.stringify({
+                phone_number: props.phone,
+                content: `*${pendingLabelName.value}*`,
+            }),
+        });
+    } catch (error) {
+        console.error('Error enviando mensaje de etiqueta', error);
+    } finally {
+        sendingLabelMessage.value = false;
+        sendDialogOpen.value = false;
+        pendingLabelName.value = '';
+    }
+};
+
+const dismissDialog = () => {
+    sendDialogOpen.value = false;
+    pendingLabelName.value = '';
 };
 
 watch(() => props.phone, () => {
@@ -127,4 +172,33 @@ const onOpenChange = (open: boolean) => {
             </div>
         </DropdownMenuContent>
     </DropdownMenu>
+
+    <!-- Dialog: send label name as WhatsApp message? -->
+    <Dialog v-model:open="sendDialogOpen">
+        <DialogContent class="sm:max-w-sm">
+            <DialogHeader>
+                <DialogTitle class="text-base">Enviar etiqueta al chat</DialogTitle>
+                <DialogDescription>
+                    ¿Deseas enviar un mensaje con el nombre de esta etiqueta al chat? 
+                    Esto te permitirá filtrar esta conversación desde WhatsApp.
+                </DialogDescription>
+            </DialogHeader>
+
+            <div class="rounded-lg border bg-muted/30 p-3">
+                <p class="text-sm font-medium text-center">*{{ pendingLabelName }}*</p>
+                <p class="text-[10px] text-muted-foreground text-center mt-1">Se enviará como mensaje en negrita</p>
+            </div>
+
+            <DialogFooter class="gap-2 sm:gap-0">
+                <Button variant="outline" size="sm" :disabled="sendingLabelMessage" @click="dismissDialog">
+                    Solo asignar
+                </Button>
+                <Button size="sm" :disabled="sendingLabelMessage" @click="sendLabelMessage">
+                    <Loader2 v-if="sendingLabelMessage" class="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    <Send v-else class="mr-1.5 h-3.5 w-3.5" />
+                    Sí, enviar
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 </template>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Actions\Mensajes\EnviarMensajeWhatsappSaliente;
 use App\Actions\Mensajes\ReenviarMensajeWhatsapp;
 use App\Actions\ProcessIncomingMessage;
 use App\Actions\UpdateMessageStatus;
@@ -186,7 +187,7 @@ class RomaMessageController extends Controller
             $metadata = ['type' => $imageUrl ? 'image' : 'text'];
             if ($imageUrl !== null) {
                 $metadata['image_url'] = $imageUrl;
-                if (!empty($validated['content'])) {
+                if (! empty($validated['content'])) {
                     $metadata['image_caption'] = $validated['content'];
                 }
             }
@@ -250,6 +251,46 @@ class RomaMessageController extends Controller
                 'message' => 'No se pudo reenviar el mensaje',
                 'error' => $e->getMessage(),
             ], 500);
+        }
+    }
+
+    public function pin(Message $message): JsonResponse
+    {
+        $willPin = ! $message->is_pinned;
+
+        // Unpin any previously pinned messages in the same conversation
+        if ($willPin) {
+            Message::query()
+                ->where('phone_number', $message->phone_number)
+                ->where('is_pinned', true)
+                ->where('id', '!=', $message->id)
+                ->update(['is_pinned' => false]);
+        }
+
+        $message->update(['is_pinned' => $willPin]);
+
+        return response()->json($message->fresh());
+    }
+
+    public function sendSystem(Request $request, EnviarMensajeWhatsappSaliente $enviar): JsonResponse
+    {
+        $validated = $request->validate([
+            'phone_number' => ['required', 'string'],
+            'content' => ['required', 'string', 'max:1000'],
+        ]);
+
+        try {
+            $message = $enviar->handle(
+                phoneNumber: $validated['phone_number'],
+                content: $validated['content'],
+                metadataExtra: ['generated_by' => 'label_assignment'],
+            );
+
+            return response()->json(['data' => $message]);
+        } catch (\Throwable $e) {
+            Log::error('Roma sendSystem: failed', ['error' => $e->getMessage()]);
+
+            return response()->json(['message' => 'No se pudo enviar el mensaje'], 500);
         }
     }
 

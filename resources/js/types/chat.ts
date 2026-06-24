@@ -8,6 +8,7 @@ export interface ChatMessage {
     status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
     whatsapp_timestamp: string | null;
     metadata: Record<string, unknown> | null;
+    is_pinned?: boolean;
     created_at: string;
     updated_at: string;
 }

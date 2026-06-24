@@ -3,6 +3,7 @@ import ChatComposer from '@/components/chat/ChatComposer.vue';
 import ChatConversationList from '@/components/chat/ChatConversationList.vue';
 import ChatHumanAlertBanner from '@/components/chat/ChatHumanAlertBanner.vue';
 import ChatMessageBubble from '@/components/chat/ChatMessageBubble.vue';
+import ChatPinnedBanner from '@/components/chat/ChatPinnedBanner.vue';
 import ChatSalePanel from '@/components/chat/ChatSalePanel.vue';
 import ChatThreadHeader from '@/components/chat/ChatThreadHeader.vue';
 import ChatCustomerHistoryDrawer from '@/components/chat/ChatCustomerHistoryDrawer.vue';
@@ -36,6 +37,7 @@ const {
     newMessage,
     conversations,
     filteredMessages,
+    pinnedMessage,
     loading,
     sending,
     resendingId,
@@ -49,6 +51,7 @@ const {
     selectConversation,
     sendMessage,
     resendMessage,
+    pinMessage,
 } = useChat({ initialPhone: phoneFromUrl });
 
 const deselectConversation = () => {
@@ -114,6 +117,20 @@ const openCustomerHistory = async () => {
         console.error('Error fetching customer history', e);
     }
 };
+
+const scrollToMessage = (id: number) => {
+    const el = document.getElementById(`msg-${id}`);
+    if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Brief highlight flash
+        el.classList.add('ring-2', 'ring-emerald-400', 'rounded-2xl');
+        setTimeout(() => el.classList.remove('ring-2', 'ring-emerald-400', 'rounded-2xl'), 1500);
+    }
+};
+
+const handlePinMessage = (message: import('@/types/chat').ChatMessage) => {
+    pinMessage(message.id);
+};
 </script>
 
 <template>
@@ -157,6 +174,12 @@ const openCustomerHistory = async () => {
                             @back="deselectConversation"
                         />
 
+                        <ChatPinnedBanner
+                            :message="pinnedMessage"
+                            @go-to-message="scrollToMessage"
+                            @unpin="pinMessage"
+                        />
+
                         <div class="relative flex-1 overflow-hidden">
                             <!-- Background Pattern -->
                             <div 
@@ -181,8 +204,10 @@ const openCustomerHistory = async () => {
                         v-for="message in filteredMessages"
                         :key="`${message.id}-${message.message_id}`"
                         :message="message"
+                        :is-pinned="message.is_pinned === true"
                         :resending="resendingId === message.id"
                         @resend="resendMessage"
+                        @pin="handlePinMessage"
                     />
 
                     <p

@@ -17,13 +17,16 @@ class MarcarPedidoEnviado
         private EnviarMensajeWhatsappSaliente $enviarMensaje,
     ) {}
 
-    public function handle(Sale $sale, string $mensaje, ?string $imageUrl = null): Sale
+    /**
+     * @param  list<array{content: string, delay_seconds: int}>  $extraMessages
+     */
+    public function handle(Sale $sale, string $mensaje, ?string $imageUrl = null, array $extraMessages = []): Sale
     {
         if ($sale->status !== SaleStatus::Confirmado) {
             throw new RuntimeException('Solo se pueden enviar pedidos confirmados.');
         }
 
-        return DB::transaction(function () use ($sale, $mensaje, $imageUrl): Sale {
+        return DB::transaction(function () use ($sale, $mensaje, $imageUrl, $extraMessages): Sale {
             $sale->update([
                 'status' => SaleStatus::Enviado,
                 'shipped_at' => now(),
@@ -38,6 +41,19 @@ class MarcarPedidoEnviado
                 imageUrl: $imageUrl,
                 metadataExtra: ['generated_by' => 'system_pedido_enviado', 'sale_id' => $sale->id],
             );
+
+            // Send extra bubbles (e.g. delivery reminder for motorizado/shalom) with configured delays
+            foreach ($extraMessages as $extra) {
+                if (! empty($extra['content'])) {
+                    $this->enviarMensaje->handle(
+                        phoneNumber: $sale->phone_number,
+                        content: $extra['content'],
+                        customerName: $sale->customer?->name,
+                        delaySeconds: (int) ($extra['delay_seconds'] ?? 0),
+                        metadataExtra: ['generated_by' => 'system_pedido_enviado_extra', 'sale_id' => $sale->id],
+                    );
+                }
+            }
 
             return $sale;
         });
