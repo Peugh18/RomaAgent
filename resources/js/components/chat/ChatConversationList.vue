@@ -56,7 +56,22 @@ const filteredConversations = computed(() => {
         result = result.filter((c) => c.labels && c.labels.some((l: any) => l.id === activeLabelId.value));
     }
 
-    return result;
+    // Smart Sorting: Pagos > Humano > IA
+    return [...result].sort((a, b) => {
+        const getPriority = (c: ChatConversation) => {
+            if (c.pending_payment) return 3;
+            if (c.ia_paused) return 2;
+            return 1;
+        };
+        
+        const priorityDiff = getPriority(b) - getPriority(a);
+        if (priorityDiff !== 0) return priorityDiff;
+        
+        // Secondary sort by date (newest first)
+        const dateA = new Date(a.last_at || 0).getTime();
+        const dateB = new Date(b.last_at || 0).getTime();
+        return dateB - dateA;
+    });
 });
 
 const pendingCount = computed(() => props.conversations.filter((c) => c.pending_payment).length);
@@ -64,7 +79,7 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
 </script>
 
 <template>
-    <aside class="flex w-full shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm lg:w-[22rem]">
+    <aside class="flex h-full w-full shrink-0 flex-col overflow-hidden border-r border-border bg-card lg:w-80">
         <div class="space-y-3 border-b border-border bg-muted/30 p-4">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2 text-sm font-semibold">
@@ -74,13 +89,13 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
                 <div class="flex items-center gap-1">
                     <span
                         v-if="humanCount > 0"
-                        class="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-semibold text-violet-800 dark:bg-violet-950 dark:text-violet-200"
+                        class="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800 dark:bg-violet-950 dark:text-violet-200"
                     >
                         {{ humanCount }} humano
                     </span>
                     <span
                         v-if="pendingCount > 0"
-                        class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                        class="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-950 dark:text-amber-200"
                     >
                         {{ pendingCount }} pago(s)
                     </span>
@@ -136,7 +151,7 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
         </div>
 
         <div class="border-b border-border px-4 py-2">
-            <p class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <p class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 Conversaciones ({{ filteredConversations.length }})
             </p>
         </div>
@@ -171,9 +186,9 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
                             <p class="truncate text-sm font-semibold">
                                 {{ conversation.name || conversation.phone }}
                             </p>
-                            <p class="truncate text-[11px] text-muted-foreground">{{ conversation.phone }}</p>
+                            <p class="truncate text-xs text-muted-foreground">{{ conversation.phone }}</p>
                         </div>
-                        <span class="flex shrink-0 items-center gap-0.5 text-[10px] text-muted-foreground">
+                        <span class="flex shrink-0 items-center gap-0.5 text-xs text-muted-foreground">
                             <Clock class="h-3 w-3" />
                             {{ formatChatTime(conversation.last_at) }}
                         </span>
@@ -182,21 +197,21 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
                     <div class="mt-2 flex flex-wrap gap-1">
                         <span
                             v-if="conversation.pending_payment"
-                            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200"
+                            class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200"
                         >
                             <CreditCard class="h-3 w-3" />
                             Pago por revisar
                         </span>
                         <span
                             v-else-if="conversation.ia_paused"
-                            class="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300"
+                            class="inline-flex items-center gap-1 rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-950 dark:text-violet-300"
                         >
                             <UserRound class="h-3 w-3" />
                             Humano
                         </span>
                         <span
                             v-else
-                            class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                            class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
                         >
                             <Bot class="h-3 w-3" />
                             IA activa
@@ -206,7 +221,7 @@ const humanCount = computed(() => props.conversations.filter((c) => c.ia_paused 
                         <span
                             v-for="label in conversation.labels"
                             :key="label.id"
-                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium text-white shadow-sm border border-black/10"
+                            class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium text-white shadow-sm border border-black/10"
                             :style="{ backgroundColor: label.color }"
                         >
                             {{ label.name }}

@@ -10,9 +10,16 @@ import { Button } from '@/components/ui/button';
 import { type BreadcrumbItem } from '@/types';
 import { type SaleStatus } from '@/types/sale';
 import { useCurrency } from '@/composables/useCurrency';
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, router } from '@inertiajs/vue3';
 import { AlertCircle, MessageSquare, Package, TrendingUp, CreditCard, ArrowRight } from 'lucide-vue-next';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+
+const period = ref(new URLSearchParams(window.location.search).get('period') || 'hoy');
+
+const changePeriod = (newPeriod: string) => {
+    period.value = newPeriod;
+    router.get('/dashboard', { period: newPeriod }, { preserveState: true, preserveScroll: true });
+};
 
 interface ChartDataPoint {
     date: string;
@@ -109,7 +116,21 @@ const statCards = computed(() => [
     <Head title="Dashboard" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="crm-page">
+        <div class="crm-page relative">
+            <div class="absolute top-0 right-0 z-10 hidden sm:flex bg-background/80 backdrop-blur-sm p-1 rounded-lg border border-border">
+                <button class="px-3 py-1 text-xs font-semibold rounded-md transition-all" :class="period === 'hoy' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'" @click="changePeriod('hoy')">Hoy</button>
+                <button class="px-3 py-1 text-xs font-semibold rounded-md transition-all" :class="period === '7d' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'" @click="changePeriod('7d')">7 días</button>
+                <button class="px-3 py-1 text-xs font-semibold rounded-md transition-all" :class="period === '30d' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'" @click="changePeriod('30d')">30 días</button>
+                <button class="px-3 py-1 text-xs font-semibold rounded-md transition-all" :class="period === 'mes_actual' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'" @click="changePeriod('mes_actual')">Este mes</button>
+            </div>
+            
+            <div class="flex sm:hidden bg-muted/50 p-1 mb-4 rounded-lg border border-border overflow-x-auto">
+                <button class="flex-1 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-md transition-all" :class="period === 'hoy' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'" @click="changePeriod('hoy')">Hoy</button>
+                <button class="flex-1 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-md transition-all" :class="period === '7d' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'" @click="changePeriod('7d')">7D</button>
+                <button class="flex-1 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-md transition-all" :class="period === '30d' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'" @click="changePeriod('30d')">30D</button>
+                <button class="flex-1 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-md transition-all" :class="period === 'mes_actual' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'" @click="changePeriod('mes_actual')">Mes</button>
+            </div>
+
             <DashboardHero :ventas-mes="stats.ventas_mes" :pedidos-activos="stats.pedidos_activos" />
 
             <CrmAlert v-if="stats.pendientes_pago > 0" variant="warning" class="!border-amber-500/30 !bg-amber-500/10">

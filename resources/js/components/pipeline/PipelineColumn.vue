@@ -79,7 +79,7 @@ const onColumnAdd = (event: SortableEvent) => {
     <Card
         :data-pipeline-status="status"
         :class="[
-            'min-w-[220px] flex-1 shrink-0 snap-center rounded-2xl border border-border/40 shadow-sm transition-shadow hover:shadow-md',
+            'min-w-[220px] flex-1 shrink-0 snap-center rounded-2xl border border-border/40 shadow-sm transition-shadow hover:shadow-md flex flex-col',
             statusConfig[status].bg,
             highlightAttention && sales.length > 0 ? 'ring-2 ring-amber-500/50 ring-offset-2 ring-offset-background' : '',
         ]"
@@ -117,7 +117,7 @@ const onColumnAdd = (event: SortableEvent) => {
                 Últimos en kanban · arrastra a Enviado para corregir recientes.
             </p>
         </CardHeader>
-        <CardContent class="max-h-[min(70vh,42rem)] overflow-y-auto pt-0">
+        <CardContent class="flex-1 overflow-y-auto pt-0 min-h-0">
             <!-- Columnas de pago: lista estática (sin drag) -->
             <div v-if="!draggable" class="space-y-3">
                 <PipelineSaleCard

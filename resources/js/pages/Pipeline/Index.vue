@@ -239,7 +239,7 @@ const onTransitionCancelled = async () => {
     <Head title="Pipeline de ventas" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
-        <div class="crm-page space-y-6">
+        <div class="flex flex-col h-[calc(100vh-73px)] overflow-hidden px-4 md:px-6 py-4 space-y-4">
             <CrmPageHero
                 title="Pipeline de ventas"
                 description="Confirma pagos con botones. En Confirmado → Enviado → Entregado puedes arrastrar o usar botones; siempre se abre el modal de WhatsApp al avanzar."
@@ -258,7 +258,7 @@ const onTransitionCancelled = async () => {
                 </template>
             </CrmPageHero>
 
-            <CrmAnimatedSection :delay="80">
+            <CrmAnimatedSection :delay="80" class="shrink-0">
             <PipelineToolbar
                 v-if="!loading || sales.length > 0"
                 v-model:search="searchQuery"
@@ -293,9 +293,9 @@ const onTransitionCancelled = async () => {
                 </div>
             </template>
 
-            <CrmAnimatedSection v-else :delay="140">
+            <CrmAnimatedSection v-else :delay="140" class="flex flex-col flex-1 overflow-hidden min-h-0">
                 <!-- Tabs -->
-                <div class="mb-4 flex gap-2">
+                <div class="mb-4 flex gap-2 shrink-0">
                     <button
                         class="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
                         :class="activeTab === 'progress'
@@ -324,7 +324,7 @@ const onTransitionCancelled = async () => {
 
                 <div
                     ref="kanbanRef"
-                    class="flex gap-3 pb-4"
+                    class="flex flex-1 gap-3 pb-4 overflow-x-auto overflow-y-hidden min-h-0"
                 >
                     <PipelineColumn
                         v-for="status in tabColumns"

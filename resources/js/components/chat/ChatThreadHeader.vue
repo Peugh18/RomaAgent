@@ -15,6 +15,8 @@ const toggling = ref(false);
 const emit = defineEmits<{
     'mode-change': [mode: 'bot' | 'human'];
     'labels-updated': [labels: any[]];
+    'open-sale-panel': [];
+    'back': [];
 }>();
 
 const loadMode = async () => {
@@ -69,15 +71,33 @@ watch(() => props.phone, () => {
 
 <template>
     <header class="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
-        <div class="min-w-0">
-            <h2 v-if="phone" class="truncate text-base font-semibold">{{ name || phone }}</h2>
-            <h2 v-else class="text-base font-semibold text-muted-foreground">Sin conversación</h2>
-            <p v-if="phone" class="text-xs text-muted-foreground">{{ phone }}</p>
+        <div class="flex min-w-0 items-center gap-2">
+            <button
+                v-if="phone"
+                type="button"
+                class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-muted-foreground transition hover:bg-muted lg:hidden"
+                @click="$emit('back')"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <div class="min-w-0">
+                <h2 v-if="phone" class="truncate text-base font-semibold">{{ name || phone }}</h2>
+                <h2 v-else class="text-base font-semibold text-muted-foreground">Sin conversación</h2>
+                <p v-if="phone" class="text-xs text-muted-foreground">{{ phone }}</p>
+            </div>
         </div>
 
         <div v-if="phone" class="flex flex-wrap items-center gap-3">
+            <button
+                type="button"
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background text-muted-foreground shadow-sm transition hover:bg-muted lg:hidden"
+                @click="$emit('open-sale-panel')"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M15 3v18"/><path d="m10 15-3-3 3-3"/></svg>
+            </button>
+
             <div class="flex items-center gap-2">
-                <span class="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Modo</span>
+                <span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Modo</span>
                 <div class="flex rounded-lg border border-border bg-muted/40 p-0.5">
                     <button
                         type="button"
@@ -116,7 +136,7 @@ watch(() => props.phone, () => {
             />
 
             <span
-                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"
+                class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
                 :class="
                     chatMode === 'bot'
                         ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'

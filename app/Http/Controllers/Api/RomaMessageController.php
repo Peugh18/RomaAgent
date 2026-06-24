@@ -166,6 +166,12 @@ class RomaMessageController extends Controller
     {
         $validated = $request->validated();
 
+        $imageUrl = null;
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('messages/outbound', 'public');
+            $imageUrl = asset('storage/'.$path);
+        }
+
         $customer = Customer::query()
             ->where('phone_number', $validated['phone_number'])
             ->first();
@@ -177,14 +183,22 @@ class RomaMessageController extends Controller
         }
 
         try {
+            $metadata = ['type' => $imageUrl ? 'image' : 'text'];
+            if ($imageUrl !== null) {
+                $metadata['image_url'] = $imageUrl;
+                if (!empty($validated['content'])) {
+                    $metadata['image_caption'] = $validated['content'];
+                }
+            }
+
             $message = Message::create([
                 'message_id' => 'temp_'.uniqid(),
                 'phone_number' => $validated['phone_number'],
-                'content' => $validated['content'],
+                'content' => $validated['content'] ?? '',
                 'direction' => 'outgoing',
                 'status' => 'pending',
                 'whatsapp_timestamp' => now(),
-                'metadata' => ['type' => 'text'],
+                'metadata' => $metadata,
             ]);
 
             MessageBroadcaster::broadcast($message, 'RomaMessageController');

@@ -12,26 +12,45 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(): Response
+    public function index(\Illuminate\Http\Request $request): Response
     {
-        $hoy = now()->startOfDay();
-        $ayer = now()->subDay()->startOfDay();
-        $finAyer = now()->subDay()->endOfDay();
-        $inicioMes = now()->startOfMonth();
+        $period = $request->input('period', 'hoy');
+
+        if ($period === '7d') {
+            $inicio = now()->subDays(6)->startOfDay();
+            $fin = now()->endOfDay();
+            $anteriorInicio = now()->subDays(13)->startOfDay();
+            $anteriorFin = now()->subDays(7)->endOfDay();
+        } elseif ($period === '30d') {
+            $inicio = now()->subDays(29)->startOfDay();
+            $fin = now()->endOfDay();
+            $anteriorInicio = now()->subDays(59)->startOfDay();
+            $anteriorFin = now()->subDays(30)->endOfDay();
+        } elseif ($period === 'mes_actual') {
+            $inicio = now()->startOfMonth();
+            $fin = now()->endOfMonth();
+            $anteriorInicio = now()->subMonth()->startOfMonth();
+            $anteriorFin = now()->subMonth()->endOfMonth();
+        } else {
+            $inicio = now()->startOfDay();
+            $fin = now()->endOfDay();
+            $anteriorInicio = now()->subDay()->startOfDay();
+            $anteriorFin = now()->subDay()->endOfDay();
+        }
 
         $ventasHoy = (float) Sale::query()
             ->where('status', '!=', SaleStatus::Cancelado)
-            ->where('confirmed_at', '>=', $hoy)
+            ->whereBetween('confirmed_at', [$inicio, $fin])
             ->sum('total_amount');
 
         $ventasAyer = (float) Sale::query()
             ->where('status', '!=', SaleStatus::Cancelado)
-            ->whereBetween('confirmed_at', [$ayer, $finAyer])
+            ->whereBetween('confirmed_at', [$anteriorInicio, $anteriorFin])
             ->sum('total_amount');
 
         $ventasMes = (float) Sale::query()
             ->where('status', '!=', SaleStatus::Cancelado)
-            ->where('confirmed_at', '>=', $inicioMes)
+            ->where('confirmed_at', '>=', now()->startOfMonth())
             ->sum('total_amount');
 
         $pendientesPago = Sale::query()
@@ -39,7 +58,7 @@ class DashboardController extends Controller
             ->count();
 
         $conversacionesHoy = Message::query()
-            ->where('created_at', '>=', $hoy)
+            ->whereBetween('created_at', [$inicio, $fin])
             ->distinct('phone_number')
             ->count('phone_number');
 
@@ -69,7 +88,6 @@ class DashboardController extends Controller
                 'created_at' => $sale->created_at?->toIso8601String(),
             ]);
 
-        $hace7Dias = now()->subDays(6)->startOfDay();
         $chartData = Sale::query()
             ->select([
                 DB::raw('DATE(confirmed_at) as date'),
@@ -78,14 +96,17 @@ class DashboardController extends Controller
             ])
             ->where('status', '!=', SaleStatus::Cancelado)
             ->whereNotNull('confirmed_at')
-            ->where('confirmed_at', '>=', $hace7Dias)
+            ->whereBetween('confirmed_at', [$inicio, $fin])
             ->groupBy(DB::raw('DATE(confirmed_at)'))
             ->orderBy(DB::raw('DATE(confirmed_at)'))
             ->get()
             ->keyBy('date');
 
-        $chart = collect(range(0, 6))->map(function (int $daysAgo) use ($chartData): array {
-            $date = now()->subDays($daysAgo)->startOfDay();
+        $diferenciaDias = (int) $inicio->diffInDays($fin);
+        $daysArray = $diferenciaDias > 0 ? range(0, $diferenciaDias) : [0];
+        
+        $chart = collect($daysArray)->map(function (int $daysAgo) use ($chartData, $fin): array {
+            $date = $fin->copy()->subDays($daysAgo)->startOfDay();
             $dateStr = $date->toDateString();
             $data = $chartData->get($dateStr);
 
