@@ -53,7 +53,7 @@ const enviarLinkPago = async () => {
         return;
     }
 
-    const link = linkInputValue.value.trim();
+    const link = inputCustomLink.value.trim();
     if (!link) {
         linkError.value = 'El link no puede estar vacío';
         return;

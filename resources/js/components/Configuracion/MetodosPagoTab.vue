@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import CrmPanel from '@/components/crm/CrmPanel.vue';
 import ConfigSectionHeader from '@/components/configuracion/ConfigSectionHeader.vue';
-import { DollarSign, CreditCard, Plus, Trash2, QrCode, ImageIcon, ArrowLeftRight, Smartphone, Landmark, Globe, Wallet, Banknote } from 'lucide-vue-next';
+import { DollarSign, CreditCard, Plus, Trash2, QrCode, ImageIcon, ArrowLeftRight, Smartphone, Landmark, Globe, Wallet, Banknote, Info } from 'lucide-vue-next';
 import type { CompanySettingsForm } from '@/types/settings';
 
 const form = inject('companyConfigForm') as CompanySettingsForm & Record<string, unknown>;
@@ -49,9 +49,13 @@ const inputQrFile = ref<HTMLInputElement | null>(null);
 const numeroCuentaValido = ref(false);
 
 const validarNumeroCuenta = () => {
-    const numero = nuevoMetodoForm.value.numero_cuenta.replace(/\D/g, '');
-    nuevoMetodoForm.value.numero_cuenta = numero;
-    numeroCuentaValido.value = /^9\d{8}$/.test(numero);
+    if (nuevoMetodoForm.value.tipo === 'virtual') {
+        const numero = nuevoMetodoForm.value.numero_cuenta.replace(/\D/g, '');
+        nuevoMetodoForm.value.numero_cuenta = numero;
+        numeroCuentaValido.value = /^9\d{8}$/.test(numero);
+    } else {
+        numeroCuentaValido.value = nuevoMetodoForm.value.numero_cuenta.trim().length > 0;
+    }
 };
 
 const manejarArchivoQr = (event: Event) => {
@@ -277,7 +281,19 @@ const eliminarMetodoPago = (index: number) => {
                     </DialogHeader>
 
                     <div class="space-y-4 py-4">
-                        <div class="space-y-2">
+                        <div v-if="metodoSeleccionado?.tipo === 'otro'" class="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/50 dark:bg-blue-900/20">
+                            <div class="flex items-start gap-3">
+                                <Info class="mt-0.5 h-5 w-5 text-blue-600 dark:text-blue-400" />
+                                <div>
+                                    <h5 class="text-sm font-medium text-blue-800 dark:text-blue-300">Configuración Automática (Link de Pago)</h5>
+                                    <p class="mt-1 text-xs text-blue-700 dark:text-blue-400">
+                                        Al guardar este método, la Inteligencia Artificial cobrará automáticamente un <strong>5% de recargo</strong> y le solicitará a la clienta su <strong>Nombre, Correo y Celular</strong> para que puedas enviarle un link de pago externamente. No necesitas configurar QR ni cuenta.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2" v-if="metodoSeleccionado?.tipo !== 'otro'">
                             <Label>QR / Imagen del método</Label>
                             <div class="flex items-center gap-4">
                                 <div
@@ -312,7 +328,7 @@ const eliminarMetodoPago = (index: number) => {
                             <Input id="mp-nombre" v-model="nuevoMetodoForm.nombre" readonly />
                         </div>
 
-                        <div class="space-y-2">
+                        <div class="space-y-2" v-if="metodoSeleccionado?.tipo !== 'otro'">
                             <Label for="mp-destinatario">Destinatario</Label>
                             <Input
                                 id="mp-destinatario"
@@ -321,7 +337,7 @@ const eliminarMetodoPago = (index: number) => {
                             />
                         </div>
 
-                        <div class="space-y-2">
+                        <div class="space-y-2" v-if="metodoSeleccionado?.tipo !== 'otro'">
                             <Label for="mp-numero">Número de cuenta o celular</Label>
                             <Input
                                 id="mp-numero"
@@ -332,13 +348,13 @@ const eliminarMetodoPago = (index: number) => {
                                 :class="numeroCuentaValido ? 'border-green-500 focus-visible:ring-green-500' : nuevoMetodoForm.numero_cuenta ? 'border-red-500 focus-visible:ring-red-500' : ''"
                                 @input="validarNumeroCuenta"
                             />
-                            <p v-if="nuevoMetodoForm.numero_cuenta && !numeroCuentaValido" class="text-xs text-red-500">
+                            <p v-if="nuevoMetodoForm.numero_cuenta && !numeroCuentaValido && metodoSeleccionado?.tipo === 'virtual'" class="text-xs text-red-500">
                                 Debe ser un número válido de Perú (9 dígitos, empieza con 9)
                             </p>
                             <p v-else-if="numeroCuentaValido" class="text-xs text-green-600">
                                 Número válido
                             </p>
-                            <p v-else class="text-xs text-muted-foreground">
+                            <p v-else-if="metodoSeleccionado?.tipo === 'virtual'" class="text-xs text-muted-foreground">
                                 Ingresa 9 dígitos para celular (ej: 912345678)
                             </p>
                         </div>
