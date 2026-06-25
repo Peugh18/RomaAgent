@@ -124,15 +124,13 @@ class ImageAnalyzer extends BaseGeminiService
 
             $similarity = $this->cosineSimilarity($embedding, $variante->image_embedding);
 
-            // Penalización de Búsqueda Híbrida: Filtrar por Color
+            // Penalización de Búsqueda Híbrida: Filtrar por Color (removida)
             if (! empty($colorExtraido) && ! empty($variante->color)) {
                 $colorE = mb_strtolower(trim($colorExtraido));
                 $colorV = mb_strtolower(trim($variante->color));
 
-                // Si no hay coincidencia semántica de color básica, restamos puntaje agresivamente
-                if (strpos($colorE, $colorV) === false && strpos($colorV, $colorE) === false) {
-                    $similarity -= 0.50; // Asegura que nunca llegue a 0.50 de threshold
-                }
+                // Si no hay coincidencia semántica de color básica, antes se penalizaba la similitud.
+                // La penalización ha sido removida para mantener la similitud sin ajuste.
             }
             $resultados[] = [
                 'variant' => $variante,

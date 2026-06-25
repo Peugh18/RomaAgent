@@ -68,17 +68,67 @@ class ProductEmbeddingService extends BaseGeminiService
         $productName = $variant->product->name ?? 'Desconocido';
         $color = $variant->color ?? 'Desconocido';
 
-        $patron = 'Diseño original';
-        if ($variant->product && is_array($variant->product->vision_profile)) {
-            $patron = $variant->product->vision_profile['patron'] ?? $patron;
-            // Opcional: añadir más detalles visuales
-            if (isset($variant->product->vision_profile['detalles']) && is_array($variant->product->vision_profile['detalles'])) {
-                $patron .= ' '.implode(', ', array_slice($variant->product->vision_profile['detalles'], 0, 2));
+        $product = $variant->product;
+        $vision = $product->vision_profile ?? [];
+        
+        $tipoPrenda = ucfirst($vision['tipo_prenda'] ?? $product->category->name ?? 'Prenda');
+        $nombreProducto = $product->name ?? '';
+        
+        $partes = [];
+        
+        // 1. Identificador Principal
+        if (!empty($nombreProducto)) {
+            if (stripos($nombreProducto, $tipoPrenda) === false) {
+                $partes[] = "{$tipoPrenda} {$nombreProducto}";
+            } else {
+                $partes[] = ucfirst($nombreProducto);
+            }
+        } else {
+            $partes[] = $tipoPrenda;
+        }
+        
+        // 2. Color prioritario
+        if (!empty($variant->color)) {
+            $partes[] = "Color " . mb_strtolower($variant->color);
+        }
+        
+        // 3. Patrón / Diseño
+        if (!empty($vision['patron'])) {
+            $partes[] = "Diseño " . mb_strtolower($vision['patron']);
+        }
+        
+        // 4. Material
+        if (!empty($vision['material_aparente'])) {
+            $partes[] = "Material " . mb_strtolower($vision['material_aparente']);
+        }
+        
+        // 5. Detalles (corte, cuello, mangas)
+        if (isset($vision['detalles']) && is_array($vision['detalles']) && !empty($vision['detalles'])) {
+            $detallesStr = implode(', ', array_map('mb_strtolower', $vision['detalles']));
+            $partes[] = "Detalles: {$detallesStr}";
+        }
+        
+        // 6. Keywords en contexto natural
+        if (!empty($vision['keywords'])) {
+            $kw = is_array($vision['keywords']) ? implode(', ', $vision['keywords']) : $vision['keywords'];
+            $partes[] = "Ideal para " . mb_strtolower($kw);
+        }
+        
+        // 7. Descripción limpia
+        if (!empty($product->description)) {
+            $desc = rtrim(trim($product->description), '.');
+            if (!empty($desc)) {
+                $partes[] = $desc;
             }
         }
-
-        // Frase descriptiva estandarizada pura
-        $descripcion = "Vestido. {$patron}.";
+        
+        $descripcion = implode('. ', $partes) . '.';
+        
+        // Limpieza básica de espacios y puntuación repetida
+        $descripcion = preg_replace('/\s+/', ' ', $descripcion);
+        $descripcion = preg_replace('/\.{2,}/', '.', $descripcion);
+        $descripcion = str_replace(' .', '.', $descripcion);
+        $descripcion = trim($descripcion);
 
         return $this->generarEmbeddingTexto($descripcion);
     }
