@@ -60,77 +60,25 @@ class ProductEmbeddingService extends BaseGeminiService
         });
     }
 
-    /**
-     * Genera el embedding para una variante específica basándose en sus características textuales.
-     */
     public function generarEmbeddingVariante(ProductVariant $variant): ?array
     {
-        $productName = $variant->product->name ?? 'Desconocido';
-        $color = $variant->color ?? 'Desconocido';
-
         $product = $variant->product;
         $vision = $product->vision_profile ?? [];
-        
-        $tipoPrenda = ucfirst($vision['tipo_prenda'] ?? $product->category->name ?? 'Prenda');
-        $nombreProducto = $product->name ?? '';
-        
-        $partes = [];
-        
-        // 1. Identificador Principal
-        if (!empty($nombreProducto)) {
-            if (stripos($nombreProducto, $tipoPrenda) === false) {
-                $partes[] = "{$tipoPrenda} {$nombreProducto}";
-            } else {
-                $partes[] = ucfirst($nombreProducto);
-            }
-        } else {
-            $partes[] = $tipoPrenda;
-        }
-        
-        // 2. Color prioritario
-        if (!empty($variant->color)) {
-            $partes[] = "Color " . mb_strtolower($variant->color);
-        }
-        
-        // 3. Patrón / Diseño
-        if (!empty($vision['patron'])) {
-            $partes[] = "Diseño " . mb_strtolower($vision['patron']);
-        }
-        
-        // 4. Material
-        if (!empty($vision['material_aparente'])) {
-            $partes[] = "Material " . mb_strtolower($vision['material_aparente']);
-        }
-        
-        // 5. Detalles (corte, cuello, mangas)
-        if (isset($vision['detalles']) && is_array($vision['detalles']) && !empty($vision['detalles'])) {
-            $detallesStr = implode(', ', array_map('mb_strtolower', $vision['detalles']));
-            $partes[] = "Detalles: {$detallesStr}";
-        }
-        
-        // 6. Keywords en contexto natural
-        if (!empty($vision['keywords'])) {
-            $kw = is_array($vision['keywords']) ? implode(', ', $vision['keywords']) : $vision['keywords'];
-            $partes[] = "Ideal para " . mb_strtolower($kw);
-        }
-        
-        // 7. Descripción limpia
-        if (!empty($product->description)) {
-            $desc = rtrim(trim($product->description), '.');
-            if (!empty($desc)) {
-                $partes[] = $desc;
-            }
-        }
-        
-        $descripcion = implode('. ', $partes) . '.';
-        
-        // Limpieza básica de espacios y puntuación repetida
-        $descripcion = preg_replace('/\s+/', ' ', $descripcion);
-        $descripcion = preg_replace('/\.{2,}/', '.', $descripcion);
-        $descripcion = str_replace(' .', '.', $descripcion);
-        $descripcion = trim($descripcion);
 
-        return $this->generarEmbeddingTexto($descripcion);
+        // El nuevo pipeline unificado siempre debe generar una descripcion_vectorial fluida
+        $descripcionVectorial = $vision['descripcion_vectorial'] ?? null;
+
+        if (empty($descripcionVectorial)) {
+            Log::warning('ProductEmbeddingService: Variante sin descripcion_vectorial. Usando fallback básico.', [
+                'variant_id' => $variant->id,
+            ]);
+            // Fallback súper básico por si hay productos viejos sin el nuevo vision_profile
+            $nombreProducto = $product->name ?? 'Prenda';
+            $color = $variant->color ?? 'Desconocido';
+            $descripcionVectorial = "{$nombreProducto} color {$color}";
+        }
+
+        return $this->generarEmbeddingTexto($descripcionVectorial);
     }
 
     /**
