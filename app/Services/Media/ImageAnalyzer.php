@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Services\ConfiguracionAgente;
 use App\Services\ServicioMediaProducto;
+use App\Services\Vision\GarmentVisionService;
 use App\Services\Vision\OptimizedVisionPrompts;
 use App\Services\Vision\ProductEmbeddingService;
 use App\Support\Vision\ParseadorRespuestaJsonGemini;
@@ -24,7 +25,8 @@ class ImageAnalyzer extends BaseGeminiService
         ConfiguracionAgente $configuracion,
         private CargadorBytesMedia $cargador,
         private ProductEmbeddingService $embeddingService,
-        private ServicioMediaProducto $mediaProducto
+        private ServicioMediaProducto $mediaProducto,
+        private GarmentVisionService $visionService
     ) {
         parent::__construct($configuracion);
     }
@@ -77,26 +79,19 @@ class ImageAnalyzer extends BaseGeminiService
                 ],
             ];
         }
+        // 2. EXTRACCIÓN DE CARACTERÍSTICAS DE LA PRENDA CON EL NUEVO MOTOR UNIFICADO
+        $analysis = $this->visionService->analyze($imageUrl);
 
-        // 2. EXTRACCIÓN DE CARACTERÍSTICAS DE LA PRENDA
-        $promptPrenda = OptimizedVisionPrompts::promptExtractorCaracteristicasPrenda();
-        $payloadPrenda = $this->buildPayload($promptPrenda, $media, $mime);
-
-        $resPrenda = $this->ejecutarConRetry(function () use ($endpoint, $payloadPrenda, $apiKey, $captionCliente) {
-            return $this->callGeminiApi($endpoint, $payloadPrenda, $apiKey, $captionCliente);
-        });
-
-        $esPrenda = $resPrenda['inbound_profile']['es_prenda'] ?? false;
-        $descripcion = $resPrenda['inbound_profile']['descripcion_vectorial'] ?? null;
-        $colorExtraido = $resPrenda['inbound_profile']['color'] ?? null;
-
-        if (! $esPrenda || empty($descripcion)) {
+        if ($analysis === null || ! $analysis->esPrenda || empty($analysis->descripcionVectorial)) {
             Log::info('ImageAnalyzer: No se detectó una prenda clara en la imagen o falló la descripción. Usando fallback.');
 
             return $this->fallbackAnalysis($endpoint, $media, $mime, $apiKey, $captionCliente);
         }
 
-        Log::info('ImageAnalyzer: Descripción extraída de la imagen', ['desc' => $descripcion]);
+        $descripcion = $analysis->descripcionVectorial;
+        $colorExtraido = $analysis->colorPrincipal;
+
+        Log::info('ImageAnalyzer: Descripción extraída de la imagen (Motor Unificado)', ['desc' => $descripcion]);
 
         // 3. OBTENER EMBEDDING DEL TEXTO DESCRIPTIVO
         $embedding = $this->embeddingService->generarEmbeddingTexto($descripcion);

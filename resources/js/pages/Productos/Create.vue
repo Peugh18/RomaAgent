@@ -176,7 +176,7 @@ const submit = async () => {
         const photoErrors: string[] = [];
         for (let i = 0; i < form.value.variants.length; i++) {
             const pending = form.value.variants[i].pendingFile;
-            const createdVariant = created.variants?.[i];
+            const createdVariant = created.data?.variants?.[i] || created.variants?.[i];
             if (pending && createdVariant?.id) {
                 console.log('Subiendo foto para variant ID:', createdVariant.id, 'Archivo:', pending.name);
                 
@@ -207,7 +207,7 @@ const submit = async () => {
 
         if (photoErrors.length > 0) {
             alert(`Producto creado, pero falló la subida de fotos:\n\n${photoErrors.join('\n')}`);
-            router.visit(`/productos/${created.id}/edit`);
+            router.visit(`/productos/${created.data?.id || created.id}/edit`);
             return;
         }
 

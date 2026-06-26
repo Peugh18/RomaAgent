@@ -13,7 +13,7 @@ class PlantillaMensajePedido
      */
     public static function variablesDisponibles(): array
     {
-        return ['{nombre}', '{producto}', '{color}', '{total}', '{metodo_pago}'];
+        return ['{nombre}', '{producto}', '{color}', '{total}', '{metodo_pago}', '{distrito}'];
     }
 
     public static function render(string $plantilla, Sale $sale): string
@@ -44,14 +44,17 @@ class PlantillaMensajePedido
             $color = (string) $sale->color;
         }
 
+        $distrito = $customerData['distrito'] ?? '';
+
         return str_replace(
-            ['{nombre}', '{producto}', '{color}', '{total}', '{metodo_pago}'],
+            ['{nombre}', '{producto}', '{color}', '{total}', '{metodo_pago}', '{distrito}'],
             [
                 $nombre,
                 $productNames,
                 $color,
                 number_format((float) $sale->total_amount, 2),
                 (string) ($sale->payment_method ?? ''),
+                $distrito,
             ],
             $plantilla,
         );

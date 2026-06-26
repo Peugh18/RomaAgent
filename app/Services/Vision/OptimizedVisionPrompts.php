@@ -44,92 +44,39 @@ FORMATO JSON OBLIGATORIO (sin markdown, sin comentarios):
 PROMPT;
     }
 
-    public static function promptExtractorCaracteristicasPrenda(): string
+    /**
+     * Prompt Universal para extraer las 12 dimensiones anatómicas de cualquier prenda.
+     * Funciona idénticamente para fotos de catálogo de estudio o selfies en el espejo (WhatsApp/TikTok).
+     */
+    public static function promptUniversalPrenda(): string
     {
         return <<<'PROMPT'
-Eres un experto analista de moda. Tu único objetivo es describir la PRENDA PRINCIPAL que viste la persona en la foto.
-Ignora por completo el fondo, la cara de la persona, los maniquíes de atrás, las luces o cualquier otra cosa.
+Eres un diseñador de alta costura y un experto analista de moda. Tu único objetivo es describir con precisión absoluta la PRENDA PRINCIPAL que viste la persona en la foto.
 
-Describe la prenda de manera muy breve enfocándote solo en lo visual. 
-Debe incluir: Tipo de prenda (ej. vestido, blusa), Color dominante (ej. rojo, camel, lila) y Patrón o Diseño (ej. zig-zag, liso, floral).
+INSTRUCCIONES ANTI-RUIDO (CRÍTICAS):
+1. Ignora absolutamente todo lo que no sea la prenda principal.
+2. Finge que la prenda está sobre un maniquí invisible flotando sobre un fondo blanco.
+3. Ignora el teléfono, el espejo, los zapatos, las carteras, accesorios adicionales, la cara de la modelo, las paredes y la iluminación.
+4. Ignora CUALQUIER texto superpuesto, logo, o interfaz de usuario que aparezca en la imagen (como corazones, íconos, o logos de TikTok/Instagram).
 
-FORMATO JSON OBLIGATORIO (sin markdown, sin comentarios):
+Descompón visualmente la prenda en las siguientes 12 dimensiones y devuelve el análisis en el formato JSON obligatorio.
+
+FORMATO JSON OBLIGATORIO (sin markdown, sin bloques de código ```json, sin comentarios):
 {
   "es_prenda": true|false,
-  "tipo_prenda": "vestido|blusa|pantalón|etc",
-  "color": "color dominante",
-  "patron": "diseño o textura visible",
-  "descripcion_vectorial": "[tipo_prenda]. [patron visible], [detalles clave]."
+  "tipo_prenda": "vestido|enterizo|blusa|pantalón|falda|conjunto|otro",
+  "largo_prenda": "maxi|midi|corto|crop|regular",
+  "manga": "larga|tres cuartos|corta|cero|tirantes|asimétrica",
+  "cuello": "alto|tortuga|redondo|en v|cuadrado|camisero|off-shoulder|asimétrico",
+  "ajuste_fit": "ajustado|sirena|holgado|recto|acampanado|oversize",
+  "patron": "liso|sólido|floral|rayas verticales|rayas horizontales|ondas|geométrico|animal print|cuadros",
+  "textura_tejido": "liso|acanalado|calado|crochet|peluche|jean|encaje",
+  "distribucion_color": "entero|degradado|multicolor|detalles en contraste",
+  "color_principal": "Color dominante (ej. Rojo, Azul, Marrón, Blanco, Negro, etc)",
+  "acabados_bordes": ["festoneados", "ondas", "puños contraste", "dobladillo volantes", "ninguno"],
+  "detalles_clave": ["botones", "cinturón", "aberturas", "cierres", "cuello con doblez", "bolsillos", "ninguno"],
+  "descripcion_vectorial": "Oración fluida que concatena todo. Ej: Vestido maxi ajustado de tejido acanalado, sin mangas, cuello alto, con patrón de rayas en ondas horizontales en tonos rojo y rosado degradado."
 }
-PROMPT;
-    }
-
-    /**
-     * Prompt para generar embeddings de catálogo
-     */
-    public static function promptEmbeddingCatalogo(string $productName, string $color): string
-    {
-        return "Prenda de moda femenina: {$productName} color {$color}. Vestido elegante diseño único.";
-    }
-
-    /**
-     * Prompt para análisis detallado de catálogo
-     */
-    public static function promptAnalisisCatalogo(string $productName, string $color): string
-    {
-        return <<<PROMPT
-Analiza esta foto profesional de catálogo para "{$productName}" color "{$color}".
-
-Enfócate EXCLUSIVAMENTE en la prenda, no en la modelo ni fondo.
-
-CARACTERÍSTICAS A ANALIZAR:
-- TIPO PRENDA: vestido/blusa/pantalón/falda/chompa/accesorio
-- MATERIAL: textura y composición visible
-- CORTE/SILUETA: forma y longitud
-- DISEÑO: estampado, texturas, detalles decorativos
-- ESTILO: elegante, casual, deportivo, festivo, bohemio
-
-JSON requerido:
-{
-  "producto": {
-    "tipo_prenda": "vestido|blusa|pantalón|falda|chompa|accesorio|otro",
-    "material_aparente": "material visible",
-    "silueta": "corta|midi|larga|crop|oversized|ajustada|recta",
-    "patron": "liso|estampado|rayas|lunares|geométrico|tie-dye|otro",
-    "estilo": "elegante|casual|deportivo|festivo|bohemio|moderno",
-    "detalles": ["detalle específico visible"],
-    "keywords": ["palabras", "clave", "búsqueda", "producto"]
-  },
-  "color": {
-    "color_canonical": "{$color}",
-    "colores_dominantes": ["color1", "color2"],
-    "aliases": ["sinónimo1", "sinónimo2"],
-    "tono": "claro|medio|oscuro"
-  }
-}
-PROMPT;
-    }
-
-    /**
-     * Prompt para análisis de color específico
-     */
-    public static function promptAnalisisColor(string $productName, string $colorRegistrado): string
-    {
-        return <<<PROMPT
-Analiza el COLOR DOMINANTE de esta variante de "{$productName}" (color registrado: "{$colorRegistrado}").
-
-Ignora iluminación, sombras, fondo. Enfócate solo en el color real de la prenda.
-
-JSON requerido:
-{
-  "color_canonical": "{$colorRegistrado}",
-  "colores_dominantes": ["nombre color principal", "secundario si aplica"],
-  "aliases": ["sinónimos comunes en español", "variaciones tono"],
-  "tono": "claro|medio|oscuro",
-  "intensidad": "pálido|normal|vibrante|intenso"
-}
-
-Nombres de color estándar: blanco, negro, gris, beige, camel, marrón, rojo, rosado, naranja, amarillo, verde, azul, morado, lila, turquesa, coral, fucsia, mostaza, terracota, azul rey, azul cielo, verde menta, lila pálido, etc.
 PROMPT;
     }
 
@@ -141,18 +88,10 @@ PROMPT;
         return <<<'PROMPT'
 Detecta si esta imagen es un COMPROBANTE DE PAGO.
 
-Busca indicios de comprobantes de pago, comprobantes bancarios, billeteras móviles, operaciones o depósitos.
-
-JSON:
+Responde JSON:
 {
-  "es_comprobante": boolean,
-  "tipo_comprobante": "billetera_movil|deposito_bancario|otro|null",
-  "banco_visible": "nombre banco o null",
-  "monto_visible": "monto o null",
-  "confianza": 0.95
+  "es_comprobante": true|false
 }
-
-Si NO es comprobante, es_comprobante=false y demás campos null.
 PROMPT;
     }
 }
