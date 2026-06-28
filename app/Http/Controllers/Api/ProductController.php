@@ -10,6 +10,7 @@ use App\Support\InvalidatesPromptCache;
 use App\Support\NormalizadorStockTallas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
 
 class ProductController extends Controller
@@ -214,7 +215,16 @@ class ProductController extends Controller
 
     public function generateEmbeddings(ProductEmbeddingService $service): JsonResponse
     {
-        // Pasamos true para forzar el recálculo de los nuevos vectores de texto
+        // Aumentar el tiempo límite a ilimitado porque analizar imágenes tarda varios minutos
+        set_time_limit(0);
+
+        // 1. Forzar el escáner visual (Radiografía) de todas las fotos que no tengan su perfil
+        Artisan::call('vision:backfill', [
+            '--sync' => true,
+            '--only-missing' => true,
+        ]);
+
+        // 2. Generar los vectores matemáticos basados en la radiografía visual
         $stats = $service->procesarCatalogoCompleto(true);
 
         return response()->json($stats);

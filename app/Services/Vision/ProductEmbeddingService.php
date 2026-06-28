@@ -65,20 +65,22 @@ class ProductEmbeddingService extends BaseGeminiService
         $product = $variant->product;
         $vision = $product->vision_profile ?? [];
 
-        // El nuevo pipeline unificado siempre debe generar una descripcion_vectorial fluida
-        $descripcionVectorial = $vision['descripcion_vectorial'] ?? null;
+        // Priorizar huella_forma (SIN colores) para embeddings.
+        // Esto permite que un vestido rojo y uno naranja con la misma forma
+        // tengan embeddings casi idénticos, mejorando el match cross-color.
+        $textoParaEmbedding = $vision['huella_forma'] ?? $vision['huella_digital'] ?? null;
 
-        if (empty($descripcionVectorial)) {
-            Log::warning('ProductEmbeddingService: Variante sin descripcion_vectorial. Usando fallback básico.', [
+        if (empty($textoParaEmbedding)) {
+            Log::warning('ProductEmbeddingService: Variante sin huella_forma ni huella_digital. Usando fallback básico.', [
                 'variant_id' => $variant->id,
             ]);
             // Fallback súper básico por si hay productos viejos sin el nuevo vision_profile
             $nombreProducto = $product->name ?? 'Prenda';
             $color = $variant->color ?? 'Desconocido';
-            $descripcionVectorial = "{$nombreProducto} color {$color}";
+            $textoParaEmbedding = "{$nombreProducto} color {$color}";
         }
 
-        return $this->generarEmbeddingTexto($descripcionVectorial);
+        return $this->generarEmbeddingTexto($textoParaEmbedding);
     }
 
     /**

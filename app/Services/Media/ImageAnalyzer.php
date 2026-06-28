@@ -2,16 +2,13 @@
 
 namespace App\Services\Media;
 
-use App\Exceptions\GeminiQuotaExceededException;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\VisualCorrection;
 use App\Services\ConfiguracionAgente;
 use App\Services\ServicioMediaProducto;
 use App\Services\Vision\GarmentVisionService;
-use App\Services\Vision\OptimizedVisionPrompts;
 use App\Services\Vision\ProductEmbeddingService;
-use App\Support\Vision\ParseadorRespuestaJsonGemini;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -54,19 +51,43 @@ class ImageAnalyzer extends BaseGeminiService
 
         $captionCliente = trim((string) ($contexto['caption_cliente'] ?? ''));
 
-        $modelo = $this->obtenerModelo();
-        $endpoint = $this->construirEndpoint($modelo);
-        $mime = $this->normalizarMimeImagen($media['mime']);
+        // --- PASO A: BÚSQUEDA POR HASH EXACTO DE CORRECCIÓN VISUAL ---
+        $imageHash = md5($media['bytes']);
+        $correction = VisualCorrection::where('image_hash', $imageHash)->first();
+        if ($correction) {
+            $product = $correction->product;
+            if ($product && $product->status === Product::ESTADO_DISPONIBLE) {
+                $firstVariant = $product->variants()->first();
+                Log::info('ImageAnalyzer: Coincidencia por HASH EXACTO de corrección visual', [
+                    'hash' => $imageHash,
+                    'producto_id' => $product->id,
+                ]);
 
-        // 1. PASADA RÁPIDA: Detección de comprobante
-        $promptComprobante = OptimizedVisionPrompts::promptDetectorComprobante();
-        $payloadComprobante = $this->buildPayload($promptComprobante, $media, $mime);
+                return [
+                    'caption' => 'Producto reconocido por corrección visual exacta (hash)',
+                    'inbound_profile' => [
+                        'encontrado' => true,
+                        'matches' => [[
+                            'id_producto' => $product->id,
+                            'nombre_vestido' => $product->name,
+                            'color' => $firstVariant?->color ?? 'Desconocido',
+                            'similitud' => 1.0,
+                            'image_url' => $firstVariant ? $this->mediaProducto->resolveAbsolutePublicUrl($firstVariant) : null,
+                            'es_mismo_color' => true,
+                        ]],
+                        'tipo_mensaje' => 'producto',
+                        'caption_cliente' => $captionCliente,
+                    ],
+                ];
+            }
+        }
 
-        $resComprobante = $this->ejecutarConRetry(function () use ($endpoint, $payloadComprobante, $apiKey, $captionCliente) {
-            return $this->callGeminiApi($endpoint, $payloadComprobante, $apiKey, $captionCliente);
-        });
+        // ANÁLISIS UNIFICADO: Una sola llamada a Gemini detecta tanto comprobantes como prendas.
+        // Esto ahorra tokens, tiempo y costo (antes se hacían 2 llamadas por foto).
+        $analysis = $this->visionService->analyze($imageUrl);
 
-        if ($resComprobante && ($resComprobante['inbound_profile']['es_comprobante'] ?? false)) {
+        // Detectar comprobante (integrado en el prompt universal V4)
+        if ($analysis !== null && $analysis->esComprobante) {
             Log::info('ImageAnalyzer: Comprobante detectado.');
 
             return [
@@ -79,13 +100,19 @@ class ImageAnalyzer extends BaseGeminiService
                 ],
             ];
         }
-        // 2. EXTRACCIÓN DE CARACTERÍSTICAS DE LA PRENDA CON EL NUEVO MOTOR UNIFICADO
-        $analysis = $this->visionService->analyze($imageUrl);
 
         if ($analysis === null || ! $analysis->esPrenda || empty($analysis->descripcionVectorial)) {
-            Log::info('ImageAnalyzer: No se detectó una prenda clara en la imagen o falló la descripción. Usando fallback.');
+            Log::info('ImageAnalyzer: No se detectó una prenda clara en la imagen o falló la descripción. Devolviendo no encontrado.');
 
-            return $this->fallbackAnalysis($endpoint, $media, $mime, $apiKey, $captionCliente);
+            return [
+                'caption' => 'Producto no reconocido con certeza',
+                'inbound_profile' => [
+                    'encontrado' => false,
+                    'matches' => [],
+                    'tipo_mensaje' => 'producto',
+                    'caption_cliente' => $captionCliente,
+                ],
+            ];
         }
 
         $descripcion = $analysis->descripcionVectorial;
@@ -96,12 +123,68 @@ class ImageAnalyzer extends BaseGeminiService
         // 3. OBTENER EMBEDDING DEL TEXTO DESCRIPTIVO
         $embedding = $this->embeddingService->generarEmbeddingTexto($descripcion);
         if ($embedding === null) {
-            Log::warning('ImageAnalyzer: No se pudo generar el embedding del texto. Usando fallback LLM.');
+            Log::warning('ImageAnalyzer: No se pudo generar el embedding del texto. Devolviendo no encontrado.');
 
-            return $this->fallbackAnalysis($endpoint, $media, $mime, $apiKey, $captionCliente);
+            return [
+                'caption' => 'Producto no reconocido con certeza',
+                'inbound_profile' => [
+                    'encontrado' => false,
+                    'matches' => [],
+                    'tipo_mensaje' => 'producto',
+                    'caption_cliente' => $captionCliente,
+                ],
+            ];
         }
 
-        // 4. BÚSQUEDA VECTORIAL EN MEMORIA (Cosine Similarity de Texto)
+        // --- PASO B: BÚSQUEDA POR SIMILITUD DE EMBEDDING EN CORRECCIONES VISUALES ---
+        $correcciones = VisualCorrection::whereNotNull('image_embedding')->get();
+        $mejorCorreccion = null;
+        $mejorSimilitud = 0.0;
+
+        foreach ($correcciones as $corr) {
+            if (is_array($corr->image_embedding)) {
+                $sim = $this->cosineSimilarity($embedding, $corr->image_embedding);
+                if ($sim > $mejorSimilitud) {
+                    $mejorSimilitud = $sim;
+                    $mejorCorreccion = $corr;
+                }
+            }
+        }
+
+        // Umbral alto (95%) para estar seguros de que es la misma foto o prenda corregida
+        if ($mejorCorreccion && $mejorSimilitud >= 0.95) {
+            $product = $mejorCorreccion->product;
+            if ($product && $product->status === Product::ESTADO_DISPONIBLE) {
+                $firstVariant = $product->variants()->first();
+                Log::info('ImageAnalyzer: Coincidencia por SIMILITUD de corrección visual', [
+                    'producto_id' => $product->id,
+                    'similitud' => $mejorSimilitud,
+                ]);
+
+                return [
+                    'caption' => 'Producto reconocido por corrección visual similar',
+                    'inbound_profile' => [
+                        'encontrado' => true,
+                        'matches' => [[
+                            'id_producto' => $product->id,
+                            'nombre_vestido' => $product->name,
+                            'color' => $firstVariant?->color ?? 'Desconocido',
+                            'similitud' => min($mejorSimilitud + 0.05, 1.0),
+                            'image_url' => $firstVariant ? $this->mediaProducto->resolveAbsolutePublicUrl($firstVariant) : null,
+                            'es_mismo_color' => true,
+                        ]],
+                        'tipo_mensaje' => 'producto',
+                        'caption_cliente' => $captionCliente,
+                        'huella_forma' => $analysis->huellaForma ?? $analysis->huellaDigital,
+                        'embedding' => $embedding,
+                    ],
+                ];
+            }
+        }
+
+        // 4. BÚSQUEDA HÍBRIDA: Vectorial (Cosine) + Metadatos (Tipo de Prenda y Color)
+        $tipoExtraido = $analysis->tipoPrenda ? mb_strtolower(trim($analysis->tipoPrenda)) : null;
+
         $variantesActivas = ProductVariant::whereHas('product', function ($q) {
             $q->where('status', Product::ESTADO_DISPONIBLE);
         })
@@ -119,39 +202,301 @@ class ImageAnalyzer extends BaseGeminiService
 
             $similarity = $this->cosineSimilarity($embedding, $variante->image_embedding);
 
-            // Penalización de Búsqueda Híbrida: Filtrar por Color (removida)
-            if (! empty($colorExtraido) && ! empty($variante->color)) {
-                $colorE = mb_strtolower(trim($colorExtraido));
-                $colorV = mb_strtolower(trim($variante->color));
+            // --- INICIO DE BÚSQUEDA HÍBRIDA (Descarte Estricto y Boosts) ---
+            $visionProfileV = is_array($variante->product?->vision_profile) ? $variante->product->vision_profile : [];
 
-                // Si no hay coincidencia semántica de color básica, antes se penalizaba la similitud.
-                // La penalización ha sido removida para mantener la similitud sin ajuste.
+            // 1. DESCARTE por Tipo de Prenda
+            $tipoV = $visionProfileV['tipo_prenda'] ?? null;
+            if ($tipoExtraido && $tipoV) {
+                if (mb_strtolower(trim($tipoV)) !== $tipoExtraido) {
+                    continue; // MÉTODO POR DESCARTE: Si uno es pantalón y el otro vestido, lo ignoramos por completo
+                } else {
+                    $similarity *= 1.15; // Boost si coinciden
+                }
             }
+
+            // 2. DESCARTE por Tipo de Manga
+            $mangaV = $visionProfileV['zona_superior']['manga_tipo'] ?? null;
+            $mangaE = $analysis->zonaSuperior['manga_tipo'] ?? null;
+            if ($mangaE && $mangaV) {
+                $mV = mb_strtolower(trim($mangaV));
+                $mE = mb_strtolower(trim($mangaE));
+
+                // Grupos estrictos de mangas (separando tirantes de manga cero/halter)
+                $grupoLarga = ['larga', 'tres cuartos', 'campana', 'globo'];
+                $grupoCorta = ['corta'];
+                $grupoTirantes = ['tirantes', 'strapless', 'off-shoulder', 'asimétrica'];
+                $grupoCeroHalter = ['cero', 'halter'];
+
+                $getGrupoManga = function ($m) use ($grupoLarga, $grupoCorta, $grupoTirantes, $grupoCeroHalter) {
+                    if (in_array($m, $grupoLarga)) {
+                        return 1;
+                    }
+                    if (in_array($m, $grupoCorta)) {
+                        return 2;
+                    }
+                    if (in_array($m, $grupoTirantes)) {
+                        return 3;
+                    }
+                    if (in_array($m, $grupoCeroHalter)) {
+                        return 4;
+                    }
+
+                    return 0; // Desconocido, no descartar
+                };
+
+                $gV = $getGrupoManga($mV);
+                $gE = $getGrupoManga($mE);
+
+                if ($gV !== 0 && $gE !== 0 && $gV !== $gE) {
+                    continue; // MÉTODO POR DESCARTE: Mangas estructuralmente diferentes (ej: tirantes vs cuello alto)
+                }
+            }
+
+            // 2.5 DESCARTE por Tipo y Apertura de Cuello
+            $cuelloV = $visionProfileV['zona_cuello']['tipo'] ?? null;
+            $cuelloE = $analysis->zonaCuello['tipo'] ?? null;
+            $aperturaV = $visionProfileV['zona_cuello']['apertura'] ?? null;
+            $aperturaE = $analysis->zonaCuello['apertura'] ?? null;
+
+            if ($cuelloE && $cuelloV) {
+                $cV = mb_strtolower(trim($cuelloV));
+                $cE = mb_strtolower(trim($cuelloE));
+
+                $grupoAlto = ['alto', 'tortuga', 'cisne'];
+                $grupoBasico = ['redondo', 'cuadrado', 'en v', 'profundo', 'bote'];
+                $grupoDesc = ['halter', 'off-shoulder', 'strapless', 'asimétrico', 'corazón'];
+                $grupoCamisero = ['camisero', 'solapa'];
+
+                $getGrupoCuello = function ($c) use ($grupoAlto, $grupoBasico, $grupoDesc, $grupoCamisero) {
+                    if (in_array($c, $grupoAlto)) {
+                        return 1;
+                    }
+                    if (in_array($c, $grupoBasico)) {
+                        return 2;
+                    }
+                    if (in_array($c, $grupoDesc)) {
+                        return 3;
+                    }
+                    if (in_array($c, $grupoCamisero)) {
+                        return 4;
+                    }
+
+                    return 0;
+                };
+
+                $gcV = $getGrupoCuello($cV);
+                $gcE = $getGrupoCuello($cE);
+
+                if ($gcV !== 0 && $gcE !== 0) {
+                    if ($gcV === $gcE) {
+                        $similarity *= 1.05; // Bonus si el tipo coincide
+                    } else {
+                        $similarity *= 0.90; // Penalización ligera si el tipo difiere
+                    }
+                }
+            }
+
+            // Penalización por apertura de cuello (abierto vs cerrado)
+            if ($aperturaE && $aperturaV) {
+                $apV = mb_strtolower(trim($aperturaV));
+                $apE = mb_strtolower(trim($aperturaE));
+                if ($apV !== $apE) {
+                    $similarity *= 0.80; // Penalización del 20% si uno es escote abierto y el otro cuello cerrado
+                }
+            }
+
+            // 3. DESCARTE por Patrón Estricto
+            $patronV = $visionProfileV['zona_superior']['patron'] ?? null;
+            $patronE = $analysis->zonaSuperior['patron'] ?? null;
+            if ($patronE && $patronV) {
+                $pV = mb_strtolower(trim($patronV));
+                $pE = mb_strtolower(trim($patronE));
+
+                // Grupos de patrones (separados de forma estricta para evitar falsos positivos)
+                $grupoLiso = ['liso'];
+                $grupoRayas = ['rayas', 'rayas (líneas rectas)'];
+                $grupoOndas = ['ondas', 'ondas (líneas curvas)'];
+                $grupoZigzag = ['zigzag', 'zigzag (líneas en picos)'];
+                $grupoFloral = ['floral', 'abstracto', 'floral / hojas', 'abstracto / manchas'];
+                $grupoGeo = ['geométrico', 'cuadros', 'geométrico cerrado (cuadros/rombos/círculos)'];
+                $grupoAnimal = ['animal print'];
+
+                $getGrupoPatron = function ($p) use ($grupoLiso, $grupoRayas, $grupoOndas, $grupoZigzag, $grupoFloral, $grupoGeo, $grupoAnimal) {
+                    if (in_array($p, $grupoLiso)) {
+                        return 1;
+                    }
+                    if (in_array($p, $grupoRayas)) {
+                        return 2;
+                    }
+                    if (in_array($p, $grupoOndas)) {
+                        return 3;
+                    }
+                    if (in_array($p, $grupoZigzag)) {
+                        return 4;
+                    }
+                    if (in_array($p, $grupoFloral)) {
+                        return 5;
+                    }
+                    if (in_array($p, $grupoGeo)) {
+                        return 6;
+                    }
+                    if (in_array($p, $grupoAnimal)) {
+                        return 7;
+                    }
+
+                    return 0;
+                };
+
+                $gpV = $getGrupoPatron($pV);
+                $gpE = $getGrupoPatron($pE);
+
+                if ($gpV !== 0 && $gpE !== 0 && $gpV !== $gpE) {
+                    continue; // MÉTODO POR DESCARTE: El tipo de estampado (ondas vs zigzag) es totalmente distinto
+                }
+            }
+
+            // 3.1 DESCARTE por Ajuste (Fit)
+            $fitV = $visionProfileV['ajuste_fit'] ?? null;
+            $fitE = $analysis->ajusteFit ?? null;
+            if ($fitE && $fitV) {
+                $fV = mb_strtolower(trim($fitV));
+                $fE = mb_strtolower(trim($fitE));
+
+                // Solo descartamos extremos: Bodycon vs Oversize
+                $esAjustado = function ($f) {
+                    return in_array($f, ['ajustado bodycon', 'ceñido']);
+                };
+                $esOversize = function ($f) {
+                    return in_array($f, ['holgado oversize', 'ancho']);
+                };
+
+                if (($esAjustado($fV) && $esOversize($fE)) || ($esOversize($fV) && $esAjustado($fE))) {
+                    $similarity *= 0.85; // Penalización media por diferencia extrema de fit, pero no descartar
+                } elseif ($fV === $fE) {
+                    $similarity *= 1.05; // Bonus por fit exacto
+                }
+            }
+
+            // 3.2 DESCARTE por Caída (Zona Inferior)
+            $caidaV = $visionProfileV['zona_inferior']['caida'] ?? null;
+            $caidaE = $analysis->zonaInferior['caida'] ?? null;
+            if ($caidaE && $caidaV) {
+                $cdV = mb_strtolower(trim($caidaV));
+                $cdE = mb_strtolower(trim($caidaE));
+
+                $esTubo = function ($c) {
+                    return in_array($c, ['tubo', 'recta', 'lápiz']);
+                };
+                $esVuelo = function ($c) {
+                    return in_array($c, ['campana', 'vuelo', 'línea a', 'plisado', 'acampanada', 'sirena']);
+                };
+
+                if (($esTubo($cdV) && $esVuelo($cdE)) || ($esVuelo($cdV) && $esTubo($cdE))) {
+                    continue; // MÉTODO POR DESCARTE: Tubo vs Vuelo
+                }
+            }
+
+            // 3.5 DESCARTE por Largo (Zona Inferior)
+            $largoV = $visionProfileV['zona_inferior']['largo'] ?? null;
+            $largoE = $analysis->zonaInferior['largo'] ?? null;
+            if ($largoE && $largoV) {
+                $lV = mb_strtolower(trim($largoV));
+                $lE = mb_strtolower(trim($largoE));
+
+                $grupoCorto = ['mini (sobre rodilla)', 'corto'];
+                $grupoMidi = ['midi (a media pierna)'];
+                $grupoMaxi = ['maxi (hasta tobillo/piso)'];
+
+                $getGrupoLargo = function ($l) use ($grupoCorto, $grupoMidi, $grupoMaxi) {
+                    if (in_array($l, $grupoCorto)) {
+                        return 1;
+                    }
+                    if (in_array($l, $grupoMidi)) {
+                        return 2;
+                    }
+                    if (in_array($l, $grupoMaxi)) {
+                        return 3;
+                    }
+
+                    return 0;
+                };
+
+                $glV = $getGrupoLargo($lV);
+                $glE = $getGrupoLargo($lE);
+
+                // Solo descartar si la diferencia es extrema (Mini vs Maxi).
+                // Midi y Maxi a veces se confunden por el ángulo de la foto, por lo que no se penalizan.
+                if (($glV === 1 && $glE === 3) || ($glV === 3 && $glE === 1)) {
+                    continue; // MÉTODO POR DESCARTE: Un vestido mini nunca será un vestido maxi
+                }
+            }
+
+            // 3.7 DESCARTE por Distribución de Color (Degradado vs Bloques/Rayas)
+            $distV = $visionProfileV['paleta_colores']['distribucion'] ?? null;
+            $distE = $analysis->paletaColores['distribucion'] ?? null;
+            if ($distE && $distV) {
+                $dV = mb_strtolower(trim($distV));
+                $dE = mb_strtolower(trim($distE));
+
+                // Si uno es claramente un degradado y el otro no lo es (ej. es a rayas/bloques), son distintos.
+                $esDegradado = function ($d) {
+                    return str_contains($d, 'degradado');
+                };
+
+                if (($esDegradado($dV) && ! $esDegradado($dE)) || ($esDegradado($dE) && ! $esDegradado($dV))) {
+                    continue; // MÉTODO POR DESCARTE: Un vestido degradado no es un vestido a rayas/bloques
+                }
+            }
+
+            // 3.9 PENALIZACIÓN por Cinturón (Descarte/Ajuste Estructural)
+            // Si uno incluye cinturón como parte de su diseño y el otro no, no pueden ser el mismo modelo.
+            $cinturonV = $visionProfileV['zona_cintura']['detalle'] ?? null;
+            $extrasV = $visionProfileV['detalles_constructivos']['extras'] ?? [];
+            $tieneCinturonV = ($cinturonV === 'cinturón') || in_array('cinturón incluido', (array) $extrasV);
+
+            $cinturonE = $analysis->zonaCintura['detalle'] ?? null;
+            $extrasE = $analysis->detallesConstructivos['extras'] ?? [];
+            $tieneCinturonE = ($cinturonE === 'cinturón') || in_array('cinturón incluido', (array) $extrasE);
+
+            if ($tieneCinturonV !== $tieneCinturonE) {
+                $similarity *= 0.70; // Penalización severa del 30% por discrepancia estructural de accesorio clave
+            }
+
+            // 4. Boost por Color Principal
+            $colorV = $visionProfileV['paleta_colores']['colores'][0] ?? $variante->color ?? null;
+            $esMismoColor = false;
+            if ($colorExtraido && $colorV) {
+                // Validación un poco más flexible para el color principal
+                if (str_contains(mb_strtolower(trim($colorV)), mb_strtolower(trim($colorExtraido))) ||
+                    str_contains(mb_strtolower(trim($colorExtraido)), mb_strtolower(trim($colorV)))) {
+                    $similarity *= 1.10;
+                    $esMismoColor = true;
+                }
+            }
+            // --- FIN BÚSQUEDA HÍBRIDA ---
+
             $resultados[] = [
                 'variant' => $variante,
-                'similarity' => $similarity,
+                'similarity' => min($similarity, 1.0),
+                'es_mismo_color' => $esMismoColor,
             ];
         }
 
         usort($resultados, fn ($a, $b) => $b['similarity'] <=> $a['similarity']);
 
-        $umbralExacto = 0.50; // Cambiado de 0.60 a 0.50 para ser más permisivo
-        $umbralSimilar = 0.35; // Cambiado de 0.40 a 0.35
+        // UMBRALES: Ahora que los embeddings se generan correctamente con la huella_forma
+        // (sin colores), los puntajes de similitud son mucho más altos para vestidos realmente
+        // parecidos. Exigimos un 0.85 de similitud neta para considerarlo un match exacto,
+        // evitando falsos positivos con vestidos que no están en el catálogo.
+        $umbralExacto = 0.85;
 
         $exactMatch = null;
-        $similares = [];
 
         if (! empty($resultados)) {
             $mejor = $resultados[0];
             if ($mejor['similarity'] >= $umbralExacto) {
                 $exactMatch = $mejor;
-            } else {
-                // Aquí se define cuántas opciones similares mostrar (cambiado a 2)
-                foreach (array_slice($resultados, 0, 2) as $res) {
-                    if ($res['similarity'] >= $umbralSimilar) {
-                        $similares[] = $res;
-                    }
-                }
             }
         }
 
@@ -172,38 +517,12 @@ class ImageAnalyzer extends BaseGeminiService
                         'color' => $variante->color,
                         'similitud' => $exactMatch['similarity'],
                         'image_url' => $this->mediaProducto->resolveAbsolutePublicUrl($variante),
+                        'es_mismo_color' => $exactMatch['es_mismo_color'],
                     ]],
                     'tipo_mensaje' => 'producto',
                     'caption_cliente' => $captionCliente,
-                ],
-            ];
-        }
-
-        if (! empty($similares)) {
-            Log::info('ImageAnalyzer: Productos similares encontrados por similitud vectorial', [
-                'cantidad' => count($similares),
-                'similitud_mejor' => $similares[0]['similarity'],
-            ]);
-
-            $matches = array_map(function ($res) {
-                $variante = $res['variant'];
-
-                return [
-                    'id_producto' => $variante->product_id,
-                    'nombre_vestido' => $variante->product->name ?? 'Desconocido',
-                    'color' => $variante->color,
-                    'similitud' => $res['similarity'],
-                    'image_url' => $this->mediaProducto->resolveAbsolutePublicUrl($variante),
-                ];
-            }, $similares);
-
-            return [
-                'caption' => 'Productos similares reconocidos por vector descriptivo',
-                'inbound_profile' => [
-                    'encontrado' => false,
-                    'matches' => $matches,
-                    'tipo_mensaje' => 'producto',
-                    'caption_cliente' => $captionCliente,
+                    'huella_forma' => $analysis->huellaForma ?? $analysis->huellaDigital,
+                    'embedding' => $embedding,
                 ],
             ];
         }
@@ -217,55 +536,8 @@ class ImageAnalyzer extends BaseGeminiService
                 'matches' => [],
                 'tipo_mensaje' => 'producto',
                 'caption_cliente' => $captionCliente,
-            ],
-        ];
-    }
-
-    private function fallbackAnalysis(string $endpoint, array $media, string $mime, string $apiKey, string $captionCliente): ?array
-    {
-        $variantesActivas = ProductVariant::whereHas('product', function ($q) {
-            $q->where('status', Product::ESTADO_DISPONIBLE);
-        })
-            ->with('product')
-            ->get();
-
-        $inventarioTexto = $variantesActivas->map(function ($variante) {
-            $stockTotal = is_array($variante->sizes_stock) ? array_sum($variante->sizes_stock) : 0;
-            if ($stockTotal <= 0) {
-                return null;
-            }
-
-            $nombre = $variante->product->name ?? 'Desconocido';
-
-            return "- ID_Producto: {$variante->product_id} | Vestido: {$nombre} | Color: {$variante->color} | Stock: {$stockTotal}";
-        })->filter()->join("\n");
-
-        $prompt = OptimizedVisionPrompts::promptAnalisisCliente($captionCliente, $inventarioTexto);
-        $payload = $this->buildPayload($prompt, $media, $mime);
-
-        return $this->ejecutarConRetry(function () use ($endpoint, $payload, $apiKey, $captionCliente) {
-            return $this->callGeminiApi($endpoint, $payload, $apiKey, $captionCliente);
-        });
-    }
-
-    private function buildPayload(string $prompt, array $media, string $mime): array
-    {
-        return [
-            'contents' => [[
-                'parts' => [
-                    ['text' => $prompt],
-                    [
-                        'inline_data' => [
-                            'mime_type' => $mime,
-                            'data' => base64_encode($media['bytes']),
-                        ],
-                    ],
-                ],
-            ]],
-            'generationConfig' => [
-                'temperature' => 0.15,
-                'maxOutputTokens' => 2048,
-                'responseMimeType' => 'application/json',
+                'huella_forma' => $analysis->huellaForma ?? $analysis->huellaDigital,
+                'embedding' => $embedding,
             ],
         ];
     }
@@ -291,63 +563,5 @@ class ImageAnalyzer extends BaseGeminiService
         }
 
         return $dotProduct / (sqrt($norm1) * sqrt($norm2));
-    }
-
-    /**
-     * @return array{caption: string, inbound_profile: array<string, mixed>}|null
-     *
-     * @throws GeminiQuotaExceededException
-     */
-    private function callGeminiApi(string $endpoint, array $payload, string $apiKey, string $captionCliente): ?array
-    {
-        $response = Http::withHeaders($this->headersGemini($apiKey))
-            ->timeout($this->timeout)
-            ->post($endpoint, $payload);
-
-        $data = $this->procesarRespuestaApi($response);
-        $text = $this->extraerTextoRespuesta($data);
-        $profile = ParseadorRespuestaJsonGemini::parse($text);
-
-        $finishReason = $data['candidates'][0]['finishReason'] ?? null;
-        if ($profile === null || ($finishReason === 'MAX_TOKENS' && $text !== null)) {
-            Log::warning('ImageAnalyzer: JSON de visión incompleto o inválido', [
-                'finish_reason' => $finishReason,
-                'text_len' => $text !== null ? strlen($text) : 0,
-                'preview' => $text !== null ? substr($text, 0, 120) : null,
-            ]);
-        }
-
-        if ($profile === null) {
-            if ($text === null || $text === '') {
-                return null;
-            }
-
-            return [
-                'caption' => $captionCliente !== '' ? $captionCliente : 'imagen de producto sin análisis completo',
-                'inbound_profile' => [
-                    'tipo' => 'otro',
-                    'descripcion_prenda' => $text,
-                    'caption_cliente' => $captionCliente,
-                ],
-            ];
-        }
-
-        if (($profile['tipo'] ?? '') === 'producto' && empty($profile['tipo_prenda'])) {
-            $profile['tipo_prenda'] = 'vestido';
-        }
-
-        if ($captionCliente !== '') {
-            $profile['caption_cliente'] = $captionCliente;
-        }
-
-        $caption = (string) ($profile['descripcion_prenda']
-            ?? $profile['texto_visible']
-            ?? $captionCliente
-            ?? 'imagen recibida');
-
-        return [
-            'caption' => $caption,
-            'inbound_profile' => $profile,
-        ];
     }
 }
