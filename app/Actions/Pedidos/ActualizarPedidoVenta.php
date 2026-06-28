@@ -7,9 +7,13 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductVariant;
 use App\Models\Sale;
+use App\Models\VisualCorrection;
 use App\Support\NormalizadorStockTallas;
 use App\Support\ValidadorPrecioPedido;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ActualizarPedidoVenta
 {
@@ -190,21 +194,49 @@ class ActualizarPedidoVenta
 
             $cacheKey = "agente_memoria_visual_cliente_{$customer->id}";
 
+            // --- AUTO-APRENDIZ: Grabar corrección visual si el producto asignado difiere de la detección original ---
+            $memoria = Cache::get($cacheKey, []);
+            if (is_array($memoria) && ! empty($memoria)) {
+                $lastImageMatch = end($memoria);
+                $timestamp = isset($lastImageMatch['timestamp']) ? Carbon::parse($lastImageMatch['timestamp']) : null;
+
+                if ($timestamp && $timestamp->diffInMinutes(now()) <= 30) {
+                    $nuevoProductoId = $product?->id;
+                    $originalProductoId = $lastImageMatch['product_id'] ?? null;
+
+                    if ($nuevoProductoId && $nuevoProductoId !== $originalProductoId) {
+                        VisualCorrection::query()->create([
+                            'image_path' => $lastImageMatch['image_path'] ?? null,
+                            'image_hash' => $lastImageMatch['image_hash'] ?? null,
+                            'huella_forma' => $lastImageMatch['huella_forma'] ?? null,
+                            'image_embedding' => $lastImageMatch['image_embedding'] ?? null,
+                            'product_id' => $nuevoProductoId,
+                            'original_product_id' => $originalProductoId,
+                        ]);
+
+                        Log::info('ActualizarPedidoVenta: Corrección visual autograbada con éxito', [
+                            'cliente_id' => $customer->id,
+                            'producto_detectado' => $originalProductoId,
+                            'producto_corregido' => $nuevoProductoId,
+                        ]);
+                    }
+                }
+            }
+
             // Limpiar memoria visual en estados finales
             if (in_array($status, [SaleStatus::Confirmado, SaleStatus::Cancelado, SaleStatus::Entregado, SaleStatus::Enviado], true)) {
-                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                Cache::forget($cacheKey);
             } else {
                 // Limpiar memoria visual si uno de los items añadidos estaba en memoria
-                if (isset($itemsReales) && !empty($itemsReales)) {
-                    $memoria = \Illuminate\Support\Facades\Cache::get($cacheKey, []);
-                    if (is_array($memoria) && !empty($memoria)) {
+                if (isset($itemsReales) && ! empty($itemsReales)) {
+                    if (is_array($memoria) && ! empty($memoria)) {
                         $memoriaIds = array_column($memoria, 'product_id');
                         $memoriaIds = array_filter($memoriaIds);
-                        
+
                         foreach ($itemsReales as $itemData) {
                             $itemProduct = $this->resolverProducto($itemData['product_name'] ?? null);
                             if ($itemProduct && in_array($itemProduct->id, $memoriaIds, true)) {
-                                \Illuminate\Support\Facades\Cache::forget($cacheKey);
+                                Cache::forget($cacheKey);
                                 break;
                             }
                         }
@@ -276,10 +308,11 @@ class ActualizarPedidoVenta
             return null;
         }
 
-        $needle = mb_strtolower(trim(\Illuminate\Support\Str::ascii($color)), 'UTF-8');
+        $needle = mb_strtolower(trim(Str::ascii($color)), 'UTF-8');
 
         return $product->variants->first(function (ProductVariant $variant) use ($needle): bool {
-            $variantColor = mb_strtolower(trim(\Illuminate\Support\Str::ascii($variant->color)), 'UTF-8');
+            $variantColor = mb_strtolower(trim(Str::ascii($variant->color)), 'UTF-8');
+
             return $variantColor === $needle || str_contains($variantColor, $needle);
         });
     }

@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Actions\GenerarRespuestaAgente;
 use App\Actions\Mensajes\EnviarMensajeWhatsappSaliente;
 use App\Exceptions\GeminiQuotaExceededException;
+use App\Models\Customer;
 use App\Models\Message;
 use App\Models\Product;
 use App\Services\EncolarRespuestaAgente;
@@ -18,6 +19,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
@@ -289,11 +291,11 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         $contenido = $captionCliente !== ''
             ? '[Imagen — clienta: '.$captionCliente.']'
             : '[Imagen enviada]';
-            
+
         if ($esComprobante) {
             $contenido .= "\n\n[La clienta envió una IMAGEN/CAPTURA que parece ser un COMPROBANTE DE PAGO]";
         }
-        
+
         $message->content = $contenido;
         $message->save();
 
@@ -307,29 +309,40 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         $phone = $message->phone_number;
         $matches = $inboundProfile['matches'] ?? [];
 
-        if (!empty($matches)) {
-            $customer = \App\Models\Customer::resolverDesdeMensaje($phone, $message->customer_name);
-            $cacheKey = "agente_memoria_visual_cliente_{$customer->id}";
-            $topMatch = $matches[0];
-            
-            $memoriaActual = \Illuminate\Support\Facades\Cache::get($cacheKey, []);
-            if (!is_array($memoriaActual)) {
-                $memoriaActual = [];
+        $customer = Customer::resolverDesdeMensaje($phone, $message->customer_name);
+        $cacheKey = "agente_memoria_visual_cliente_{$customer->id}";
+
+        $imgHash = null;
+        if ($imgUrl) {
+            $absolutePath = public_path($imgUrl);
+            if (file_exists($absolutePath)) {
+                $imgHash = md5_file($absolutePath);
             }
-            
-            $memoriaActual[] = [
-                'product_id' => $topMatch['id_producto'] ?? null,
-                'product_name' => $topMatch['nombre_vestido'] ?? '',
-                'color' => $topMatch['color'] ?? '',
-                'timestamp' => now()->toIso8601String(),
-            ];
-            
-            if (count($memoriaActual) > 5) {
-                array_shift($memoriaActual);
-            }
-            
-            \Illuminate\Support\Facades\Cache::put($cacheKey, $memoriaActual, now()->addHours(4));
         }
+
+        $topMatch = ! empty($matches) ? $matches[0] : null;
+
+        $memoriaActual = Cache::get($cacheKey, []);
+        if (! is_array($memoriaActual)) {
+            $memoriaActual = [];
+        }
+
+        $memoriaActual[] = [
+            'product_id' => $topMatch['id_producto'] ?? null,
+            'product_name' => $topMatch['nombre_vestido'] ?? '',
+            'color' => $topMatch['color'] ?? '',
+            'image_path' => $imgUrl,
+            'image_hash' => $imgHash,
+            'huella_forma' => $inboundProfile['huella_forma'] ?? null,
+            'image_embedding' => $inboundProfile['embedding'] ?? null,
+            'timestamp' => now()->toIso8601String(),
+        ];
+
+        if (count($memoriaActual) > 5) {
+            array_shift($memoriaActual);
+        }
+
+        Cache::put($cacheKey, $memoriaActual, now()->addHours(4));
 
         if ($encontrado && ! empty($matches)) {
             $exacto = $matches[0];
@@ -346,36 +359,23 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
                 }
             }
 
-            $enviarMensaje->handle($phone, "¡Claro que sí! Tenemos disponible este vestido: {$nombre}{$precioStr}.");
+            $esMismoColor = $exacto['es_mismo_color'] ?? true; // Por defecto true si no viene (para no romper retrocompatibilidad)
 
-            if ($imageUrl) {
-                $enviarMensaje->handle($phone, "Vestido {$nombre} en color {$color}", null, $imageUrl);
-            }
-        } elseif (! $encontrado && ! empty($matches)) {
-            $enviarMensaje->handle($phone, 'No encontré ese vestido exactamente, pero tengo estas opciones similares que podrían interesarte.');
-
-            foreach ($matches as $match) {
-                $nombre = $match['nombre_vestido'] ?? 'elegido';
-                $color = $match['color'] ?? '';
-                $imageUrl = $match['image_url'] ?? null;
-                $productId = $match['id_producto'] ?? null;
-
-                $precioStr = '';
-                if ($productId) {
-                    $product = Product::find($productId);
-                    if ($product) {
-                        $precioStr = ' - S/ '.number_format((float) $product->price, 2);
-                    }
-                }
-
+            if ($esMismoColor) {
+                $enviarMensaje->handle($phone, "¡Claro que sí! Tenemos disponible el modelo {$nombre}{$precioStr}.");
                 if ($imageUrl) {
-                    $enviarMensaje->handle($phone, "Vestido {$nombre} en color {$color}{$precioStr}", null, $imageUrl);
+                    $enviarMensaje->handle($phone, "Modelo {$nombre} en color {$color}", null, $imageUrl);
+                }
+            } else {
+                $enviarMensaje->handle($phone, "¡Claro que sí! Tenemos el modelo {$nombre} disponible{$precioStr}. Aquí te muestro los colores que tenemos en stock:");
+                if ($imageUrl) {
+                    $enviarMensaje->handle($phone, "Modelo {$nombre} en color {$color}", null, $imageUrl);
                 }
             }
-
-            $enviarMensaje->handle($phone, '¿Me confirmas si alguno de estos modelitos es el que buscabas, hermosa? Si no, indícame el nombre exacto para ayudarte. ✨');
         } else {
-            $enviarMensaje->handle($phone, 'No pude encontrar ese modelo. ¿Podrías indicarme el nombre exacto del vestido o brindarme más detalles para ayudarte a encontrarlo?');
+            // El usuario solicitó no enviar recomendaciones "similares" para no confundir.
+            // Si no es un match exacto (100% asertivo), pedimos el nombre o mejor foto del vestido.
+            $enviarMensaje->handle($phone, 'No logré identificar el vestido. Por favor, indícame el nombre de la prenda o envíame una foto más clara donde se vea completa.');
         }
 
         return true;

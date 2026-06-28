@@ -100,6 +100,14 @@ class CompanySettingController extends Controller
 
         $empresaData = array_intersect_key($datos, array_flip($empresaFields));
 
+        // Evitar error SQL de columnas que no permiten null
+        $stringFields = ['company_name', 'vendedor_nombre', 'vendedor_genero', 'descripcion_empresa', 'actividad_economica', 'address'];
+        foreach ($stringFields as $field) {
+            if (array_key_exists($field, $empresaData) && $empresaData[$field] === null) {
+                $empresaData[$field] = '';
+            }
+        }
+
         if (isset($empresaData['logo_path'])) {
             $logoPath = $empresaData['logo_path'];
             if (str_starts_with($logoPath, '/storage/')) {
