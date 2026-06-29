@@ -34,6 +34,24 @@ import { Users, MessageCircle, Edit, Save, X, Loader2, ShoppingBag, Eye, CreditC
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Clientes', href: '/clientes' }];
 
+interface Label {
+    id: number;
+    name: string;
+    color: string;
+}
+
+interface ActiveSale {
+    id: number;
+    product_name: string;
+    color: string | null;
+    size: string | null;
+    quantity: number;
+    status: string;
+    status_label: string;
+    total_amount: number;
+    customer_data?: Record<string, any> | null;
+}
+
 interface Sale {
     id: number;
     product_name: string;
@@ -57,6 +75,8 @@ interface Customer {
     sales_count: number;
     total_spent: number;
     recent_sales: Sale[];
+    active_sale: ActiveSale | null;
+    labels?: Label[];
 }
 
 interface PaginatedResponse<T> {
@@ -68,6 +88,61 @@ interface PaginatedResponse<T> {
 }
 
 const customers = ref<Customer[]>([]);
+
+const getShippingAddress = (customer: Customer): string => {
+    if (customer.active_sale?.customer_data) {
+        const data = customer.active_sale.customer_data;
+        const parts = [
+            data.direccion || data.address,
+            data.distrito || data.district,
+            data.provincia || data.city,
+            data.departamento || data.state
+        ].filter(Boolean);
+        if (parts.length > 0) return parts.join(', ');
+    }
+    if (customer.recent_sales && customer.recent_sales.length > 0) {
+        for (const sale of customer.recent_sales) {
+            if (sale.customer_data) {
+                const data = sale.customer_data;
+                const parts = [
+                    data.direccion || data.address,
+                    data.distrito || data.district,
+                    data.provincia || data.city,
+                    data.departamento || data.state
+                ].filter(Boolean);
+                if (parts.length > 0) return parts.join(', ');
+            }
+        }
+    }
+    return '';
+};
+
+const getDni = (customer: Customer): string => {
+    if (customer.active_sale?.customer_data?.dni) {
+        return customer.active_sale.customer_data.dni;
+    }
+    if (customer.recent_sales && customer.recent_sales.length > 0) {
+        for (const sale of customer.recent_sales) {
+            if (sale.customer_data?.dni) return sale.customer_data.dni;
+        }
+    }
+    return '';
+};
+
+const statusBadge = (status: string): string => {
+    const styles: Record<string, string> = {
+        consultando: 'bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-300',
+        cotizando: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
+        datos_listos: 'bg-violet-50 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+        pago_pendiente: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+        pago_recibido: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+        confirmado: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+        enviado: 'bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300',
+        entregado: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
+        cancelado: 'bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
+    };
+    return styles[status] || 'bg-slate-100 text-slate-700';
+};
 const loading = ref(true);
 const error = ref<string | null>(null);
 const searchQuery = ref('');
@@ -275,16 +350,17 @@ onMounted(() => {
                         <Table>
                             <TableHeader>
                                 <TableRow class="hover:bg-transparent">
-                                    <TableHead class="w-[180px]">Teléfono</TableHead>
-                                    <TableHead class="w-[180px]">Nombre</TableHead>
+                                    <TableHead class="w-[150px]">Teléfono</TableHead>
+                                    <TableHead class="w-[280px]">Cliente / Detalles</TableHead>
+                                    <TableHead class="w-[200px]">Pedido Activo</TableHead>
                                     <TableHead>Notas internas</TableHead>
-                                    <TableHead class="w-[100px] text-center cursor-pointer hover:bg-muted transition-colors" @click="toggleSort('sales_count')">
+                                    <TableHead class="w-[90px] text-center cursor-pointer hover:bg-muted transition-colors" @click="toggleSort('sales_count')">
                                         Compras <span v-if="sortBy === 'sales_count'">{{ sortDir === 'desc' ? '↓' : '↑' }}</span>
                                     </TableHead>
-                                    <TableHead class="w-[140px] text-right cursor-pointer hover:bg-muted transition-colors" @click="toggleSort('total_spent')">
+                                    <TableHead class="w-[120px] text-right cursor-pointer hover:bg-muted transition-colors" @click="toggleSort('total_spent')">
                                         LTV <span v-if="sortBy === 'total_spent'">{{ sortDir === 'desc' ? '↓' : '↑' }}</span>
                                     </TableHead>
-                                    <TableHead class="w-[100px] text-center">Estado</TableHead>
+                                    <TableHead class="w-[100px] text-center">Estado IA</TableHead>
                                     <TableHead class="w-[120px] text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -292,7 +368,7 @@ onMounted(() => {
                                 <TableRow
                                     v-for="customer in paginatedCustomers"
                                     :key="customer.id"
-                                    class="crm-table-row-action"
+                                    class="crm-table-row-action text-left"
                                 >
                                     <TableCell>
                                         <div class="flex items-center gap-3">
@@ -301,16 +377,63 @@ onMounted(() => {
                                                     {{ getInitials(customer.name || customer.phone_number) }}
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <span class="font-mono text-sm">{{ customer.phone_number }}</span>
+                                            <span class="font-mono text-sm font-medium">{{ customer.phone_number }}</span>
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        <span v-if="customer.name" class="font-medium">{{ customer.name }}</span>
-                                        <span v-else class="text-muted-foreground italic">Sin nombre</span>
+                                        <div class="flex flex-col gap-1 min-w-0">
+                                            <span v-if="customer.name" class="font-medium text-foreground text-sm">{{ customer.name }}</span>
+                                            <span v-else class="text-muted-foreground italic text-xs">Sin nombre</span>
+                                            
+                                            <!-- DNI/RUC -->
+                                            <span v-if="getDni(customer)" class="text-[11px] text-muted-foreground/90 font-mono">
+                                                DNI/RUC: {{ getDni(customer) }}
+                                            </span>
+                                            
+                                            <!-- Dirección de envío -->
+                                            <span v-if="getShippingAddress(customer)" class="text-[11px] text-muted-foreground flex items-start gap-1 line-clamp-1 max-w-[260px] font-sans" :title="getShippingAddress(customer)">
+                                                <span class="shrink-0 mt-0.5">📍</span>
+                                                {{ getShippingAddress(customer) }}
+                                            </span>
+                                            <span v-else class="text-[11px] text-amber-600/80 flex items-start gap-1 font-sans">
+                                                <span class="shrink-0 mt-0.5">⚠️</span>
+                                                Falta datos de envío
+                                            </span>
+                                            
+                                            <!-- Etiquetas -->
+                                            <div v-if="customer.labels && customer.labels.length > 0" class="flex flex-wrap gap-1 mt-1">
+                                                <Badge
+                                                    v-for="label in customer.labels"
+                                                    :key="label.id"
+                                                    class="text-[9px] font-medium px-1.5 py-0.5 rounded-md shadow-none"
+                                                    :style="{
+                                                        backgroundColor: label.color + '15',
+                                                        color: label.color,
+                                                        border: '1px solid ' + label.color + '40'
+                                                    }"
+                                                >
+                                                    {{ label.name }}
+                                                </Badge>
+                                            </div>
+                                        </div>
                                     </TableCell>
                                     <TableCell>
-                                        <p v-if="customer.notes" class="text-sm line-clamp-2 max-w-md">{{ customer.notes }}</p>
-                                        <p v-else class="text-sm text-muted-foreground italic">Sin notas</p>
+                                        <div v-if="customer.active_sale" class="flex flex-col gap-1 min-w-0">
+                                            <span class="text-xs font-semibold text-foreground truncate max-w-[185px]" :title="customer.active_sale.product_name">
+                                                {{ customer.active_sale.product_name }}
+                                            </span>
+                                            <span class="text-[10px] text-muted-foreground">
+                                                Color: {{ customer.active_sale.color || '—' }} · Talla: {{ customer.active_sale.size || '—' }}
+                                            </span>
+                                            <span class="inline-flex w-fit rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide mt-1" :class="statusBadge(customer.active_sale.status)">
+                                                {{ customer.active_sale.status_label || customer.active_sale.status }}
+                                            </span>
+                                        </div>
+                                        <span v-else class="text-xs text-muted-foreground italic">Sin pedido activo</span>
+                                    </TableCell>
+                                    <TableCell>
+                                        <p v-if="customer.notes" class="text-xs line-clamp-2 max-w-xs text-muted-foreground">{{ customer.notes }}</p>
+                                        <p v-else class="text-xs text-muted-foreground/60 italic">Sin notas</p>
                                     </TableCell>
                                     <TableCell class="text-center">
                                         <Button
@@ -320,13 +443,13 @@ onMounted(() => {
                                             class="h-7 gap-1 text-xs"
                                             @click="openViewSalesModal(customer)"
                                         >
-                                            <ShoppingBag class="h-3.5 w-3.5" />
+                                            <ShoppingBag class="h-3.5 w-3.5 text-muted-foreground" />
                                             {{ customer.sales_count }}
                                         </Button>
                                         <span v-else class="text-sm text-muted-foreground">—</span>
                                     </TableCell>
                                     <TableCell class="text-right">
-                                        <span class="font-semibold" :class="{'text-emerald-600 dark:text-emerald-400': customer.total_spent > 0}">
+                                        <span class="font-semibold text-sm" :class="{'text-emerald-600 dark:text-emerald-400': customer.total_spent > 0}">
                                             S/ {{ customer.total_spent ? customer.total_spent.toFixed(2) : '0.00' }}
                                         </span>
                                     </TableCell>
@@ -334,11 +457,11 @@ onMounted(() => {
                                         <Badge
                                             v-if="customer.ia_paused"
                                             variant="outline"
-                                            class="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                            class="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300 text-[10px]"
                                         >
                                             IA Pausada
                                         </Badge>
-                                        <Badge v-else variant="secondary">Activo</Badge>
+                                        <Badge v-else variant="secondary" class="text-[10px]">Activo</Badge>
                                     </TableCell>
                                     <TableCell class="text-right">
                                         <div class="flex justify-end gap-1">

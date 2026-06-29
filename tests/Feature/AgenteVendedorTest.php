@@ -187,15 +187,15 @@ class AgenteVendedorTest extends TestCase
             'status' => Product::ESTADO_DISPONIBLE,
         ]);
 
-        ProductVariant::query()->create([
+        $variant = ProductVariant::query()->create([
             'product_id' => $product->id,
             'color' => 'Lila',
-            'sizes_stock' => ['UNICA' => 2],
+            'sizes_stock' => ['S' => 2, 'L' => 3],
         ]);
 
         $customer = Customer::factory()->create();
 
-        // 1. Asking for size 'M' which does not exist
+        // 1. Asking for size 'M' which does not exist (and variant has multiple sizes, so it is not forced to UNICA)
         try {
             app(ActualizarPedidoVenta::class)->handle($customer, [
                 'product_name' => 'Mariela',
@@ -207,6 +207,9 @@ class AgenteVendedorTest extends TestCase
         } catch (\InvalidArgumentException $e) {
             $this->assertStringContainsString("La talla 'M' no está disponible para 'Mariela' en color 'Lila'", $e->getMessage());
         }
+
+        // Set the variant back to default UNICA stock to test quantity validation
+        $variant->update(['sizes_stock' => ['UNICA' => 2]]);
 
         // 2. Asking for quantity greater than stock
         try {

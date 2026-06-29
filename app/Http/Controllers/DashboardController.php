@@ -3,16 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Enums\SaleStatus;
+use App\Enums\UserRole;
 use App\Models\Message;
 use App\Models\Product;
 use App\Models\Sale;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class DashboardController extends Controller
 {
-    public function index(\Illuminate\Http\Request $request): Response
+    public function index(Request $request): Response
     {
         $period = $request->input('period', 'hoy');
 
@@ -104,7 +106,7 @@ class DashboardController extends Controller
 
         $diferenciaDias = (int) $inicio->diffInDays($fin);
         $daysArray = $diferenciaDias > 0 ? range(0, $diferenciaDias) : [0];
-        
+
         $chart = collect($daysArray)->map(function (int $daysAgo) use ($chartData, $fin): array {
             $date = $fin->copy()->subDays($daysAgo)->startOfDay();
             $dateStr = $date->toDateString();
@@ -149,6 +151,21 @@ class DashboardController extends Controller
             ->take(10)
             ->all();
 
+        $user = auth()->user();
+        $isTrabajador = $user && $user->role === UserRole::Trabajador;
+
+        if ($isTrabajador) {
+            $ventasHoy = 0.0;
+            $ventasAyer = 0.0;
+            $ventasMes = 0.0;
+            $chart = collect();
+            $pedidosRecientes = collect($pedidosRecientes)->map(function (array $order): array {
+                $order['total_amount'] = 0.0;
+
+                return $order;
+            })->all();
+        }
+
         return Inertia::render('Dashboard', [
             'stats' => [
                 'conversaciones_hoy' => $conversacionesHoy,
@@ -158,7 +175,7 @@ class DashboardController extends Controller
                 'ventas_ayer' => $ventasAyer,
                 'ventas_mes' => $ventasMes,
                 'pedidos_activos' => $pedidosActivos,
-                'ventas_trend' => $this->calcularTendenciaPorcentual($ventasHoy, $ventasAyer),
+                'ventas_trend' => $isTrabajador ? null : $this->calcularTendenciaPorcentual($ventasHoy, $ventasAyer),
             ],
             'pedidosRecientes' => $pedidosRecientes,
             'chartData' => $chart,

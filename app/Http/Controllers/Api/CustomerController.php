@@ -30,7 +30,7 @@ class CustomerController extends Controller
                 });
             })
             ->withSum('sales as total_spent', 'total_amount')
-            ->with(['sales' => fn ($q) => $q->latest()->limit(5)])
+            ->with(['activeSale', 'labels', 'sales' => fn ($q) => $q->latest()->limit(5)])
             ->withCount('sales')
             ->when($minSpent !== null, function ($query) use ($minSpent) {
                 $query->having('total_spent', '>=', (float) $minSpent);
@@ -44,7 +44,7 @@ class CustomerController extends Controller
             ->when($sortBy === 'sales_count', function ($query) use ($sortDir) {
                 $query->orderBy('sales_count', $sortDir);
             })
-            ->when(!in_array($sortBy, ['total_spent', 'sales_count']), function ($query) use ($sortBy, $sortDir) {
+            ->when(! in_array($sortBy, ['total_spent', 'sales_count']), function ($query) use ($sortBy, $sortDir) {
                 // Previene SQL injection validando contra lista blanca
                 $validColumns = ['last_inbound_at', 'created_at', 'name'];
                 $column = in_array($sortBy, $validColumns) ? $sortBy : 'last_inbound_at';

@@ -26,6 +26,26 @@ class CustomerResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
+            // Active sale details
+            'active_sale' => $this->relationLoaded('activeSale') && $this->activeSale ? [
+                'id' => $this->activeSale->id,
+                'product_name' => $this->activeSale->product_name,
+                'color' => $this->activeSale->color,
+                'size' => $this->activeSale->size,
+                'quantity' => $this->activeSale->quantity,
+                'status' => $this->activeSale->status->value ?? $this->activeSale->status,
+                'status_label' => method_exists($this->activeSale->status, 'label') ? $this->activeSale->status->label() : $this->activeSale->status,
+                'total_amount' => (float) $this->activeSale->total_amount,
+                'customer_data' => $this->activeSale->customer_data,
+            ] : null,
+
+            // Labels details
+            'labels' => $this->relationLoaded('labels') ? $this->labels->map(fn ($label) => [
+                'id' => $label->id,
+                'name' => $label->name,
+                'color' => $label->color,
+            ])->values() : [],
+
             // Sales summary
             'sales_count' => $this->whenCounted('sales'),
             'total_spent' => (float) ($this->total_spent ?? 0),

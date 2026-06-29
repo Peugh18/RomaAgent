@@ -7,8 +7,38 @@ import {
     toNavMainItems,
 } from '@/config/appNavigation';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
+
+const page = usePage();
+const isTrabajador = computed(() => page.props.auth.user?.role === 'trabajador');
+
+const filteredPrimaryGroups = computed(() => {
+    return primaryNavGroups.map(group => {
+        let filteredItems = group.items;
+        if (isTrabajador.value) {
+            filteredItems = group.items.filter(item => item.title !== 'Clientes');
+        }
+        return {
+            ...group,
+            items: filteredItems
+        };
+    }).filter(group => group.items.length > 0);
+});
+
+const filteredSystemGroup = computed(() => {
+    let filteredItems = systemNavGroup.items;
+    if (isTrabajador.value) {
+        filteredItems = systemNavGroup.items.filter(
+            item => item.title !== 'Configuración' && item.title !== 'Usuarios'
+        );
+    }
+    return {
+        ...systemNavGroup,
+        items: filteredItems
+    };
+});
 </script>
 
 <template>
@@ -27,15 +57,19 @@ import AppLogo from './AppLogo.vue';
 
         <SidebarContent class="gap-0">
             <NavMain
-                v-for="group in primaryNavGroups"
+                v-for="group in filteredPrimaryGroups"
                 :key="group.label"
                 :items="toNavMainItems(group.items)"
                 :group-label="group.label"
             />
 
-            <div class="mx-3 my-3 border-t border-sidebar-border/80" role="separator" />
+            <div v-if="filteredSystemGroup.items.length > 0" class="mx-3 my-3 border-t border-sidebar-border/80" role="separator" />
 
-            <NavMain :items="toNavMainItems(systemNavGroup.items)" :group-label="systemNavGroup.label" />
+            <NavMain
+                v-if="filteredSystemGroup.items.length > 0"
+                :items="toNavMainItems(filteredSystemGroup.items)"
+                :group-label="filteredSystemGroup.label"
+            />
 
         </SidebarContent>
 

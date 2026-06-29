@@ -5,6 +5,7 @@ use App\Http\Controllers\ChatController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MediaProxyController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\UserController;
 use App\Models\Label;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Broadcast;
@@ -30,7 +31,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('pipeline/historial', fn (Request $request) => Inertia::render('Pipeline/History', [
         'status' => $request->query('status', 'entregado'),
     ]))->name('pipeline.history');
-    Route::get('clientes', fn () => Inertia::render('Clientes/Index'))->name('clientes.index');
+    Route::middleware('admin')->group(function () {
+        Route::get('clientes', fn () => Inertia::render('Clientes/Index'))->name('clientes.index');
+        Route::get('configuracion', fn () => redirect()->route('configuracion.empresa'))->name('configuracion.index');
+        Route::get('configuracion/empresa', fn () => Inertia::render('Configuracion/ConfiguracionEmpresa'))->name('configuracion.empresa');
+        Route::get('usuarios', [UserController::class, 'index'])->name('usuarios.index');
+        Route::post('usuarios', [UserController::class, 'store'])->name('usuarios.store');
+        Route::put('usuarios/{user}', [UserController::class, 'update'])->name('usuarios.update');
+        Route::put('usuarios/{user}/password', [UserController::class, 'changePassword'])->name('usuarios.change_password');
+        Route::delete('usuarios/{user}', [UserController::class, 'destroy'])->name('usuarios.destroy');
+    });
 
     Route::get('productos', [ProductController::class, 'index'])->name('productos.index');
     Route::get('productos/create', [ProductController::class, 'create'])->name('productos.create');
@@ -43,8 +53,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
             'labels' => Label::withCount('customers')->orderBy('name')->get(),
         ]);
     })->name('etiquetas.index');
-    Route::get('configuracion', fn () => redirect()->route('configuracion.empresa'))->name('configuracion.index');
-    Route::get('configuracion/empresa', fn () => Inertia::render('Configuracion/ConfiguracionEmpresa'))->name('configuracion.empresa');
     Route::get('configuracion/zonas-envio', fn () => Inertia::render('Configuracion/ZonasEnvio/Index'))->name('configuracion.zonas_envio');
 
     Route::get('media/proxy', MediaProxyController::class)->name('media.proxy');

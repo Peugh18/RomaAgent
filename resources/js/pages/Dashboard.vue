@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { type BreadcrumbItem } from '@/types';
 import { type SaleStatus } from '@/types/sale';
 import { useCurrency } from '@/composables/useCurrency';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { AlertCircle, MessageSquare, Package, TrendingUp, CreditCard, ArrowRight } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
@@ -67,49 +67,62 @@ const props = defineProps<{
     }[];
 }>();
 
+const page = usePage();
+const user = computed(() => page.props.auth.user);
+const isTrabajador = computed(() => user.value?.role === 'trabajador');
+
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'Dashboard', href: '/dashboard' }];
 
 const { format: formatMoney } = useCurrency();
 
 const salesSparkline = computed(() => props.chartData.map((point) => point.sales));
 
-const statCards = computed(() => [
-    {
-        title: 'Ventas hoy',
-        value: formatMoney(props.stats.ventas_hoy),
-        subtitle: props.stats.ventas_ayer > 0 ? `Ayer: ${formatMoney(props.stats.ventas_ayer)}` : 'Sin ventas ayer',
-        icon: CreditCard,
-        variant: 'success' as const,
-        href: '/pipeline',
-        trend: props.stats.ventas_trend,
-        trendLabel: 'vs ayer',
-        sparkline: salesSparkline.value,
-    },
-    {
-        title: 'Conversaciones',
-        value: props.stats.conversaciones_hoy,
-        subtitle: 'Contactos únicos hoy',
-        icon: MessageSquare,
-        variant: 'default' as const,
-        href: '/chat',
-    },
-    {
-        title: 'Pagos pendientes',
-        value: props.stats.pendientes_pago,
-        subtitle: 'Esperan confirmación',
-        icon: TrendingUp,
-        variant: 'warning' as const,
-        href: '/pipeline',
-    },
-    {
-        title: 'Productos activos',
-        value: props.stats.productos_activos,
-        subtitle: 'Disponibles en catálogo',
-        icon: Package,
-        variant: 'default' as const,
-        href: '/productos',
-    },
-]);
+const statCards = computed(() => {
+    const cards = [];
+
+    if (!isTrabajador.value) {
+        cards.push({
+            title: 'Ventas hoy',
+            value: formatMoney(props.stats.ventas_hoy),
+            subtitle: props.stats.ventas_ayer > 0 ? `Ayer: ${formatMoney(props.stats.ventas_ayer)}` : 'Sin ventas ayer',
+            icon: CreditCard,
+            variant: 'success' as const,
+            href: '/pipeline',
+            trend: props.stats.ventas_trend,
+            trendLabel: 'vs ayer',
+            sparkline: salesSparkline.value,
+        });
+    }
+
+    cards.push(
+        {
+            title: 'Conversaciones',
+            value: props.stats.conversaciones_hoy,
+            subtitle: 'Contactos únicos hoy',
+            icon: MessageSquare,
+            variant: 'default' as const,
+            href: '/chat',
+        },
+        {
+            title: 'Pagos pendientes',
+            value: props.stats.pendientes_pago,
+            subtitle: 'Esperan confirmación',
+            icon: TrendingUp,
+            variant: 'warning' as const,
+            href: '/pipeline',
+        },
+        {
+            title: 'Productos activos',
+            value: props.stats.productos_activos,
+            subtitle: 'Disponibles en catálogo',
+            icon: Package,
+            variant: 'default' as const,
+            href: '/productos',
+        }
+    );
+
+    return cards;
+});
 </script>
 
 <template>
@@ -117,21 +130,35 @@ const statCards = computed(() => [
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="crm-page relative">
-            <div class="absolute top-0 right-0 z-10 hidden sm:flex bg-background/80 backdrop-blur-sm p-1 rounded-lg border border-border">
+            <div v-if="!isTrabajador" class="absolute top-0 right-0 z-10 hidden sm:flex bg-background/80 backdrop-blur-sm p-1 rounded-lg border border-border">
                 <button class="px-3 py-1 text-xs font-semibold rounded-md transition-all" :class="period === 'hoy' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'" @click="changePeriod('hoy')">Hoy</button>
                 <button class="px-3 py-1 text-xs font-semibold rounded-md transition-all" :class="period === '7d' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'" @click="changePeriod('7d')">7 días</button>
                 <button class="px-3 py-1 text-xs font-semibold rounded-md transition-all" :class="period === '30d' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'" @click="changePeriod('30d')">30 días</button>
                 <button class="px-3 py-1 text-xs font-semibold rounded-md transition-all" :class="period === 'mes_actual' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:bg-muted'" @click="changePeriod('mes_actual')">Este mes</button>
             </div>
             
-            <div class="flex sm:hidden bg-muted/50 p-1 mb-4 rounded-lg border border-border overflow-x-auto">
+            <div v-if="!isTrabajador" class="flex sm:hidden bg-muted/50 p-1 mb-4 rounded-lg border border-border overflow-x-auto">
                 <button class="flex-1 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-md transition-all" :class="period === 'hoy' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'" @click="changePeriod('hoy')">Hoy</button>
                 <button class="flex-1 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-md transition-all" :class="period === '7d' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'" @click="changePeriod('7d')">7D</button>
                 <button class="flex-1 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-md transition-all" :class="period === '30d' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'" @click="changePeriod('30d')">30D</button>
                 <button class="flex-1 whitespace-nowrap px-3 py-1.5 text-xs font-semibold rounded-md transition-all" :class="period === 'mes_actual' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground'" @click="changePeriod('mes_actual')">Mes</button>
             </div>
 
-            <DashboardHero :ventas-mes="stats.ventas_mes" :pedidos-activos="stats.pedidos_activos" />
+            <DashboardHero v-if="!isTrabajador" :ventas-mes="stats.ventas_mes" :pedidos-activos="stats.pedidos_activos" />
+            <div v-else class="mb-6 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 p-6 text-white shadow-lg">
+                <h1 class="text-2xl font-bold">¡Hola, {{ user?.name }}!</h1>
+                <p class="mt-1 opacity-90">Panel operativo del taller. Monitoreo de stock y pedidos activos.</p>
+                <div class="mt-4 flex gap-4">
+                    <div class="rounded-lg bg-white/10 px-4 py-2">
+                        <span class="text-xs opacity-75 block">Pedidos Activos</span>
+                        <span class="text-xl font-bold">{{ stats.pedidos_activos }}</span>
+                    </div>
+                    <div class="rounded-lg bg-white/10 px-4 py-2">
+                        <span class="text-xs opacity-75 block">Productos con Stock Bajo</span>
+                        <span class="text-xl font-bold">{{ lowStockProducts.length }}</span>
+                    </div>
+                </div>
+            </div>
 
             <CrmAlert v-if="stats.pendientes_pago > 0" variant="warning" class="!border-amber-500/30 !bg-amber-500/10">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -202,6 +229,7 @@ const statCards = computed(() => [
             </div>
 
             <div
+                v-if="!isTrabajador"
                 v-motion
                 :initial="{ opacity: 0, y: 16 }"
                 :enter="{ opacity: 1, y: 0, transition: { delay: 280, duration: 350, ease: 'easeOut' } }"
@@ -209,6 +237,15 @@ const statCards = computed(() => [
             >
                 <SalesChart :data="chartData" class="xl:col-span-3" />
                 <PipelineOverviewChart :data="pipelineOverview" class="xl:col-span-2" />
+            </div>
+            <div
+                v-else
+                v-motion
+                :initial="{ opacity: 0, y: 16 }"
+                :enter="{ opacity: 1, y: 0, transition: { delay: 280, duration: 350, ease: 'easeOut' } }"
+                class="grid gap-4"
+            >
+                <PipelineOverviewChart :data="pipelineOverview" class="w-full" />
             </div>
 
             <RecentOrdersList

@@ -8,6 +8,7 @@ import {
     Users,
     Tags,
     MapPin,
+    UserCog,
 } from 'lucide-vue-next';
 import type { Component } from 'vue';
 
@@ -54,6 +55,7 @@ export const systemNavGroup: AppNavGroup = {
     items: [
         { title: 'Configuración', href: '/configuracion', icon: Settings2 },
         { title: 'Zonas de Envío', href: '/configuracion/zonas-envio', icon: MapPin },
+        { title: 'Usuarios', href: '/usuarios', icon: UserCog },
     ],
 };
 
