@@ -95,15 +95,20 @@ class RomaMessageController extends Controller
         $customersByPhone = $this->loadCustomersByPhone($messages);
 
         return $messages
-            ->map(fn (Message $message): array => [
-                'phone' => $message->phone_number,
-                'name' => $message->customer_name,
-                'last_message' => $message->content,
-                'last_at' => $message->created_at?->toIso8601String(),
-                'direction' => $message->direction,
-                'status' => $message->status,
-                ...$this->customerMetaFromMap($message->phone_number, $customersByPhone),
-            ])->values();
+            ->map(function (Message $message) use ($customersByPhone): array {
+                $customer = $customersByPhone->get($message->phone_number);
+                $name = ($customer && ! empty($customer->name)) ? $customer->name : $message->customer_name;
+
+                return [
+                    'phone' => $message->phone_number,
+                    'name' => $name,
+                    'last_message' => $message->content,
+                    'last_at' => $message->created_at?->toIso8601String(),
+                    'direction' => $message->direction,
+                    'status' => $message->status,
+                    ...$this->customerMetaFromMap($message->phone_number, $customersByPhone),
+                ];
+            })->values();
     }
 
     /**

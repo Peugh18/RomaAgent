@@ -91,6 +91,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
                     ['content' => ['parts' => [[
                         'text' => json_encode([
                             'tipo_mensaje' => 'comprobante',
+                            'es_comprobante' => true,
                             'encontrado' => false,
                             'nombre_vestido' => '',
                             'color' => '',
@@ -179,7 +180,7 @@ class ProcessMediaThenRespondJobTest extends TestCase
 
         $message->refresh();
         $this->assertArrayNotHasKey('vision_error', $message->metadata);
-        $this->assertSame('prenda', $message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? null);
+        $this->assertSame('producto', $message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? null);
 
         $this->assertDatabaseHas('messages', [
             'direction' => 'outgoing',

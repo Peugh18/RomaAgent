@@ -50,16 +50,6 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
 
     Route::put('products/{product}/similares', [ProductoSimilarController::class, 'update']);
 
-    Route::get('company-settings', [ApiCompanySettingController::class, 'index']);
-
-    Route::get('company-settings/prompt-completo', [ApiCompanySettingController::class, 'promptCompleto']);
-
-    Route::post('company-settings/logo', [ApiCompanySettingController::class, 'uploadLogo']);
-
-    Route::put('company-settings', [ApiCompanySettingController::class, 'update']);
-
-    Route::delete('company-settings', [ApiCompanySettingController::class, 'destroy']);
-
     Route::get('sales', [SaleController::class, 'index']);
     Route::get('sales/active/{phoneNumber}', [SaleController::class, 'activeForPhone'])
         ->where('phoneNumber', '[0-9+]+');
@@ -73,20 +63,29 @@ Route::middleware(['web', 'auth', 'throttle:api'])->group(function () {
     Route::post('sales/{sale}/revert-shipped', [SaleController::class, 'revertShipped']);
     Route::post('sales/{sale}/cancel', [SaleController::class, 'cancel']);
 
-    Route::get('customers', [CustomerController::class, 'index']);
     Route::get('customers/{phoneNumber}', [CustomerController::class, 'show'])
         ->where('phoneNumber', '[0-9+]+');
-    Route::put('customers/{id}', [CustomerController::class, 'update'])
-        ->where('id', '[0-9]+');
     Route::put('customers/{phoneNumber}/ia-mode', [CustomerController::class, 'updateIaMode'])
         ->where('phoneNumber', '[0-9+]+');
+    Route::post('customers/{phoneNumber}/labels', [CustomerController::class, 'syncLabels'])
+        ->where('phoneNumber', '[0-9+]+');
+
+    Route::middleware('admin')->group(function () {
+        Route::get('company-settings', [ApiCompanySettingController::class, 'index']);
+        Route::get('company-settings/prompt-completo', [ApiCompanySettingController::class, 'promptCompleto']);
+        Route::post('company-settings/logo', [ApiCompanySettingController::class, 'uploadLogo']);
+        Route::put('company-settings', [ApiCompanySettingController::class, 'update']);
+        Route::delete('company-settings', [ApiCompanySettingController::class, 'destroy']);
+
+        Route::get('customers', [CustomerController::class, 'index']);
+        Route::put('customers/{id}', [CustomerController::class, 'update'])
+            ->where('id', '[0-9]+');
+    });
 
     Route::get('estado-ia', [EstadoIAController::class, 'verificar']);
     Route::get('alerta-cuota-gemini', [EstadoIAController::class, 'alertaCuota']);
 
     Route::apiResource('labels', LabelController::class);
-    Route::post('customers/{phoneNumber}/labels', [CustomerController::class, 'syncLabels'])
-        ->where('phoneNumber', '[0-9+]+');
 
     Route::apiResource('zonas-envio', ZonaEnvioController::class);
     Route::post('zonas-envio/{zona_envio}/toggle', [ZonaEnvioController::class, 'toggle']);

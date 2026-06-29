@@ -7,10 +7,11 @@ import { getInitials } from '@/composables/useInitials';
 import { saleStatusChartColor } from '@/lib/dashboardStatusColors';
 import { SALE_STATUS_LABELS, type SaleStatus } from '@/types/sale';
 import { useCurrency } from '@/composables/useCurrency';
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { ArrowRight, MessageCircle, ShoppingBag } from 'lucide-vue-next';
+import { computed } from 'vue';
 
 interface RecentOrder {
     id: number;
@@ -28,6 +29,9 @@ defineProps<{
     orders: RecentOrder[];
     loading?: boolean;
 }>();
+
+const page = usePage();
+const isTrabajador = computed(() => page.props.auth.user?.role === 'trabajador');
 
 const { format: formatMoney } = useCurrency();
 
@@ -131,7 +135,7 @@ const statusBadge = (status: SaleStatus): string => {
 
                     <div class="flex shrink-0 items-center gap-3">
                         <div class="text-right">
-                            <p class="text-sm font-semibold tabular-nums">{{ formatMoney(order.total_amount) }}</p>
+                            <p v-if="!isTrabajador" class="text-sm font-semibold tabular-nums">{{ formatMoney(order.total_amount) }}</p>
                             <p class="text-[10px] text-muted-foreground">{{ order.phone_number }}</p>
                         </div>
                         <span

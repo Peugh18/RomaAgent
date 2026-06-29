@@ -125,28 +125,37 @@ class SaleLogisticsTransitionTest extends TestCase
         $this->assertContains($entregado->id, $ids);
     }
 
-    public function test_pipeline_kanban_limits_entregados_to_fifteen_most_recent(): void
+    public function test_pipeline_kanban_limits_entregados_to_recent_hours(): void
     {
         $user = User::factory()->create();
 
-        for ($i = 0; $i < 20; $i++) {
+        // 10 entregados hoy (dentro de las 24 horas recientes)
+        for ($i = 0; $i < 10; $i++) {
             Sale::factory()->create([
                 'status' => SaleStatus::Entregado,
-                'delivered_at' => now()->subDays($i),
+                'delivered_at' => now()->subHours($i),
+            ]);
+        }
+
+        // 5 entregados hace 2 días (más antiguos de 24 horas, archivados)
+        for ($i = 0; $i < 5; $i++) {
+            Sale::factory()->create([
+                'status' => SaleStatus::Entregado,
+                'delivered_at' => now()->subDays(2)->subHours($i),
             ]);
         }
 
         $response = $this->actingAs($user)
             ->getJson('/api/sales?pipeline=1')
             ->assertOk()
-            ->assertJsonPath('entregados_total', 20)
+            ->assertJsonPath('entregados_total', 15)
             ->assertJsonPath('entregados_archived_count', 5)
-            ->assertJsonPath('entregados_kanban_limit', 15);
+            ->assertJsonPath('hours_limit', 24);
 
         $entregadosInKanban = collect($response->json('sales'))
             ->where('status', SaleStatus::Entregado->value);
 
-        $this->assertCount(15, $entregadosInKanban);
+        $this->assertCount(10, $entregadosInKanban);
     }
 
     public function test_pipeline_archive_lists_older_entregados_paginated(): void
@@ -161,9 +170,9 @@ class SaleLogisticsTransitionTest extends TestCase
         }
 
         $this->actingAs($user)
-            ->getJson('/api/sales?pipeline=1&scope=archive&skip_recent=15')
+            ->getJson('/api/sales?pipeline=1&scope=archive')
             ->assertOk()
-            ->assertJsonPath('total', 3)
+            ->assertJsonPath('total', 18)
             ->assertJsonStructure(['data', 'current_page', 'last_page', 'total']);
     }
 
@@ -179,9 +188,9 @@ class SaleLogisticsTransitionTest extends TestCase
         }
 
         $this->actingAs($user)
-            ->getJson('/api/sales?pipeline=1&scope=history&skip_recent=15')
+            ->getJson('/api/sales?pipeline=1&scope=history')
             ->assertOk()
-            ->assertJsonPath('total', 1)
+            ->assertJsonPath('total', 16)
             ->assertJsonStructure(['data', 'current_page', 'last_page', 'total']);
     }
 

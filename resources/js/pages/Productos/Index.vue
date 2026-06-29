@@ -138,6 +138,46 @@ const getFirstVariantImage = (product: Product): string | null => {
     return variantWithImage?.image_url || variantWithImage?.image_path || null;
 };
 
+const getVariantStock = (v: ProductVariant): number => {
+    return Object.values(v.sizes_stock || {}).reduce((sum, val) => sum + Number(val), 0);
+};
+
+const getColorCircleStyle = (colorName: string): Record<string, string> => {
+    const name = colorName.toLowerCase().trim();
+    const map: Record<string, string> = {
+        negro: '#000000',
+        blanco: '#ffffff',
+        rojo: '#ef4444',
+        azul: '#3b82f6',
+        verde: '#22c55e',
+        amarillo: '#eab308',
+        rosa: '#ec4899',
+        rosado: '#ec4899',
+        fucsia: '#d946ef',
+        morado: '#a855f7',
+        purpura: '#a855f7',
+        celeste: '#06b6d4',
+        turquesa: '#06b6d4',
+        gris: '#6b7280',
+        plomo: '#6b7280',
+        marron: '#78350f',
+        cafe: '#78350f',
+        beige: '#f5f5dc',
+        crema: '#fffdd0',
+        naranja: '#f97316',
+        anaranjado: '#f97316',
+        lila: '#d8b4fe',
+        vino: '#800020',
+        burgundy: '#800020',
+        mostaza: '#d97706',
+    };
+    const hex = map[name] || '#cbd5e1';
+    return {
+        backgroundColor: hex,
+        border: hex === '#ffffff' || hex === '#fffdd0' || hex === '#f5f5dc' ? '1px solid #94a3b8' : 'none',
+    };
+};
+
 const deleteProduct = async (id: number) => {
     if (!confirm('¿Eliminar este producto?')) return;
     try {
@@ -272,12 +312,41 @@ onMounted(() => {
                                         </Badge>
                                         <span v-else class="text-sm text-muted-foreground">—</span>
                                     </TableCell>
-                                    <TableCell class="text-center">
-                                        <div class="flex items-center justify-center gap-1">
-                                            <Badge variant="outline" class="font-mono">{{ product.variants.length }}</Badge>
-                                            <span v-if="product.variants.length > 0 && product.variants.every(v => v.has_embedding)" title="Vectorizado para IA" class="text-emerald-500">
-                                                <Brain class="h-3.5 w-3.5" />
-                                            </span>
+                                    <TableCell class="text-left py-3">
+                                        <div class="flex flex-col gap-1.5 max-w-[220px]">
+                                            <div
+                                                v-for="v in product.variants"
+                                                :key="v.id"
+                                                class="flex items-center justify-between text-xs py-0.5 px-2 rounded-md border border-border/40 bg-muted/20"
+                                            >
+                                                <div class="flex items-center gap-1.5 min-w-0">
+                                                    <span
+                                                        class="h-2 w-2 rounded-full shrink-0"
+                                                        :style="getColorCircleStyle(v.color)"
+                                                    />
+                                                    <span class="font-medium text-foreground truncate max-w-[100px]" :title="v.color">{{ v.color }}</span>
+                                                </div>
+                                                <span
+                                                    :class="[
+                                                        'font-mono font-bold px-1 rounded text-[10px]',
+                                                        getVariantStock(v) === 0
+                                                            ? 'text-red-500 bg-red-50 dark:bg-red-950/30'
+                                                            : getVariantStock(v) < 5
+                                                                ? 'text-amber-600 bg-amber-50 dark:bg-amber-950/30'
+                                                                : 'text-muted-foreground'
+                                                    ]"
+                                                    :title="Object.entries(v.sizes_stock || {}).map(([size, stock]) => `${size}: ${stock}`).join(', ')"
+                                                >
+                                                    {{ getVariantStock(v) === 0 ? 'Agotado' : getVariantStock(v) }}
+                                                </span>
+                                            </div>
+                                            <div v-if="product.variants.length === 0" class="text-xs text-muted-foreground italic">
+                                                Sin variantes
+                                            </div>
+                                            <div v-else-if="product.variants.every(v => v.has_embedding)" class="flex items-center gap-1 mt-0.5 text-[10px] text-emerald-500">
+                                                <Brain class="h-3 w-3" />
+                                                <span>Listos para IA</span>
+                                            </div>
                                         </div>
                                     </TableCell>
                                     <TableCell class="text-right">

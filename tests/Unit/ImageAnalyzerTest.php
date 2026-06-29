@@ -87,29 +87,22 @@ class ImageAnalyzerTest extends TestCase
                 ->andReturn([0.1, 0.2, 0.3, 0.4]); // Mismo embedding, similitud 1.0
         });
 
-        // Mock para las llamadas consecutivas de Gemini (detección y luego extracción)
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::sequence()
-                ->push([
-                    'candidates' => [
-                        ['content' => ['parts' => [[
-                            'text' => json_encode([
-                                'es_comprobante' => false,
-                                'tipo_mensaje' => 'producto',
-                            ]),
-                        ]]]],
-                    ],
-                ])
-                ->push([
-                    'candidates' => [
-                        ['content' => ['parts' => [[
-                            'text' => json_encode([
-                                'es_prenda' => true,
-                                'descripcion_vectorial' => 'vestido rojo elegante de fiesta',
-                            ]),
-                        ]]]],
-                    ],
-                ]),
+            'generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [
+                    ['content' => ['parts' => [[
+                        'text' => json_encode([
+                            'es_comprobante' => false,
+                            'es_prenda' => true,
+                            'tipo_prenda' => 'vestido',
+                            'descripcion_vectorial' => 'vestido rojo elegante de fiesta',
+                            'paleta_colores' => [
+                                'colores' => ['Rojo'],
+                            ],
+                        ]),
+                    ]]]],
+                ],
+            ]),
         ]);
 
         $result = app(ImageAnalyzer::class)->analyzeUrl('/storage/'.$relativePath);
