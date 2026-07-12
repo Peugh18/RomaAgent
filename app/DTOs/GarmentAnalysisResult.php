@@ -22,6 +22,7 @@ class GarmentAnalysisResult
         public ?string $descripcionVectorial = null,
         public bool $esComprobante = false,
         public ?string $huellaForma = null,
+        public array $analisisUltraDetallado = [],
     ) {}
 
     /**
@@ -35,6 +36,7 @@ class GarmentAnalysisResult
         $zonaInferior = (array) ($json['zona_inferior'] ?? []);
         $paletaColores = (array) ($json['paleta_colores'] ?? []);
         $detallesConstructivos = (array) ($json['detalles_constructivos'] ?? []);
+        $analisisUltraDetallado = (array) ($json['analisis_ultra_detallado'] ?? []);
 
         // Derivar color_principal desde la paleta (primer color) o zona_superior
         $colores = (array) ($paletaColores['colores'] ?? []);
@@ -50,8 +52,14 @@ class GarmentAnalysisResult
         // huella_forma: descripción SIN colores, ideal para embeddings cross-color
         $huellaForma = $json['huella_forma'] ?? null;
 
-        // Para embeddings, priorizar huella_forma (sin colores) sobre huella_digital
-        $descripcionVectorial = $huellaForma ?? $huellaDigital;
+        // Enriquecer la descripción vectorial con la descripción ultra-detallada del patrón
+        // para que el embedding capture diferencias finas (rayas verticales vs horizontales, etc.)
+        $descripcionPatron = trim((string) ($analisisUltraDetallado['descripcion_patron'] ?? ''));
+        $descripcionTextura = trim((string) ($analisisUltraDetallado['descripcion_textura'] ?? ''));
+
+        $baseDescripcion = $huellaForma ?? $huellaDigital;
+        $partes = array_filter([$baseDescripcion, $descripcionPatron, $descripcionTextura]);
+        $descripcionVectorial = implode(' | ', $partes) ?: null;
 
         return new self(
             esPrenda: $json['es_prenda'] ?? false,
@@ -69,6 +77,7 @@ class GarmentAnalysisResult
             descripcionVectorial: $descripcionVectorial,
             esComprobante: $json['es_comprobante'] ?? false,
             huellaForma: $huellaForma,
+            analisisUltraDetallado: $analisisUltraDetallado,
         );
     }
 }

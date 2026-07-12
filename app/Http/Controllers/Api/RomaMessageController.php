@@ -188,6 +188,12 @@ class RomaMessageController extends Controller
             ], 422);
         }
 
+        if ($customer === null || $customer->last_inbound_at === null || $customer->last_inbound_at->lt(now()->subHours(24))) {
+            return response()->json([
+                'message' => 'WhatsApp políticas: No puedes enviar mensajes si han pasado más de 24 horas desde su último mensaje.',
+            ], 422);
+        }
+
         try {
             $metadata = ['type' => $imageUrl ? 'image' : 'text'];
             if ($imageUrl !== null) {
@@ -234,6 +240,12 @@ class RomaMessageController extends Controller
         if ($customer !== null && ! $customer->ia_paused) {
             return response()->json([
                 'message' => 'La IA está activa para esta clienta. Cambia a modo Humano para reenviar mensajes manuales.',
+            ], 422);
+        }
+
+        if ($customer === null || $customer->last_inbound_at === null || $customer->last_inbound_at->lt(now()->subHours(24))) {
+            return response()->json([
+                'message' => 'WhatsApp políticas: No puedes reenviar mensajes si han pasado más de 24 horas desde su último mensaje.',
             ], 422);
         }
 

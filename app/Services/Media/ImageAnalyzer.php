@@ -9,6 +9,7 @@ use App\Services\ConfiguracionAgente;
 use App\Services\ServicioMediaProducto;
 use App\Services\Vision\GarmentVisionService;
 use App\Services\Vision\ProductEmbeddingService;
+use App\Support\Vision\PerfilVisionFallback;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -306,53 +307,161 @@ class ImageAnalyzer extends BaseGeminiService
                 }
             }
 
-            // 3. DESCARTE por Patrón Estricto
+            // 3. DESCARTE por Patrón Estricto (Grupos)
+            // Grupos de patrones (separados de forma estricta para evitar falsos positivos)
+            $grupoLiso = ['liso'];
+            $grupoRayas = ['rayas', 'rayas (líneas rectas)'];
+            $grupoOndas = ['ondas', 'ondas (líneas curvas)'];
+            $grupoZigzag = ['zigzag', 'zigzag (líneas en picos)'];
+            $grupoFloral = ['floral', 'abstracto', 'floral / hojas', 'abstracto / manchas'];
+            $grupoGeo = ['geométrico', 'cuadros', 'geométrico cerrado (cuadros/rombos/círculos)'];
+            $grupoAnimal = ['animal print'];
+
+            $getGrupoPatron = function ($p) use ($grupoLiso, $grupoRayas, $grupoOndas, $grupoZigzag, $grupoFloral, $grupoGeo, $grupoAnimal) {
+                if (in_array($p, $grupoLiso)) {
+                    return 1;
+                }
+                if (in_array($p, $grupoRayas)) {
+                    return 2;
+                }
+                if (in_array($p, $grupoOndas)) {
+                    return 3;
+                }
+                if (in_array($p, $grupoZigzag)) {
+                    return 4;
+                }
+                if (in_array($p, $grupoFloral)) {
+                    return 5;
+                }
+                if (in_array($p, $grupoGeo)) {
+                    return 6;
+                }
+                if (in_array($p, $grupoAnimal)) {
+                    return 7;
+                }
+
+                return 0;
+            };
+
             $patronV = $visionProfileV['zona_superior']['patron'] ?? null;
             $patronE = $analysis->zonaSuperior['patron'] ?? null;
             if ($patronE && $patronV) {
                 $pV = mb_strtolower(trim($patronV));
                 $pE = mb_strtolower(trim($patronE));
 
-                // Grupos de patrones (separados de forma estricta para evitar falsos positivos)
-                $grupoLiso = ['liso'];
-                $grupoRayas = ['rayas', 'rayas (líneas rectas)'];
-                $grupoOndas = ['ondas', 'ondas (líneas curvas)'];
-                $grupoZigzag = ['zigzag', 'zigzag (líneas en picos)'];
-                $grupoFloral = ['floral', 'abstracto', 'floral / hojas', 'abstracto / manchas'];
-                $grupoGeo = ['geométrico', 'cuadros', 'geométrico cerrado (cuadros/rombos/círculos)'];
-                $grupoAnimal = ['animal print'];
+                $gpV = $getGrupoPatron($pV);
+                $gpE = $getGrupoPatron($pE);
 
-                $getGrupoPatron = function ($p) use ($grupoLiso, $grupoRayas, $grupoOndas, $grupoZigzag, $grupoFloral, $grupoGeo, $grupoAnimal) {
-                    if (in_array($p, $grupoLiso)) {
+                if ($gpV !== 0 && $gpE !== 0 && $gpV !== $gpE) {
+                    continue; // MÉTODO POR DESCARTE: El tipo de estampado superior es totalmente distinto
+                }
+            }
+
+            // 3.01 DESCARTE por Patrón Estricto (Zona Inferior) con Fallback P9
+            $patronInfV = $visionProfileV['zona_inferior']['patron'] ?? null;
+            $patronInfE = $analysis->zonaInferior['patron'] ?? null;
+
+            // P9: Si dice "mismo que superior", copiar el valor de zona_superior como fallback
+            if ($patronInfV === 'mismo que superior') {
+                $patronInfV = $visionProfileV['zona_superior']['patron'] ?? null;
+            }
+            if ($patronInfE === 'mismo que superior') {
+                $patronInfE = $analysis->zonaSuperior['patron'] ?? null;
+            }
+
+            if ($patronInfE && $patronInfV) {
+                $pIV = mb_strtolower(trim($patronInfV));
+                $pIE = mb_strtolower(trim($patronInfE));
+
+                $gpIV = $getGrupoPatron($pIV);
+                $gpIE = $getGrupoPatron($pIE);
+
+                if ($gpIV !== 0 && $gpIE !== 0 && $gpIV !== $gpIE) {
+                    continue; // MÉTODO POR DESCARTE: El tipo de estampado inferior es totalmente distinto
+                }
+            }
+
+            // 3.02 DESCARTE por Dirección del Patrón POR ZONA (P1 + P4)
+            // Función de grupo de dirección: vertical/diagonal → grupo 1, horizontal/zigzag/ondas → grupo 2
+            $getGrupoDireccion = function (?string $d): int {
+                if ($d === null) {
+                    return 0;
+                }
+                $d = mb_strtolower(trim($d));
+                if (in_array($d, ['vertical', 'diagonal'])) {
+                    return 1; // P4: diagonal ≈ vertical (ángulo de foto)
+                }
+                if (in_array($d, ['horizontal', 'zigzag', 'ondas curvas'])) {
+                    return 2;
+                }
+
+                return 0; // 'sin dirección', 'espiral', etc → no descartar
+            };
+
+            // Zona Superior: Dirección por zona (nuevo campo) con fallback a global
+            $dirSupV = $visionProfileV['zona_superior']['patron_direccion']
+                ?? $visionProfileV['paleta_colores']['patron_direccion']
+                ?? null;
+            $dirSupE = $analysis->zonaSuperior['patron_direccion']
+                ?? $analysis->paletaColores['patron_direccion']
+                ?? null;
+
+            $gdSupV = $getGrupoDireccion($dirSupV);
+            $gdSupE = $getGrupoDireccion($dirSupE);
+
+            if ($gdSupV !== 0 && $gdSupE !== 0 && $gdSupV !== $gdSupE) {
+                continue; // MÉTODO POR DESCARTE: Dirección del patrón superior opuesta
+            }
+
+            // Zona Inferior: Dirección por zona con fallback
+            $dirInfV = $visionProfileV['zona_inferior']['patron_direccion'] ?? null;
+            $dirInfE = $analysis->zonaInferior['patron_direccion'] ?? null;
+
+            // P9: Si dice "mismo que superior", usar la dirección de zona superior
+            if ($dirInfV === 'mismo que superior') {
+                $dirInfV = $dirSupV;
+            }
+            if ($dirInfE === 'mismo que superior') {
+                $dirInfE = $dirSupE;
+            }
+
+            $gdInfV = $getGrupoDireccion($dirInfV);
+            $gdInfE = $getGrupoDireccion($dirInfE);
+
+            if ($gdInfV !== 0 && $gdInfE !== 0 && $gdInfV !== $gdInfE) {
+                continue; // MÉTODO POR DESCARTE: Dirección del patrón inferior opuesta
+            }
+
+            // 3.03 P10: DESCARTE por Textura (crochet vs satén, etc.)
+            $texturaV = $visionProfileV['zona_superior']['textura'] ?? null;
+            $texturaE = $analysis->zonaSuperior['textura'] ?? null;
+            if ($texturaE && $texturaV) {
+                $tV = mb_strtolower(trim($texturaV));
+                $tE = mb_strtolower(trim($texturaE));
+
+                $grupoTexturaTejido = ['crochet', 'calado', 'tejido punto', 'acanalado'];
+                $grupoTexturaFino = ['satinado', 'brillante', 'encaje'];
+                $grupoTexturaMate = ['liso', 'mate'];
+
+                $getGrupoTextura = function ($t) use ($grupoTexturaTejido, $grupoTexturaFino, $grupoTexturaMate) {
+                    if (in_array($t, $grupoTexturaTejido)) {
                         return 1;
                     }
-                    if (in_array($p, $grupoRayas)) {
+                    if (in_array($t, $grupoTexturaFino)) {
                         return 2;
                     }
-                    if (in_array($p, $grupoOndas)) {
+                    if (in_array($t, $grupoTexturaMate)) {
                         return 3;
-                    }
-                    if (in_array($p, $grupoZigzag)) {
-                        return 4;
-                    }
-                    if (in_array($p, $grupoFloral)) {
-                        return 5;
-                    }
-                    if (in_array($p, $grupoGeo)) {
-                        return 6;
-                    }
-                    if (in_array($p, $grupoAnimal)) {
-                        return 7;
                     }
 
                     return 0;
                 };
 
-                $gpV = $getGrupoPatron($pV);
-                $gpE = $getGrupoPatron($pE);
+                $gtV = $getGrupoTextura($tV);
+                $gtE = $getGrupoTextura($tE);
 
-                if ($gpV !== 0 && $gpE !== 0 && $gpV !== $gpE) {
-                    continue; // MÉTODO POR DESCARTE: El tipo de estampado (ondas vs zigzag) es totalmente distinto
+                if ($gtV !== 0 && $gtE !== 0 && $gtV !== $gtE) {
+                    $similarity *= 0.80; // Penalización fuerte: una tela tejida no es una tela satinada
                 }
             }
 
@@ -463,15 +572,60 @@ class ImageAnalyzer extends BaseGeminiService
                 $similarity *= 0.70; // Penalización severa del 30% por discrepancia estructural de accesorio clave
             }
 
-            // 4. Boost por Color Principal
-            $colorV = $visionProfileV['paleta_colores']['colores'][0] ?? $variante->color ?? null;
+            // 4. Boost por Color — P3: Comparación por zona + P6: Aliases
             $esMismoColor = false;
-            if ($colorExtraido && $colorV) {
-                // Validación un poco más flexible para el color principal
-                if (str_contains(mb_strtolower(trim($colorV)), mb_strtolower(trim($colorExtraido))) ||
-                    str_contains(mb_strtolower(trim($colorExtraido)), mb_strtolower(trim($colorV)))) {
-                    $similarity *= 1.10;
-                    $esMismoColor = true;
+
+            // Helper para comparar colores usando aliases del sistema
+            $coloresCoinciden = function (?string $c1, ?string $c2): bool {
+                if ($c1 === null || $c2 === null) {
+                    return false;
+                }
+                $c1 = mb_strtolower(trim($c1));
+                $c2 = mb_strtolower(trim($c2));
+                if ($c1 === $c2) {
+                    return true;
+                }
+
+                // P6: Usar aliases de PerfilVisionFallback para normalización semántica
+                $aliases1 = PerfilVisionFallback::aliasesParaColor($c1);
+                $aliases2 = PerfilVisionFallback::aliasesParaColor($c2);
+
+                return ! empty(array_intersect($aliases1, $aliases2))
+                    || in_array($c2, $aliases1)
+                    || in_array($c1, $aliases2);
+            };
+
+            // P3: Comparar colores por ZONA (superior e inferior)
+            $colorSupV = $visionProfileV['zona_superior']['color'] ?? null;
+            $colorSupE = $analysis->zonaSuperior['color'] ?? null;
+            $colorInfV = $visionProfileV['zona_inferior']['color'] ?? null;
+            $colorInfE = $analysis->zonaInferior['color'] ?? null;
+
+            $supCoincide = $coloresCoinciden($colorSupV, $colorSupE);
+            $infCoincide = $coloresCoinciden($colorInfV, $colorInfE);
+
+            if ($supCoincide && $infCoincide) {
+                // Ambas zonas coinciden en color → boost fuerte
+                $similarity *= 1.12;
+                $esMismoColor = true;
+            } elseif ($supCoincide || $infCoincide) {
+                // Solo una zona coincide → boost moderado
+                $similarity *= 1.05;
+                $esMismoColor = true;
+            } else {
+                // Detección de colores invertidos (rojo arriba/negro abajo vs negro arriba/rojo abajo)
+                $supInvertido = $coloresCoinciden($colorSupV, $colorInfE);
+                $infInvertido = $coloresCoinciden($colorInfV, $colorSupE);
+
+                if ($supInvertido && $infInvertido) {
+                    $similarity *= 0.75; // Penalización: mismos colores pero distribución espacial invertida
+                } else {
+                    // Fallback: comparar color principal global (comportamiento original mejorado)
+                    $colorV = $visionProfileV['paleta_colores']['colores'][0] ?? $variante->color ?? null;
+                    if ($coloresCoinciden($colorExtraido, $colorV)) {
+                        $similarity *= 1.08;
+                        $esMismoColor = true;
+                    }
                 }
             }
             // --- FIN BÚSQUEDA HÍBRIDA ---

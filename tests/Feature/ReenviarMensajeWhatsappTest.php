@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Jobs\SendWhatsappMessageJob;
+use App\Models\Customer;
 use App\Models\Message;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -28,6 +29,12 @@ class ReenviarMensajeWhatsappTest extends TestCase
         ]);
 
         $user = User::factory()->create();
+
+        Customer::factory()->create([
+            'phone_number' => '51920772139',
+            'last_inbound_at' => now(),
+            'ia_paused' => true,
+        ]);
 
         $message = Message::query()->create([
             'message_id' => 'wamid.old123',
@@ -117,6 +124,12 @@ class ReenviarMensajeWhatsappTest extends TestCase
         ]);
 
         $user = User::factory()->create();
+
+        Customer::factory()->create([
+            'phone_number' => '51920772139',
+            'last_inbound_at' => now(),
+            'ia_paused' => true,
+        ]);
 
         $message = Message::query()->create([
             'message_id' => 'wamid.failtext',
