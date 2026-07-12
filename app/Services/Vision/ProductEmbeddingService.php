@@ -68,17 +68,51 @@ class ProductEmbeddingService extends BaseGeminiService
         // Priorizar huella_forma (SIN colores) para embeddings.
         // Esto permite que un vestido rojo y uno naranja con la misma forma
         // tengan embeddings casi idénticos, mejorando el match cross-color.
-        $textoParaEmbedding = $vision['huella_forma'] ?? $vision['huella_digital'] ?? null;
+        $textoBase = $vision['huella_forma'] ?? $vision['huella_digital'] ?? null;
 
-        if (empty($textoParaEmbedding)) {
+        if (empty($textoBase)) {
             Log::warning('ProductEmbeddingService: Variante sin huella_forma ni huella_digital. Usando fallback básico.', [
                 'variant_id' => $variant->id,
             ]);
             // Fallback súper básico por si hay productos viejos sin el nuevo vision_profile
             $nombreProducto = $product->name ?? 'Prenda';
             $color = $variant->color ?? 'Desconocido';
-            $textoParaEmbedding = "{$nombreProducto} color {$color}";
+
+            return $this->generarEmbeddingTexto("{$nombreProducto} color {$color}");
         }
+
+        // P5: Enriquecer con información estructural de zonas para capturar diferencias finas
+        $partes = [$textoBase];
+
+        // Patrón y dirección por zona superior
+        $patronSup = $vision['zona_superior']['patron'] ?? null;
+        $dirSup = $vision['zona_superior']['patron_direccion'] ?? $vision['paleta_colores']['patron_direccion'] ?? null;
+        $texturaSup = $vision['zona_superior']['textura'] ?? null;
+        if ($patronSup) {
+            $partes[] = "Patrón superior: {$patronSup}".($dirSup ? " dirección {$dirSup}" : '');
+        }
+        if ($texturaSup) {
+            $partes[] = "Textura: {$texturaSup}";
+        }
+
+        // Patrón y dirección por zona inferior
+        $patronInf = $vision['zona_inferior']['patron'] ?? null;
+        $dirInf = $vision['zona_inferior']['patron_direccion'] ?? null;
+        if ($patronInf && $patronInf !== 'mismo que superior') {
+            $partes[] = "Patrón inferior: {$patronInf}".($dirInf && $dirInf !== 'mismo que superior' ? " dirección {$dirInf}" : '');
+        }
+
+        // Descripción ultra-detallada del patrón (P2)
+        $descPatron = $vision['analisis_ultra_detallado']['descripcion_patron'] ?? null;
+        $descTextura = $vision['analisis_ultra_detallado']['descripcion_textura'] ?? null;
+        if ($descPatron) {
+            $partes[] = $descPatron;
+        }
+        if ($descTextura) {
+            $partes[] = $descTextura;
+        }
+
+        $textoParaEmbedding = implode(' | ', $partes);
 
         return $this->generarEmbeddingTexto($textoParaEmbedding);
     }

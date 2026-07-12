@@ -139,15 +139,21 @@ class AgenteVendedor
         $tipo = $metadata['type'] ?? 'text';
 
         if ($tipo === 'image') {
+            $caption = trim((string) $mensaje->content);
+            $captionText = '';
+            if ($caption !== '' && $caption !== '📷 Imagen' && $caption !== '[non-text]') {
+                $captionText = "\n[MENSAJE DE LA CLIENTA]: \"{$caption}\"\n";
+            }
+
             $visionMeta = is_array($metadata['vision'] ?? null) ? $metadata['vision'] : [];
             $visionFailed = (bool) ($metadata['vision_failed'] ?? false);
 
             if ($visionFailed) {
                 $errorMsg = is_string($metadata['vision_error'] ?? null) ? $metadata['vision_error'] : '';
 
-                return '[La clienta envió una imagen/comprobante pero no se pudo analizar automáticamente.'.
+                return '[SISTEMA: La clienta envió una imagen/comprobante pero no se pudo analizar automáticamente.'.
                        ($errorMsg !== '' ? ' Error: '.$errorMsg.'.' : '').
-                       ' Pídele amablemente que describa brevemente qué envió (comprobante, producto, talla, color, etc.).]';
+                       ' Pídele amablemente que describa brevemente qué envió.]'.$captionText;
             }
 
             $inboundProfile = is_array($visionMeta['inbound_profile'] ?? null)
@@ -160,7 +166,7 @@ class AgenteVendedor
                 $monto = $inboundProfile['monto'] ?? 'no especificado';
                 $titular = $inboundProfile['nombre_titular'] ?? 'no especificado';
 
-                return "[La clienta envió una IMAGEN/CAPTURA que parece ser un COMPROBANTE DE PAGO].\n".
+                return "[SISTEMA: La clienta envió una IMAGEN/CAPTURA que parece ser un COMPROBANTE DE PAGO].{$captionText}\n".
                        "Datos extraídos por el sistema:\n".
                        "- Método: {$metodo}\n".
                        "- Monto visible: {$monto}\n".
@@ -168,7 +174,7 @@ class AgenteVendedor
                        'INSTRUCCIÓN OBLIGATORIA: Si ya tienes TODOS los datos de envío (Para Motorizado: Nombre, Celular, Distrito, Dirección. Para Shalom: Nombre, DNI, Celular, Provincia/Distrito, Agencia), usa `registrar_comprobante_recibido` AHORA MISMO. Si FALTAN datos, usa `actualizar_pedido` y PÍDELOS en tu respuesta ANTES de registrar el comprobante. NUNCA asumas que esto es una prenda de ropa.';
             }
 
-            return '[La clienta envió una imagen]. Si la imagen parece un voucher o captura de pago (yape, transferencia, etc), usa `registrar_comprobante_recibido` SOLO si ya tienes sus datos de envío completos. NUNCA asumas que esto es una prenda de ropa.';
+            return "[SISTEMA: La clienta envió una imagen].{$captionText} Si la imagen parece un voucher o captura de pago (yape, transferencia, etc), usa `registrar_comprobante_recibido` SOLO si ya tienes sus datos de envío completos. NUNCA asumas que esto es una prenda de ropa.";
         }
 
         if ($tipo === 'audio') {

@@ -46,6 +46,7 @@ REGLAS DE PRECISIÓN ESTRUCTURAL (PENALIZACIÓN SI FALLAS):
 1. TIRANTES vs MANGA CERO: Si la prenda se sujeta a los hombros mediante tiras (delgadas o gruesas) y deja al descubierto los hombros y clavículas, es OBLIGATORIAMENTE "tirantes", NUNCA "cero". "Cero" significa que la tela principal llega hasta el cuello pero no tiene mangas (ej: cuello halter alto).
 2. CUELLO CERRADO vs ABIERTO: Si se ve la piel del pecho por debajo de las clavículas o hay escote, la apertura es OBLIGATORIAMENTE "abierto" o "profundo". Solo es "cerrado" si la tela cubre por completo hasta la base del cuello sin mostrar piel.
 3. CONJUNTOS vs ENTERIZOS: Detecta si visualmente parece un "conjunto" (top y falda separados o con franjas sólidas que los separan claramente en la cintura).
+4. DIRECCIÓN DEL PATRÓN (CRÍTICO): Analiza con extremo cuidado si las líneas/rayas/ondas van en dirección HORIZONTAL (de izquierda a derecha) o VERTICAL (de arriba a abajo). Si la zona superior tiene rayas verticales y la inferior tiene rayas horizontales, DEBES reportarlas por separado en cada zona. NUNCA generalices la dirección.
 
 ANÁLISIS POR ZONAS ANATÓMICAS:
 Analiza la prenda dividiéndola mentalmente en zonas.
@@ -69,6 +70,7 @@ FORMATO JSON OBLIGATORIO (sin markdown, sin bloques de código, sin comentarios)
     "manga_tipo": "larga|tres cuartos|corta|cero|tirantes|campana|globo|asimétrica",
     "hombros": "cubiertos|descubiertos|un hombro|con hombreras|caídos",
     "patron": "liso|rayas (líneas rectas)|ondas (líneas curvas)|zigzag (líneas en picos)|floral / hojas|geométrico cerrado|animal print|abstracto / manchas",
+    "patron_direccion": "horizontal|vertical|diagonal|sin dirección",
     "color": "color dominante en esta zona",
     "textura": "liso|acanalado|calado|crochet|encaje|satinado|brillante|mate|tejido punto"
   },
@@ -78,6 +80,7 @@ FORMATO JSON OBLIGATORIO (sin markdown, sin bloques de código, sin comentarios)
   },
   "zona_inferior": {
     "patron": "liso|rayas (líneas rectas)|ondas (líneas curvas)|zigzag (líneas en picos)|floral / hojas|geométrico cerrado|animal print|abstracto / manchas|mismo que superior",
+    "patron_direccion": "horizontal|vertical|diagonal|mismo que superior|sin dirección",
     "color": "color dominante en esta zona",
     "caida": "recta|acampanada|sirena|tubo|plisada|con vuelo|asimétrica",
     "largo": "mini (sobre rodilla)|midi (a media pierna)|maxi (hasta tobillo/piso)|corto",
@@ -95,7 +98,7 @@ FORMATO JSON OBLIGATORIO (sin markdown, sin bloques de código, sin comentarios)
   },
   "ajuste_fit": "ajustado bodycon|semi ajustado|recto|holgado|oversize|sirena",
   "huella_digital": "Oración muy detallada (hasta 100 palabras) combinando TODA la estructura exacta de la prenda, colores por zona, y la descripción microscópica del patrón y la textura extraídos previamente. Debe ser infalible.",
-  "huella_forma": "Oración muy detallada (hasta 80 palabras) combinando TODA la estructura exacta de la prenda y la descripción microscópica del patrón y la textura, pero EXCLUYENDO POR COMPLETO CUALQUIER MENCIÓN A LOS COLORES. Usa esta para identificar la geometría del vestido."
+  "huella_forma": "Oración muy detallada (hasta 120 palabras) combinando TODA la estructura exacta de la prenda, la descripción microscópica del patrón, la textura, Y LA DIRECCIÓN DE LAS LÍNEAS/RAYAS POR ZONA (ej: rayas verticales en zona superior, liso en zona inferior), pero EXCLUYENDO POR COMPLETO CUALQUIER MENCIÓN A LOS COLORES. DEBE incluir obligatoriamente: tipo de patrón por zona, dirección del patrón por zona, tipo de textura y tipo de caída. Usa esta para identificar la geometría del vestido."
 }
 PROMPT;
     }

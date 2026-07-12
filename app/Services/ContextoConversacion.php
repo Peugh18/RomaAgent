@@ -179,13 +179,13 @@ class ContextoConversacion
 
         $memoriaVisualTexto = '';
         $cacheKey = "agente_memoria_visual_cliente_{$customer->id}";
-        $memoriaActual = \Illuminate\Support\Facades\Cache::get($cacheKey, []);
-        
-        if (is_array($memoriaActual) && !empty($memoriaActual)) {
+        $memoriaActual = Cache::get($cacheKey, []);
+
+        if (is_array($memoriaActual) && ! empty($memoriaActual)) {
             $nombres = collect($memoriaActual)
-                ->map(fn($m) => "'{$m['product_name']}' en color '{$m['color']}'")
+                ->map(fn ($m) => "'{$m['product_name']}' en color '{$m['color']}'")
                 ->implode(', ');
-            
+
             if (count($memoriaActual) === 1) {
                 $memoriaVisualTexto = "MEMORIA VISUAL: Hace poco el sistema detectó que la clienta envió o vio una foto del producto {$nombres}. Si la clienta dice 'quiero ese', 'dame ese' o referencias similares sin especificar nombre, asume que se refiere a este producto y usa actualizar_pedido para agregarlo.\n\n---\n\n";
             } else {
@@ -359,7 +359,8 @@ Debes llevar la venta respetando este orden exacto sin saltarte pasos:
 1. **IDENTIFICACIÓN Y BREVEDAD EXTREMA:**
    - Si recibes una IMAGEN (captura de pantalla, ej. de TikTok Live), intenta identificar TODOS los productos visibles.
    - Responde SIEMPRE de forma sumamente BREVE, PUNTUAL y AMABLE: Saludo cálido y de trato educado, nombre del producto encontrado, su color, precio exacto del catálogo y una descripción muy corta. NO envíes párrafos largos ni rellenes.
-   - Si no encuentras algún producto de la imagen, ofrece productos similares del catálogo antes de pedirle el nombre manualmente. NUNCA inventes productos inexistentes.
+   - Si no encuentras algún producto de la imagen o texto (luego de buscar exhaustivamente), infórmale de manera amable y muy breve que no lograste identificar el producto, e invítala a revisar nuestro catálogo oficial aquí: https://wa.me/c/51912874650
+   - Si no encuentras el producto exacto pero hay similares, ofrece los similares antes de rendirte. NUNCA inventes productos inexistentes.
 
 2. **SELECCIÓN DE VARIANTES Y CIERRE DE CARRITO:**
    - Si el catálogo indica tallas (S, M, L), pregunta la talla. Si es "Standard", NO la preguntes.

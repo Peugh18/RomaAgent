@@ -162,6 +162,25 @@ class ContratoMensajeWhatsapp
             return $etiqueta;
         }
 
+        if ($messageType === 'order' || ($payload['interactive']['reply_type'] ?? '') === 'order') {
+            $items = is_array($payload['interactive']['product_items'] ?? null) ? $payload['interactive']['product_items'] : [];
+            $text = "🛒 [PEDIDO DESDE CATÁLOGO WHATSAPP]\n";
+            foreach ($items as $item) {
+                $q = $item['quantity'] ?? 1;
+                $price = ($item['item_price'] ?? 0) / 100;
+                $text .= "- {$q}x Producto/SKU: ".($item['product_retailer_id'] ?? 'Desconocido')."\n";
+            }
+            if (! empty($payload['interactive']['text'])) {
+                $text .= "Mensaje adjunto: \"{$payload['interactive']['text']}\"\n";
+            }
+
+            return trim($text);
+        }
+
+        if (($payload['interactive']['reply_type'] ?? '') === 'product_reply') {
+            return "👗 [CONSULTA DE PRODUCTO DESDE CATÁLOGO]\nProducto/SKU: ".($payload['interactive']['product_retailer_id'] ?? 'Desconocido');
+        }
+
         if ($content === '' && ! empty($payload['interactive']['title'])) {
             return (string) $payload['interactive']['title'];
         }

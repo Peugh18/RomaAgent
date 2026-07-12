@@ -150,9 +150,11 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
         // Flujo directo de Roma Store para optimizar conversión y asegurar adherencia a la marca:
         // Si el mensaje es una imagen y ya se resolvió y respondió directamente,
         // saltamos el agente de IA para evitar respuestas redundantes.
-        $esComprobante = ($message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? '') === 'comprobante';
+        $esComprobante = (($message->metadata['vision'] ?? [])['inbound_profile']['tipo_mensaje'] ?? '') === 'comprobante';
+        $visionFailed = (bool) ($message->metadata['vision_failed'] ?? false);
+        $encontrado = (bool) (($message->metadata['vision'] ?? [])['encontrado'] ?? false);
 
-        if ($type === 'image' && $enriquecido && ! $esComprobante) {
+        if ($type === 'image' && $enriquecido && ! $esComprobante && ! $visionFailed && $encontrado) {
             return;
         }
 
@@ -372,10 +374,6 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
                     $enviarMensaje->handle($phone, "Modelo {$nombre} en color {$color}", null, $imageUrl);
                 }
             }
-        } else {
-            // El usuario solicitó no enviar recomendaciones "similares" para no confundir.
-            // Si no es un match exacto (100% asertivo), pedimos el nombre o mejor foto del vestido.
-            $enviarMensaje->handle($phone, 'No logré identificar el vestido. Por favor, indícame el nombre de la prenda o envíame una foto más clara donde se vea completa.');
         }
 
         return true;

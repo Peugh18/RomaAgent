@@ -59,7 +59,22 @@ class NormalizadorWebhookMeta
                     'id' => $interactivePayload['list_reply']['id'] ?? '',
                     'title' => $interactivePayload['list_reply']['title'] ?? '',
                 ];
+            } elseif (($interactivePayload['type'] ?? '') === 'product_reply') {
+                $eventType = 'interactive_product_reply';
+                $interactive = [
+                    'reply_type' => 'product_reply',
+                    'product_retailer_id' => $interactivePayload['product_reply']['product_retailer_id'] ?? '',
+                ];
             }
+        } elseif ($type === 'order') {
+            $eventType = 'order';
+            $orderPayload = is_array($message['order'] ?? null) ? $message['order'] : [];
+            $interactive = [
+                'reply_type' => 'order',
+                'catalog_id' => $orderPayload['catalog_id'] ?? '',
+                'text' => $orderPayload['text'] ?? '',
+                'product_items' => $orderPayload['product_items'] ?? [],
+            ];
         }
 
         $imageUrl = null;

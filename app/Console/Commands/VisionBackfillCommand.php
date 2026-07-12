@@ -34,8 +34,10 @@ class VisionBackfillCommand extends Command
             $variants = $variants->filter(function (ProductVariant $variant): bool {
                 $product = $variant->product;
 
-                return empty($variant->color_profile)
-                    || ($product !== null && empty($product->vision_profile));
+                $colorMissing = empty($variant->color_profile) || ($variant->color_profile['origen'] ?? '') === 'fallback';
+                $visionMissing = $product !== null && (empty($product->vision_profile) || ($product->vision_profile['origen'] ?? '') === 'fallback');
+
+                return $colorMissing || $visionMissing;
             })->values();
         }
 
