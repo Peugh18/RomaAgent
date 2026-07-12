@@ -4,13 +4,10 @@ import { Package, Clock, CalendarDays } from 'lucide-vue-next';
 import { useCurrency } from '@/composables/useCurrency';
 import { SALE_STATUS_LABELS } from '@/types/sale';
 
-const props = defineProps<{
-    open: boolean;
-    customer: any | null;
-}>();
+const open = defineModel<boolean>('open', { default: false });
 
-const emit = defineEmits<{
-    'update:open': [value: boolean];
+const props = defineProps<{
+    customer: any | null;
 }>();
 
 const { format: formatMoney } = useCurrency();
@@ -28,7 +25,7 @@ const formatDate = (dateString: string) => {
 </script>
 
 <template>
-    <Sheet :open="open" @update:open="emit('update:open', $event)">
+    <Sheet v-model:open="open">
         <SheetContent side="right" class="w-full max-w-md p-0 sm:max-w-md bg-[#f9fafb] dark:bg-card">
             <SheetHeader class="border-b border-border bg-muted/30 px-4 py-4 text-left">
                 <SheetTitle class="text-base flex items-center gap-2">
@@ -45,8 +42,14 @@ const formatDate = (dateString: string) => {
                     Cargando historial...
                 </div>
                 
-                <div v-else-if="!customer.sales || customer.sales.length === 0" class="text-sm text-center text-muted-foreground py-8">
-                    Este cliente aún no tiene compras registradas.
+                <div v-else-if="!customer.sales || customer.sales.length === 0" class="flex flex-col items-center justify-center text-center py-16 px-4">
+                    <div class="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                        <Package class="h-8 w-8 text-muted-foreground/50" />
+                    </div>
+                    <h3 class="text-lg font-semibold text-foreground mb-1">Sin historial de compras</h3>
+                    <p class="text-sm text-muted-foreground">
+                        Este cliente aún no ha registrado ninguna compra en el sistema.
+                    </p>
                 </div>
 
                 <div v-else v-for="sale in customer.sales" :key="sale.id" class="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden">

@@ -57,7 +57,7 @@ class ClienteGemini
             $contents = $this->construirContents($historialMensajes);
 
             $response = Http::withHeaders($this->headersApi())
-                ->timeout(30)
+                ->timeout(15)
                 ->connectTimeout(10)
                 ->retry(2, 200, throw: false)
                 ->post($url, [
@@ -305,7 +305,7 @@ class ClienteGemini
         }
 
         $response = Http::withHeaders($this->headersApi())
-            ->timeout(45)
+            ->timeout(15)
             ->connectTimeout(10)
             ->retry(2, 200, throw: false)
             ->post($url, $payload);
