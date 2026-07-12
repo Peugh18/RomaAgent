@@ -296,6 +296,8 @@ class ProcessMediaThenRespondJob implements ShouldBeUnique, ShouldQueue
 
         if ($esComprobante) {
             $contenido .= "\n\n[La clienta envió una IMAGEN/CAPTURA que parece ser un COMPROBANTE DE PAGO]";
+        } elseif (! $encontrado && ($inboundProfile['tipo_mensaje'] ?? '') === 'producto') {
+            $contenido .= "\n\n[SISTEMA INTERNO: La clienta envió una foto buscando una prenda. El buscador visual confirmó que NO TENEMOS ese modelo en stock. OBLIGATORIO: Dile amablemente que no contamos con ese modelo exacto y ofrécele ver otras opciones del catálogo. NUNCA inventes que sí lo tienes.]";
         }
 
         $message->content = $contenido;

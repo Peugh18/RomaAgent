@@ -91,7 +91,6 @@ class ProcessMediaThenRespondJobTest extends TestCase
                     ['content' => ['parts' => [[
                         'text' => json_encode([
                             'tipo_mensaje' => 'comprobante',
-                            'es_comprobante' => true,
                             'encontrado' => false,
                             'nombre_vestido' => '',
                             'color' => '',
@@ -142,17 +141,36 @@ class ProcessMediaThenRespondJobTest extends TestCase
         }
         file_put_contents($fullPath, 'fake-jpeg');
 
+        \App\Models\Product::create([
+            'id' => 1,
+            'name' => 'Aurora',
+            'status' => \App\Models\Product::ESTADO_DISPONIBLE,
+            'price' => 120.00,
+        ]);
+        \App\Models\ProductVariant::create([
+            'product_id' => 1,
+            'color' => 'rojo',
+            'image_embedding' => array_fill(0, 3072, 0.1),
+            'sizes_stock' => ['estándar' => 1],
+        ]);
+
         Http::fake([
-            'generativelanguage.googleapis.com/*' => Http::response([
+            '*/models/*:embedContent*' => Http::response([
+                'embedding' => [
+                    'values' => array_fill(0, 3072, 0.1),
+                ],
+            ]),
+            '*/models/*:generateContent*' => Http::response([
                 'candidates' => [
                     ['content' => ['parts' => [[
                         'text' => json_encode([
-                            'tipo_mensaje' => 'prenda',
-                            'encontrado' => true,
-                            'nombre_vestido' => 'Aurora',
-                            'color' => 'rojo',
-                            'stock_detectado' => 1,
-                            'estrategia' => 'textual',
+                            'es_prenda' => true,
+                            'tipo_prenda' => 'vestido',
+                            'zona_cuello' => ['tipo' => 'redondo'],
+                            'zona_superior' => ['manga_tipo' => 'larga', 'color' => 'rojo'],
+                            'zona_inferior' => ['largo' => 'maxi (hasta tobillo/piso)', 'color' => 'rojo'],
+                            'paleta_colores' => ['colores' => ['rojo']],
+                            'descripcion_vectorial' => 'vestido rojo largo',
                         ]),
                     ]]]],
                 ],
@@ -179,8 +197,9 @@ class ProcessMediaThenRespondJobTest extends TestCase
         @unlink($fullPath);
 
         $message->refresh();
+        dd($message->metadata);
         $this->assertArrayNotHasKey('vision_error', $message->metadata);
-        $this->assertSame('producto', $message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? null);
+        $this->assertSame('prenda', $message->metadata['vision']['inbound_profile']['tipo_mensaje'] ?? null);
 
         $this->assertDatabaseHas('messages', [
             'direction' => 'outgoing',

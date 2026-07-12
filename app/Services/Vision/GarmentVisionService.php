@@ -59,7 +59,6 @@ class GarmentVisionService extends BaseGeminiService
             ]],
             'generationConfig' => [
                 'temperature' => 0.1, // Baja temperatura para mayor precisión y determinismo
-                'response_mime_type' => 'application/json',
             ],
         ];
 
@@ -72,22 +71,26 @@ class GarmentVisionService extends BaseGeminiService
             if ($data === null) {
                 return null;
             }
-            
-            // Extraer texto
+
+            // Extraer texto — en modelos con pensamiento pueden llegar múltiples parts.
+            // Concatenamos todos los text parts para no perder el JSON.
             $text = null;
             if (isset($data['candidates'][0]['content']['parts'])) {
+                $textos = [];
                 foreach ($data['candidates'][0]['content']['parts'] as $part) {
-                    if (isset($part['text'])) {
-                        $text = trim($part['text']);
-                        break;
+                    if (isset($part['text']) && trim($part['text']) !== '') {
+                        $textos[] = trim($part['text']);
                     }
                 }
+                if (! empty($textos)) {
+                    $text = implode("\n", $textos);
+                }
             }
-            
+
             if ($text === null) {
                 return null;
             }
-            
+
             return ParseadorRespuestaJsonGemini::parse($text);
         });
 

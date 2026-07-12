@@ -63,6 +63,11 @@ const locationLabel = computed(() => {
 
     return props.message.content || '📍 Ubicación compartida';
 });
+
+// Strip internal system annotations before displaying message content
+const displayContent = (content: string): string => {
+    return content.replace(/\n\n\[SISTEMA INTERNO:.*?\]/gs, '').trim();
+};
 </script>
 
 <template>
@@ -110,11 +115,12 @@ const locationLabel = computed(() => {
                     v-if="
                         message.content &&
                         (!isMediaOnlyLabel(message.content) || !mediaSource(message)) &&
-                        !isSticker
+                        !isSticker &&
+                        !message.content.includes('[SISTEMA INTERNO')
                     "
                     class="whitespace-pre-wrap break-words leading-relaxed"
                 >
-                    {{ message.content }}
+                    {{ displayContent(message.content) }}
                 </p>
                 <div v-if="isSticker && mediaSource(message)" class="inline-flex flex-col items-start gap-1">
                     <img
