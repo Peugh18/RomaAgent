@@ -82,15 +82,15 @@ class RomaMessageController extends Controller
 
     private function fetchConversations(): Collection
     {
-        $latestIds = Message::query()
-            ->selectRaw('MAX(id) as id')
-            ->groupBy('phone_number')
-            ->pluck('id');
-
-        $messages = Message::query()
-            ->whereIn('id', $latestIds)
-            ->orderByDesc('created_at')
+        // OBTENCIÓN OPTIMIZADA: En lugar de un GROUP BY sobre toda la tabla,
+        // traemos los últimos 2000 mensajes (usa el index de ID) y agrupamos en memoria.
+        // Esto previene que la base de datos colapse al llegar a millones de registros.
+        $recentMessages = Message::query()
+            ->orderByDesc('id')
+            ->limit(2000)
             ->get();
+
+        $messages = $recentMessages->unique('phone_number')->take(150)->values();
 
         $customersByPhone = $this->loadCustomersByPhone($messages);
 

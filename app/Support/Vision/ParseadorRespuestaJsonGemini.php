@@ -25,6 +25,12 @@ class ParseadorRespuestaJsonGemini
             return self::enriquecerDesdeTextoCrudo($reparado, $text);
         }
 
+        // Si falló todo, intentamos extraer el primer bloque {...}
+        $extraido = self::extraerBloqueJson($text);
+        if ($extraido !== null) {
+            return self::enriquecerDesdeTextoCrudo($extraido, $text);
+        }
+
         return self::extraerCamposSueltos($text);
     }
 
@@ -44,6 +50,10 @@ class ParseadorRespuestaJsonGemini
     private static function limpiarTexto(string $text): string
     {
         $text = trim($text);
+
+        // Remove <think>...</think> block if present
+        $text = preg_replace('/<think>.*?<\/think>\s*/is', '', $text) ?? $text;
+
         $text = preg_replace('/^```(?:json)?\s*/i', '', $text) ?? $text;
         $text = preg_replace('/\s*```\s*$/', '', $text) ?? $text;
 
@@ -78,6 +88,27 @@ class ParseadorRespuestaJsonGemini
         $decoded = json_decode($candidato, true);
 
         return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * Extrae el primer bloque {...} válido en caso de que haya texto basura antes o después.
+     *
+     * @return array<string, mixed>|null
+     */
+    private static function extraerBloqueJson(string $text): ?array
+    {
+        $inicio = strpos($text, '{');
+        $fin = strrpos($text, '}');
+
+        if ($inicio !== false && $fin !== false && $fin > $inicio) {
+            $jsonBruto = substr($text, $inicio, $fin - $inicio + 1);
+            $decoded = json_decode($jsonBruto, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
     }
 
     /**

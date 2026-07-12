@@ -343,8 +343,8 @@ const eliminarMetodoPago = (index: number) => {
                                 id="mp-numero"
                                 v-model="nuevoMetodoForm.numero_cuenta"
                                 type="tel"
-                                maxlength="9"
-                                placeholder="Ej: 912874650"
+                                :maxlength="metodoSeleccionado?.tipo === 'virtual' ? 9 : 30"
+                                :placeholder="metodoSeleccionado?.tipo === 'virtual' ? 'Ej: 912874650' : 'Número de cuenta o CCI'"
                                 :class="numeroCuentaValido ? 'border-green-500 focus-visible:ring-green-500' : nuevoMetodoForm.numero_cuenta ? 'border-red-500 focus-visible:ring-red-500' : ''"
                                 @input="validarNumeroCuenta"
                             />
@@ -356,6 +356,9 @@ const eliminarMetodoPago = (index: number) => {
                             </p>
                             <p v-else-if="metodoSeleccionado?.tipo === 'virtual'" class="text-xs text-muted-foreground">
                                 Ingresa 9 dígitos para celular (ej: 912345678)
+                            </p>
+                            <p v-else class="text-xs text-muted-foreground">
+                                Ingresa el número de cuenta y/o CCI
                             </p>
                         </div>
 

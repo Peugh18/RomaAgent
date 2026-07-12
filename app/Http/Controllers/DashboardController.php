@@ -40,116 +40,137 @@ class DashboardController extends Controller
             $anteriorFin = now()->subDay()->endOfDay();
         }
 
-        $ventasHoy = (float) Sale::query()
-            ->where('status', '!=', SaleStatus::Cancelado)
-            ->whereBetween('confirmed_at', [$inicio, $fin])
-            ->sum('total_amount');
+        $cacheKey = "dashboard_stats_{$period}";
 
-        $ventasAyer = (float) Sale::query()
-            ->where('status', '!=', SaleStatus::Cancelado)
-            ->whereBetween('confirmed_at', [$anteriorInicio, $anteriorFin])
-            ->sum('total_amount');
+        $data = \Illuminate\Support\Facades\Cache::remember($cacheKey, 300, function () use ($inicio, $fin, $anteriorInicio, $anteriorFin) {
+            $ventasHoy = (float) Sale::query()
+                ->where('status', '!=', SaleStatus::Cancelado)
+                ->whereBetween('confirmed_at', [$inicio, $fin])
+                ->sum('total_amount');
 
-        $ventasMes = (float) Sale::query()
-            ->where('status', '!=', SaleStatus::Cancelado)
-            ->where('confirmed_at', '>=', now()->startOfMonth())
-            ->sum('total_amount');
+            $ventasAyer = (float) Sale::query()
+                ->where('status', '!=', SaleStatus::Cancelado)
+                ->whereBetween('confirmed_at', [$anteriorInicio, $anteriorFin])
+                ->sum('total_amount');
 
-        $pendientesPago = Sale::query()
-            ->whereIn('status', [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido])
-            ->count();
+            $ventasMes = (float) Sale::query()
+                ->where('status', '!=', SaleStatus::Cancelado)
+                ->where('confirmed_at', '>=', now()->startOfMonth())
+                ->sum('total_amount');
 
-        $conversacionesHoy = Message::query()
-            ->whereBetween('created_at', [$inicio, $fin])
-            ->distinct('phone_number')
-            ->count('phone_number');
+            $pendientesPago = Sale::query()
+                ->whereIn('status', [SaleStatus::PagoPendiente, SaleStatus::PagoRecibido])
+                ->count();
 
-        $productosActivos = Product::query()
-            ->where('status', Product::ESTADO_DISPONIBLE)
-            ->count();
+            $conversacionesHoy = Message::query()
+                ->whereBetween('created_at', [$inicio, $fin])
+                ->distinct('phone_number')
+                ->count('phone_number');
 
-        $pedidosActivos = Sale::query()
-            ->whereNotIn('status', [SaleStatus::Cancelado, SaleStatus::Entregado])
-            ->count();
+            $productosActivos = Product::query()
+                ->where('status', Product::ESTADO_DISPONIBLE)
+                ->count();
 
-        $pedidosRecientes = Sale::query()
-            ->with('customer')
-            ->where('status', '!=', SaleStatus::Cancelado)
-            ->latest()
-            ->limit(8)
-            ->get()
-            ->map(fn (Sale $sale): array => [
-                'id' => $sale->id,
-                'product_name' => $sale->product_name,
-                'color' => $sale->color,
-                'phone_number' => $sale->phone_number,
-                'customer_name' => $sale->customer?->name,
-                'total_amount' => (float) $sale->total_amount,
-                'status' => $sale->status->value,
-                'status_label' => $sale->status->label(),
-                'created_at' => $sale->created_at?->toIso8601String(),
-            ]);
+            $pedidosActivos = Sale::query()
+                ->whereNotIn('status', [SaleStatus::Cancelado, SaleStatus::Entregado])
+                ->count();
 
-        $chartData = Sale::query()
-            ->select([
-                DB::raw('DATE(confirmed_at) as date'),
-                DB::raw('SUM(total_amount) as total'),
-                DB::raw('COUNT(*) as orders'),
-            ])
-            ->where('status', '!=', SaleStatus::Cancelado)
-            ->whereNotNull('confirmed_at')
-            ->whereBetween('confirmed_at', [$inicio, $fin])
-            ->groupBy(DB::raw('DATE(confirmed_at)'))
-            ->orderBy(DB::raw('DATE(confirmed_at)'))
-            ->get()
-            ->keyBy('date');
+            $pedidosRecientes = Sale::query()
+                ->with('customer')
+                ->where('status', '!=', SaleStatus::Cancelado)
+                ->latest()
+                ->limit(8)
+                ->get()
+                ->map(fn (Sale $sale): array => [
+                    'id' => $sale->id,
+                    'product_name' => $sale->product_name,
+                    'color' => $sale->color,
+                    'phone_number' => $sale->phone_number,
+                    'customer_name' => $sale->customer?->name,
+                    'total_amount' => (float) $sale->total_amount,
+                    'status' => $sale->status->value,
+                    'status_label' => $sale->status->label(),
+                    'created_at' => $sale->created_at?->toIso8601String(),
+                ]);
 
-        $diferenciaDias = (int) $inicio->diffInDays($fin);
-        $daysArray = $diferenciaDias > 0 ? range(0, $diferenciaDias) : [0];
+            $chartData = Sale::query()
+                ->select([
+                    DB::raw('DATE(confirmed_at) as date'),
+                    DB::raw('SUM(total_amount) as total'),
+                    DB::raw('COUNT(*) as orders'),
+                ])
+                ->where('status', '!=', SaleStatus::Cancelado)
+                ->whereNotNull('confirmed_at')
+                ->whereBetween('confirmed_at', [$inicio, $fin])
+                ->groupBy(DB::raw('DATE(confirmed_at)'))
+                ->orderBy(DB::raw('DATE(confirmed_at)'))
+                ->get()
+                ->keyBy('date');
 
-        $chart = collect($daysArray)->map(function (int $daysAgo) use ($chartData, $fin): array {
-            $date = $fin->copy()->subDays($daysAgo)->startOfDay();
-            $dateStr = $date->toDateString();
-            $data = $chartData->get($dateStr);
+            $diferenciaDias = (int) $inicio->diffInDays($fin);
+            $daysArray = $diferenciaDias > 0 ? range(0, $diferenciaDias) : [0];
+
+            $chart = collect($daysArray)->map(function (int $daysAgo) use ($chartData, $fin): array {
+                $date = $fin->copy()->subDays($daysAgo)->startOfDay();
+                $dateStr = $date->toDateString();
+                $dataChart = $chartData->get($dateStr);
+
+                return [
+                    'date' => $dateStr,
+                    'label' => $date->locale('es')->isoFormat('ddd D'),
+                    'sales' => (float) ($dataChart->total ?? 0),
+                    'orders' => (int) ($dataChart->orders ?? 0),
+                ];
+            })->reverse()->values();
+
+            $pipelineOverview = Sale::query()
+                ->where('status', '!=', SaleStatus::Cancelado)
+                ->select('status', DB::raw('COUNT(*) as count'))
+                ->groupBy('status')
+                ->get()
+                ->map(fn ($row): array => [
+                    'status' => $row->status->value,
+                    'label' => $row->status->label(),
+                    'count' => (int) $row->count,
+                ])
+                ->sortByDesc('count')
+                ->values()
+                ->all();
+
+            $lowStockProducts = Product::query()
+                ->with('variants')
+                ->where('status', '!=', Product::ESTADO_OCULTO)
+                ->get()
+                ->map(function (Product $product): array {
+                    return [
+                        'id' => $product->id,
+                        'name' => $product->name,
+                        'stock' => $product->stockTotal(),
+                    ];
+                })
+                ->filter(fn (array $p): bool => $p['stock'] < 5)
+                ->sortBy('stock')
+                ->values()
+                ->take(10)
+                ->all();
 
             return [
-                'date' => $dateStr,
-                'label' => $date->locale('es')->isoFormat('ddd D'),
-                'sales' => (float) ($data->total ?? 0),
-                'orders' => (int) ($data->orders ?? 0),
+                'ventasHoy' => $ventasHoy,
+                'ventasAyer' => $ventasAyer,
+                'ventasMes' => $ventasMes,
+                'pendientesPago' => $pendientesPago,
+                'conversacionesHoy' => $conversacionesHoy,
+                'productosActivos' => $productosActivos,
+                'pedidosActivos' => $pedidosActivos,
+                'pedidosRecientes' => $pedidosRecientes,
+                'chart' => $chart,
+                'pipelineOverview' => $pipelineOverview,
+                'lowStockProducts' => $lowStockProducts,
             ];
-        })->reverse()->values();
+        });
 
-        $pipelineOverview = Sale::query()
-            ->where('status', '!=', SaleStatus::Cancelado)
-            ->select('status', DB::raw('COUNT(*) as count'))
-            ->groupBy('status')
-            ->get()
-            ->map(fn ($row): array => [
-                'status' => $row->status->value,
-                'label' => $row->status->label(),
-                'count' => (int) $row->count,
-            ])
-            ->sortByDesc('count')
-            ->values()
-            ->all();
-
-        $lowStockProducts = Product::query()
-            ->with('variants')
-            ->where('status', '!=', Product::ESTADO_OCULTO)
-            ->get()
-            ->map(function (Product $product): array {
-                return [
-                    'id' => $product->id,
-                    'name' => $product->name,
-                    'stock' => $product->stockTotal(),
-                ];
-            })
-            ->filter(fn (array $p): bool => $p['stock'] < 5)
-            ->sortBy('stock')
-            ->values()
-            ->take(10)
-            ->all();
+        // Extraer los datos de la caché para manipularlos
+        extract($data);
 
         $user = auth()->user();
         $isTrabajador = $user && $user->role === UserRole::Trabajador;
